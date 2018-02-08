@@ -1,0 +1,9 @@
+body {
+    font-family: 'Tahoma', sans-serif !important;
+    color: #fff;
+    background-color: #252827;
+    width:250px
+}
+div {
+    padding: 10px;
+}
