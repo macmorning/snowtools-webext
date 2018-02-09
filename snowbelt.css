@@ -1,9 +1,41 @@
 body {
     font-family: 'Tahoma', sans-serif !important;
-    color: #fff;
-    background-color: #252827;
-    width:250px
+    font-size: large;
+    color: #f36d14;
+    background-color: #fff;
+    width:780px;
+    padding: 5px;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
-div {
-    padding: 10px;
+h1 {
+    color: black;
+}
+ul.firstLvlUL {
+    list-style-type: none;
+    font-weight: bold;
+}
+img.instanceFavicon {
+    display: inline;
+    height: 30px;
+    width: 30px;
+    margin-right: 1em;
+}
+ul.linksToTabs {
+    list-style-type: none;
+}
+ul.linksToTabs li:before {
+    content: "\00BB \0020";
+}
+li.linkToTab {
+    cursor: pointer;
+    line-height: 30px;
+    font-weight: normal;
+}
+li.linkToTab:hover {
+    text-decoration-line: underline;
+}
+li.selectedTab {
+    line-height: 30px;
+    color: #666;
 }
