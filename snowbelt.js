@@ -28,10 +28,10 @@ function refreshList () {
         context.tabs[key].forEach(function (tab) {
             context.tabCount++;
             let li = document.createElement("li");
-            if (!tab.selected) {
+            if (!tab.active) {
                 li.className = "linkToTab";
-                li.onclick = switchTab;
             } else { li.className = "selectedTab"; }
+            li.onclick = switchTab;
             li.id = tab.id; // li id is the same as tab id for easy switching
             li.innerHTML = tab.title;
             ul.appendChild(li);

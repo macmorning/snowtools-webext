@@ -35,16 +35,15 @@ ul.linksToTabs {
 ul.linksToTabs li:before {
     content: "\00BB \0020";
 }
-li.linkToTab {
-    cursor: pointer;
+ul.linksToTabs > li {
     line-height: 20px;
+    cursor: pointer;
     font-weight: normal;
 }
-li.linkToTab:hover {
+ul.linksToTabs > li:hover {
     text-decoration-line: underline;
 }
 li.selectedTab {
-    line-height: 30px;
     color: var(--disabled-color);
 }
 input[type=text], select {
