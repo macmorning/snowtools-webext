@@ -1,15 +1,23 @@
+:root {
+    --main-bg-color: #ffffff;
+    --main-color: #f36d14;
+    --secondary-color: #000000;
+    --disabled-color: #888888;
+    --btn-color: var(--main-color);
+    --btn-hover-color:#ce5707;
+}
+  
 body {
     font-family: 'Tahoma', sans-serif !important;
-    font-size: large;
-    color: #f36d14;
-    background-color: #fff;
+    color: var(--main-color);
+    background-color: var(--main-bg-color);
     width:780px;
     padding: 5px;
     overflow-x: hidden;
     overflow-y: auto;
 }
 h1 {
-    color: black;
+    color: var(--secondary-color);
 }
 ul.firstLvlUL {
     list-style-type: none;
@@ -29,7 +37,7 @@ ul.linksToTabs li:before {
 }
 li.linkToTab {
     cursor: pointer;
-    line-height: 30px;
+    line-height: 20px;
     font-weight: normal;
 }
 li.linkToTab:hover {
@@ -37,5 +45,26 @@ li.linkToTab:hover {
 }
 li.selectedTab {
     line-height: 30px;
-    color: #666;
+    color: var(--disabled-color);
+}
+input[type=text], select {
+    width: 100%;
+    padding: 12px 20px;
+    margin: 8px 0;
+    display: inline-block;
+    border: 1px solid var(--main-color);
+    box-sizing: border-box;
+}
+button {
+    width: 100%;
+    background-color: var(--btn-color);
+    color: var(--main-bg-color);
+    padding: 14px 20px;
+    margin: 6px 0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+button:hover {
+    background-color: var(--btn-hover-color);
 }

@@ -1,11 +1,18 @@
 const context = {
-    tabs: {}
+    tabCount: 0,
+    tabs: {},
+    urlFilters: []
 };
 
+/*  switches to the tab with the matching tab id
+ *  @param {event} evt - the event that generated the switch
+ */
 function switchTab (evt) {
     chrome.tabs.update(parseInt(evt.target.id), {active: true});
 }
 
+/*  generates the list of links to the tabs
+ */
 function refreshList () {
     for (var key in context.tabs) {
         let li1 = document.createElement("li");
@@ -19,6 +26,7 @@ function refreshList () {
         ul.className = "linksToTabs";
 
         context.tabs[key].forEach(function (tab) {
+            context.tabCount++;
             let li = document.createElement("li");
             if (!tab.selected) {
                 li.className = "linkToTab";
@@ -28,19 +36,43 @@ function refreshList () {
             li.innerHTML = tab.title;
             ul.appendChild(li);
         });
-
         li1.appendChild(ul);
         document.querySelector("#opened_tabs").appendChild(li1);
     }
+    if (context.tabCount === 0) {
+        let li1 = document.createElement("li");
+        li1.innerHTML += "<h3>No tab found; make sure you configured your URL filters in the options page.</h3>";
+        document.querySelector("#opened_tabs").appendChild(li1);
+    }
 }
+/*
+function getTitle (id) {
+    chrome.tabs.sendMessage(id, {"command": "getTitle"}, function (response) {
+        console.log("received response: " + JSON.stringify(response));
+        window.setTimeout(function () { document.getElementById(id).innerHTML = response.title; }, 500);
+    });
+}
+*/
 
+/*  Initial function that gets the saved preferences and the list of open tabs
+ */
 function bootStrap () {
+    let urlFilters = "service-now.com";
+    if (typeof (Storage) !== "undefined") {
+        urlFilters = localStorage.urlFilters || "service-now.com";
+    }
+    urlFiltersArr = urlFilters.split(";");
+
     var getTabs = function (tabs) {
         tabs.forEach(function (tab) {
-            if (tab.url.toString().indexOf("service-now.com") > -1 ||
-                tab.url.toString().indexOf("navpage.do") > -1 ||
-                tab.url.toString().indexOf("sysparm") > -1) {
-                    
+            let matchFound = false;
+            urlFiltersArr.forEach(function (filter) {
+                if (matchFound || filter.trim() === "") return true;
+                if (tab.url.toString().indexOf(filter.trim()) > -1) {
+                    matchFound = true;
+                }
+            });
+            if (matchFound) {
                 let splittedInstance = tab.url.toString().split("/");
                 tab.instance = splittedInstance[2];
 
@@ -59,12 +91,21 @@ function bootStrap () {
             }
         });
         refreshList();
+        injectScript();
     };
 
     chrome.tabs.query({}, getTabs);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    console.log("script loaded");
     bootStrap();
+    document.querySelector("#go-to-options").addEventListener("click", function () {
+        if (chrome.runtime.openOptionsPage) {
+            // New way to open options pages, if supported (Chrome 42+).
+            chrome.runtime.openOptionsPage();
+        } else {
+            // Reasonable fallback.
+            window.open(chrome.runtime.getURL("options.html"));
+        }
+    });
 });

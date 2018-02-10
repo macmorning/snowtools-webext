@@ -16,5 +16,14 @@
     "default_icon": { "48": "icons/tools-48.png" },
     "default_popup": "snowbelt.html"
   },
-  "permissions": ["tabs"]
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["snowbelt-cs.js"]
+    }
+  ],
+  "options_ui": {
+    "page": "options.html"
+  },
+  "permissions": ["tabs","storage"]
 }
