@@ -2,6 +2,12 @@ const context = {
     knownInstances: {}
 };
 
+function deleteInstance (evt) {
+    let id = evt.target.id.split("#")[1]
+    delete context.knownInstances[id];
+    document.getElementById("knownInstances").removeChild(event.toElement.parentNode); // remove the label element
+    document.getElementById("knownInstances").removeChild(document.getElementById(id)); // remove the input element
+}
 function saveOptions (e) {
     e.preventDefault();
     try {
@@ -33,7 +39,8 @@ function restoreOptions () {
         input.value = context.knownInstances[key];
         let label = document.createElement("label");
         label.setAttribute("for", input.id);
-        label.innerHTML = "Label for " + key + " <a class=\"deleteBtn\" title=\"delete\" href=\"#\" onclick=\"delete(\"" + input.id + "\")\">X</a>";
+        label.innerHTML = "Label for " + key + " <a class=\"deleteBtn\" title=\"delete\" href=\"#\" id=\"del#" + input.id + "\">X</a>";
+        label.onclick = deleteInstance;
         document.getElementById("knownInstances").appendChild(label);
         document.getElementById("knownInstances").appendChild(input);
     }
