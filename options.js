@@ -3,7 +3,7 @@ const context = {
 };
 
 function deleteInstance (evt) {
-    let id = evt.target.id.split("#")[1]
+    let id = evt.target.id.split("#")[1];
     delete context.knownInstances[id];
     document.getElementById("knownInstances").removeChild(event.toElement.parentNode); // remove the label element
     document.getElementById("knownInstances").removeChild(document.getElementById(id)); // remove the input element
