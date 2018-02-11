@@ -1,7 +1,8 @@
 const context = {
     tabCount: 0,
-    tabs: {},
-    urlFilters: []
+    tabs: {}, // array of tabs
+    urlFilters: "",
+    knownInstances: {} // { "url1" : "instance 1 name", "url2" : "instnce 2 name", ...}
 };
 
 /*  switches to the tab with the matching tab id
@@ -16,7 +17,16 @@ function switchTab (evt) {
 function refreshList () {
     for (var key in context.tabs) {
         let li1 = document.createElement("li");
-        li1.innerHTML += "<h3>" + key + "</h3>";
+        let instanceName = "";
+        console.log(context.knownInstances);
+        console.log(context.knownInstances[key]);
+        if (context.knownInstances !== undefined && context.knownInstances[key] !== undefined) {
+            instanceName = context.knownInstances[key];
+        } else {
+            instanceName = key;
+            context.knownInstances[key] = key;
+        }
+        li1.innerHTML += "<h3>" + instanceName + "</h3>";
 
         let img = document.createElement("img");
         img.src = context.tabs[key][0].favIconUrl;
@@ -57,11 +67,7 @@ function getTitle (id) {
 /*  Initial function that gets the saved preferences and the list of open tabs
  */
 function bootStrap () {
-    let urlFilters = "service-now.com";
-    if (typeof (Storage) !== "undefined") {
-        urlFilters = localStorage.urlFilters || "service-now.com";
-    }
-    urlFiltersArr = urlFilters.split(";");
+    let urlFiltersArr = context.urlFilters.split(";");
 
     var getTabs = function (tabs) {
         tabs.forEach(function (tab) {
@@ -91,20 +97,38 @@ function bootStrap () {
             }
         });
         refreshList();
-        injectScript();
+        saveKnownInstances();
     };
 
     chrome.tabs.query({}, getTabs);
 }
 
+function saveKnownInstances () {
+    if (typeof (Storage) !== "undefined") {
+        localStorage.knownInstances = JSON.stringify(context.knownInstances);
+    }
+}
+
+function getOptions () {
+    context.urlFilters = "service-now.com";
+    context.knownInstances = {};
+    if (typeof (Storage) !== "undefined") {
+        context.urlFilters = localStorage.urlFilters || "service-now.com";
+        try {
+            context.knownInstances = JSON.parse(localStorage.knownInstances);
+        } catch (e) {
+            context.knownInstances = {};
+        }
+    }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
+    getOptions();
     bootStrap();
     document.querySelector("#go-to-options").addEventListener("click", function () {
         if (chrome.runtime.openOptionsPage) {
-            // New way to open options pages, if supported (Chrome 42+).
             chrome.runtime.openOptionsPage();
         } else {
-            // Reasonable fallback.
             window.open(chrome.runtime.getURL("options.html"));
         }
     });

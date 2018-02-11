@@ -67,3 +67,7 @@ button {
 button:hover {
     background-color: var(--btn-hover-color);
 }
+.deleteBtn {
+    color: var(--disabled-color);
+    text-decoration: none;   
+}
