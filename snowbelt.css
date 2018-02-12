@@ -2,19 +2,21 @@
     --main-bg-color: #ffffff;
     --main-color: #f36d14;
     --secondary-color: #000000;
+    --alt-bg-color: #e7e7e7;
     --disabled-color: #888888;
     --btn-color: var(--main-color);
     --btn-hover-color:#ce5707;
 }
   
 body {
-    font-family: 'Tahoma', sans-serif !important;
+    font-family: 'Helvetica', sans-serif;
     color: var(--main-color);
     background-color: var(--main-bg-color);
     width:780px;
-    padding: 5px;
+    padding: 9px;
     overflow-x: hidden;
     overflow-y: auto;
+    font-size: 10pt;
 }
 h1 {
     color: var(--secondary-color);
@@ -23,25 +25,22 @@ ul.firstLvlUL {
     list-style-type: none;
     font-weight: bold;
 }
-img.instanceFavicon {
-    display: inline;
-    height: 30px;
-    width: 30px;
-    margin-right: 1em;
-}
 ul.linksToTabs {
     list-style-type: none;
 }
+ul.linksToTabs li { background: var(--main-bg-color); }
+ul.linksToTabs li:nth-child(odd) { background: var(--alt-bg-color); }
 ul.linksToTabs li:before {
     content: "\00BB \0020";
 }
 ul.linksToTabs > li {
-    line-height: 20px;
+    line-height: 25px;
     cursor: pointer;
-    font-size: large;
+    border: 1px var(--main-bg-color) solid ;
+    border-radius: 4px;
 }
 ul.linksToTabs > li:hover {
-    text-decoration-line: underline;
+    border-color: var(--main-color);
 }
 li.selectedTab {
     color: var(--disabled-color);
@@ -56,7 +55,8 @@ input[type=text], select {
     color: var(--main-color);
 }
 select {
-    font-size: large;
+    font-size: 10pt;
+    font-weight: bold;
 }
 button {
     width: 100%;

@@ -25,11 +25,7 @@ function refreshList () {
             context.knownInstances[key] = key; // save instance url into the knownInstances object
         }
         li1.innerHTML += "<h3>" + instanceName + "</h3>";
-
-        let img = document.createElement("img");
-        img.src = context.tabs[key][0].favIconUrl;
-        img.className = "instanceFavicon";
-
+        
         let ul = document.createElement("ul");
         ul.className = "linksToTabs";
 
