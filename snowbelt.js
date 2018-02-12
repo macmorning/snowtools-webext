@@ -18,13 +18,11 @@ function refreshList () {
     for (var key in context.tabs) {
         let li1 = document.createElement("li");
         let instanceName = "";
-        console.log(context.knownInstances);
-        console.log(context.knownInstances[key]);
         if (context.knownInstances !== undefined && context.knownInstances[key] !== undefined) {
             instanceName = context.knownInstances[key];
         } else {
             instanceName = key;
-            context.knownInstances[key] = key;
+            context.knownInstances[key] = key; // save instance url into the knownInstances object
         }
         li1.innerHTML += "<h3>" + instanceName + "</h3>";
 
@@ -53,6 +51,13 @@ function refreshList () {
         let li1 = document.createElement("li");
         li1.innerHTML += "<h3>No tab found; make sure you configured your URL filters in the options page.</h3>";
         document.querySelector("#opened_tabs").appendChild(li1);
+    }
+    let selectInstance = document.getElementById("new_tab");
+    for (var instanceKey in context.knownInstances) {
+        let option = document.createElement("option");
+        option.text = context.knownInstances[instanceKey];
+        option.setAttribute("value", "https://" + instanceKey);
+        selectInstance.appendChild(option);
     }
 }
 /*
@@ -122,14 +127,20 @@ function getOptions () {
     }
 }
 
+function newTab (evt) {
+    let targetUrl = evt.target.value;
+    chrome.tabs.create({ url: targetUrl });
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     getOptions();
     bootStrap();
-    document.querySelector("#go-to-options").addEventListener("click", function () {
+    document.getElementById("go-to-options").addEventListener("click", function () {
         if (chrome.runtime.openOptionsPage) {
             chrome.runtime.openOptionsPage();
         } else {
             window.open(chrome.runtime.getURL("options.html"));
         }
     });
+    document.getElementById("new_tab").addEventListener("change", newTab);
 });

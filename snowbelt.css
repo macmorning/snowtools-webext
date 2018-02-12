@@ -38,7 +38,7 @@ ul.linksToTabs li:before {
 ul.linksToTabs > li {
     line-height: 20px;
     cursor: pointer;
-    font-weight: normal;
+    font-size: large;
 }
 ul.linksToTabs > li:hover {
     text-decoration-line: underline;
@@ -53,6 +53,10 @@ input[type=text], select {
     display: inline-block;
     border: 1px solid var(--main-color);
     box-sizing: border-box;
+    color: var(--main-color);
+}
+select {
+    font-size: large;
 }
 button {
     width: 100%;
