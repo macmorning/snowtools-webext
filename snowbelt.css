@@ -13,7 +13,7 @@ body {
     color: var(--main-color);
     background-color: var(--main-bg-color);
     width:780px;
-    padding: 9px;
+    padding: 10px 10px 9px 2px;
     overflow-x: hidden;
     overflow-y: auto;
     font-size: 10pt;

@@ -25,7 +25,7 @@ function refreshList () {
             context.knownInstances[key] = key; // save instance url into the knownInstances object
         }
         li1.innerHTML += "<h3>" + instanceName + "</h3>";
-        
+
         let ul = document.createElement("ul");
         ul.className = "linksToTabs";
 
@@ -72,6 +72,12 @@ function bootStrap () {
 
     var getTabs = function (tabs) {
         tabs.forEach(function (tab) {
+            let splittedInstance = tab.url.toString().split("/");
+            tab.instance = splittedInstance[2];
+            if (tab.instance === "signon.service-now.com") {
+                // known non-instance subdomains of service-now.com
+                return false;
+            }
             let matchFound = false;
             urlFiltersArr.forEach(function (filter) {
                 if (matchFound || filter.trim() === "") return true;
@@ -80,9 +86,6 @@ function bootStrap () {
                 }
             });
             if (matchFound) {
-                let splittedInstance = tab.url.toString().split("/");
-                tab.instance = splittedInstance[2];
-
                 let splittedName = tab.title.toString().split("|");
                 if (splittedName.length === 3) {
                     // this is a specific object
@@ -118,6 +121,7 @@ function getOptions () {
         try {
             context.knownInstances = JSON.parse(localStorage.knownInstances);
         } catch (e) {
+            // could not parse the saved data, perhaps someone messed with it
             context.knownInstances = {};
         }
     }
