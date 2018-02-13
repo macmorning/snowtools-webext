@@ -7,16 +7,19 @@
     --btn-color: var(--main-color);
     --btn-hover-color:#ce5707;
 }
-  
 body {
     font-family: 'Helvetica', sans-serif;
     color: var(--main-color);
     background-color: var(--main-bg-color);
     width:780px;
-    padding: 10px 10px 9px 2px;
     overflow-x: hidden;
     overflow-y: auto;
     font-size: 10pt;
+}
+div#container {
+    margin: 10px;
+    width: 95%;
+    margin: auto;
 }
 h1 {
     color: var(--secondary-color);
@@ -28,8 +31,6 @@ ul.firstLvlUL {
 ul.linksToTabs {
     list-style-type: none;
 }
-ul.linksToTabs li { background: var(--main-bg-color); }
-ul.linksToTabs li:nth-child(odd) { background: var(--alt-bg-color); }
 ul.linksToTabs li:before {
     content: "\00BB \0020";
 }
