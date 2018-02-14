@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "Snow tool belt",
-  "version": "0.1.4",
-  "description": "A set of tools for the ServiceNow developpers",
+  "version": "0.1.5",
+  "description": "A set of tools for ServiceNow developpers",
   "homepage_url": "https://github.com/macmorning/snowtools-webext",
   "icons": {
     "48": "icons/tools-48.png"

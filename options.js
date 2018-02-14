@@ -3,6 +3,14 @@ const context = {
 };
 
 /**
+ * Displays a message for a short time.
+ * @param {String} txt Message to display.
+ */
+function displayMessage (txt) {
+    document.getElementById("messages").innerHTML = txt;
+    window.setTimeout(function () { document.getElementById("messages").innerHTML = "&nbsp;"; }, 2500);
+}
+/**
  * Rebuild the knownInstances from the object returned by sortProperties.
  * @param {Array} arr array of items in [[key,value],[key,value],...] format.
  */
@@ -62,7 +70,7 @@ function restoreOptions () {
             input.value = context.knownInstances[key];
             let label = document.createElement("label");
             label.setAttribute("for", input.id);
-            label.innerHTML = "Label for " + key + " <a class=\"deleteBtn\" title=\"delete\" href=\"#\" id=\"del#" + input.id + "\">X</a>";
+            label.innerHTML = "Label for " + key + " <a class=\"deleteBtn\" title=\"delete\" href=\"#\" id=\"del#" + input.id + "\">&#10799;</a>";
             label.onclick = deleteInstance;
             document.getElementById("knownInstances").appendChild(label);
             document.getElementById("knownInstances").appendChild(input);
@@ -74,11 +82,11 @@ function restoreOptions () {
  * Removes the the known instance from the local context.knownInstances object
  * @param {object} evt the event that triggered the action
  */
-
 function deleteInstance (evt) {
     let id = evt.target.id.split("#")[1];
+    displayMessage("Forgetting about " + id + "...");
     delete context.knownInstances[id];
-    document.getElementById("knownInstances").removeChild(event.toElement.parentNode); // remove the label element
+    document.getElementById("knownInstances").removeChild(evt.target.parentNode); // remove the label element
     document.getElementById("knownInstances").removeChild(document.getElementById(id)); // remove the input element
 }
 
@@ -95,12 +103,11 @@ function saveOptions (evt) {
         }
         sortInstances(sortProperties(context.knownInstances, false));
         localStorage.knownInstances = JSON.stringify(context.knownInstances);
-        document.getElementById("messages").innerHTML = "Options saved!";
+        displayMessage("Options saved!");
     } catch (e) {
         console.log(e);
-        document.getElementById("messages").innerHTML = "Options were not saved. Is localStorage enabled?";
+        displayMessage("Options could not be saved. Is localStorage enabled?");
     }
-    window.setTimeout(function () { document.getElementById("messages").innerHTML = "&nbsp;"; }, 2000);
 }
 
 document.addEventListener("DOMContentLoaded", restoreOptions);

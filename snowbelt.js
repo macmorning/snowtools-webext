@@ -135,7 +135,7 @@ function newTab (evt) {
 document.addEventListener("DOMContentLoaded", function () {
     getOptions();
     bootStrap();
-    document.getElementById("go-to-options").addEventListener("click", function () {
+    document.getElementById("config").addEventListener("click", function () {
         if (chrome.runtime.openOptionsPage) {
             chrome.runtime.openOptionsPage();
         } else {

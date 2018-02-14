@@ -11,15 +11,31 @@ body {
     font-family: 'Helvetica', sans-serif;
     color: var(--main-color);
     background-color: var(--main-bg-color);
-    width:780px;
     overflow-x: hidden;
     overflow-y: auto;
     font-size: 10pt;
 }
+div#config {
+    position: absolute;
+    font-size: 30px;
+    height: 15px;
+    width: 15px;
+    top: 10px; 
+    right: 30px;
+    cursor: pointer;
+}
 div#container {
+    min-width: 500px;
     margin: 10px;
+    padding: 10px;
     width: 95%;
     margin: auto;
+}
+div#options-container {
+    overflow-y: auto;
+    min-height: 400px;
+    margin: 10px;
+    padding: 5px;
 }
 h1 {
     color: var(--secondary-color);
@@ -59,6 +75,9 @@ select {
     font-size: 10pt;
     font-weight: bold;
 }
+label {
+    color: var(--secondary-color);
+}
 button {
     width: 100%;
     background-color: var(--btn-color);
@@ -68,11 +87,14 @@ button {
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    font-size: larger;
+    font-weight: bold;
 }
 button:hover {
     background-color: var(--btn-hover-color);
 }
 .deleteBtn {
     color: var(--disabled-color);
+    font-size: larger;
     text-decoration: none;   
 }
