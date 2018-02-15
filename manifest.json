@@ -17,7 +17,10 @@
   "browser_action": {
     "browser_style": true,
     "default_title": "SNOW Toolbelt",
-    "default_icon": { "48": "icons/tools-48.png" },
+    "default_icon": {
+        "48": "icons/tools-48.png",
+        "128": "icons/tools-128.png"
+    },
     "default_popup": "dialog/snowbelt.html"
   },
   "content_scripts": [
