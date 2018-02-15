@@ -5,14 +5,59 @@ const context = {
     knownInstances: {} // { "url1" : "instance 1 name", "url2" : "instnce 2 name", ...}
 };
 
-/*  switches to the tab with the matching tab id
- *  @param {event} evt - the event that generated the switch
+/**
+ * Switches to the tab that has the same id as the event target
+ * @param {object} evt the event that triggered the action
  */
 function switchTab (evt) {
     chrome.tabs.update(parseInt(evt.target.id), {active: true});
 }
 
-/*  generates the list of links to the tabs
+/**
+ * Creates a new tab and opens the url stored in the value of the event target
+ * @param {object} evt the event that triggered the action
+ */
+function newTab (evt) {
+    let targetUrl = evt.target.value;
+    chrome.tabs.create({ url: targetUrl });
+}
+
+/**
+ * Saves the known instances; called after the open tabs have been parsed
+ */
+function saveKnownInstances () {
+    if (typeof (Storage) !== "undefined") {
+        localStorage.knownInstances = JSON.stringify(context.knownInstances);
+    }
+}
+
+/**
+ * Retrieves saved options
+ */
+function getOptions () {
+    context.urlFilters = "service-now.com";
+    context.knownInstances = {};
+    if (typeof (Storage) !== "undefined") {
+        context.urlFilters = localStorage.urlFilters || "service-now.com";
+        try {
+            context.knownInstances = JSON.parse(localStorage.knownInstances);
+        } catch (e) {
+            // could not parse the saved data, perhaps someone messed with it
+            context.knownInstances = {};
+        }
+    }
+}
+/**
+ * Searches on ServiceNow doc or api sites
+ * @param {object} evt the event that triggered the action
+ */
+function searchNow (evt) {
+    let currentText = document.getElementById("searchInput").value;
+    let targetUrl = (evt.target.id === "search_doc" ? "https://docs.servicenow.com/search?q=" + currentText : "https://developer.servicenow.com/app.do#!/search?category=API&q=" + currentText);
+    chrome.tabs.create({ url: targetUrl });
+}
+/**
+ * Generates the list of links to the tabs
  */
 function refreshList () {
     for (var key in context.tabs) {
@@ -45,7 +90,7 @@ function refreshList () {
     }
     if (context.tabCount === 0) {
         let li1 = document.createElement("li");
-        li1.innerHTML += "<h3>No tab found; make sure you configured your URL filters in the options page.</h3>";
+        li1.innerHTML += "<p class=\"text-muted\">No tab found :( Have you configured your URL filters in the options page?</p>";
         document.querySelector("#opened_tabs").appendChild(li1);
     }
     let selectInstance = document.getElementById("new_tab");
@@ -56,16 +101,9 @@ function refreshList () {
         selectInstance.appendChild(option);
     }
 }
-/*
-function getTitle (id) {
-    chrome.tabs.sendMessage(id, {"command": "getTitle"}, function (response) {
-        console.log("received response: " + JSON.stringify(response));
-        window.setTimeout(function () { document.getElementById(id).innerHTML = response.title; }, 500);
-    });
-}
-*/
 
-/*  Initial function that gets the saved preferences and the list of open tabs
+/**
+ * Initial function that gets the saved preferences and the list of open tabs
  */
 function bootStrap () {
     let urlFiltersArr = context.urlFilters.split(";");
@@ -103,33 +141,7 @@ function bootStrap () {
         refreshList();
         saveKnownInstances();
     };
-
     chrome.tabs.query({}, getTabs);
-}
-
-function saveKnownInstances () {
-    if (typeof (Storage) !== "undefined") {
-        localStorage.knownInstances = JSON.stringify(context.knownInstances);
-    }
-}
-
-function getOptions () {
-    context.urlFilters = "service-now.com";
-    context.knownInstances = {};
-    if (typeof (Storage) !== "undefined") {
-        context.urlFilters = localStorage.urlFilters || "service-now.com";
-        try {
-            context.knownInstances = JSON.parse(localStorage.knownInstances);
-        } catch (e) {
-            // could not parse the saved data, perhaps someone messed with it
-            context.knownInstances = {};
-        }
-    }
-}
-
-function newTab (evt) {
-    let targetUrl = evt.target.value;
-    chrome.tabs.create({ url: targetUrl });
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -143,4 +155,13 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
     document.getElementById("new_tab").addEventListener("change", newTab);
+    document.getElementById("search_doc").addEventListener("click", searchNow);
+    document.getElementById("search_api").addEventListener("click", searchNow);
+    document.getElementById("searchInput").addEventListener("keyup", function (event) {
+        event.preventDefault();
+        if (event.keyCode === 13) {
+            document.getElementById("search_doc").click();
+        }
+    });
+    document.getElementById("searchInput").focus();
 });

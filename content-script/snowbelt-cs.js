@@ -17,7 +17,7 @@ if (document.title === "ServiceNow") {
     const handleTitleChange = function (mutationsList) {
         for (var mutation of mutationsList) {
             if (context.loops > 100) {
-                // we don't want to end in an endless loop
+                // we don't want to end in an endless loop; can happen on login screens, for example.
                 return true;
             } else if (mutation.type === "childList" && mutation.target.text === "ServiceNow") {
                 console.log("*SNOW TOOL BELT* Changed tab title back");
@@ -29,13 +29,3 @@ if (document.title === "ServiceNow") {
     const observer = new MutationObserver(handleTitleChange);
     observer.observe(context.headNode, { attributes: true, childList: true });
 }
-
-/*
-chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-    console.log("received message: " + JSON.stringify(request));
-    if (request.command === "getTitle") {
-        console.log("sending response " + document.getElementById("gsft_main").contentDocument.title);
-        sendResponse({"title": document.getElementById("gsft_main").contentDocument.title});
-    }
-});
-*/

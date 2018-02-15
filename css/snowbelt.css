@@ -24,6 +24,28 @@ div#config {
     right: 30px;
     cursor: pointer;
 }
+div#search {
+    font-size: smaller;
+    height: 20px;
+    width: 420px;
+    margin-bottom: 15px;
+}
+div#search input[type=text] {
+    width: 50%;
+    display: inline-block;
+    padding: 5px 5px;
+    line-height: 10px;
+    color: var(--main-color);
+}
+div#search button {
+    display: inline-block;
+    width: 50px;
+    margin: 3px 3px;
+    padding: 3px 3px;
+    border-radius: 2px;
+    font-size: normal;
+    font-weight: normal;
+}
 div#container {
     min-width: 500px;
     margin: 10px;
@@ -33,8 +55,7 @@ div#container {
 }
 div#options-container {
     overflow-y: auto;
-    min-height: 400px;
-    margin: 10px;
+    height: 400px;
     padding: 5px;
 }
 h1 {
@@ -84,17 +105,35 @@ button {
     color: var(--main-bg-color);
     padding: 14px 20px;
     margin: 6px 0;
-    border: none;
+    border: 1px var(--main-color) solid;
     border-radius: 4px;
+    cursor: pointer;
+    font-size: larger;
+    font-weight: bold;
+}
+button.btn-secondary {
+    background-color: var(--main-bg-color);
+    color: var(--main-color);
+    padding: 14px 20px;
+    margin: 6px 0;
     cursor: pointer;
     font-size: larger;
     font-weight: bold;
 }
 button:hover {
     background-color: var(--btn-hover-color);
+    border-color: var(--btn-hover-color);
+}
+button.btn-secondary:hover {
+    color: var(--main-bg-color);
 }
 .deleteBtn {
     color: var(--disabled-color);
     font-size: larger;
     text-decoration: none;   
+}
+p.text-muted {
+    font-size: small;
+    font-weight: normal;
+    color: var(--disabled-color);
 }
