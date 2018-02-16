@@ -97,7 +97,8 @@ function refreshList () {
     for (var instanceKey in context.knownInstances) {
         let option = document.createElement("option");
         option.text = context.knownInstances[instanceKey];
-        option.setAttribute("value", "https://" + instanceKey);
+        option.setAttribute("value", "https://" + instanceKey + "/nav_to.do?uri=blank.do");
+        option.setAttribute("data-instance", instanceKey);
         selectInstance.appendChild(option);
     }
 }
