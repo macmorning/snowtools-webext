@@ -26,7 +26,7 @@ div#config {
 }
 div#search {
     font-size: smaller;
-    height: 20px;
+    height: 35px;
     width: 420px;
     margin-bottom: 15px;
 }
@@ -61,18 +61,23 @@ div#options-container {
 h1 {
     color: var(--secondary-color);
 }
+h3 {
+    line-height: 10px;
+}
 ul.firstLvlUL {
+    padding-left: 15px;
     list-style-type: none;
-    font-weight: bold;
 }
 ul.linksToTabs {
     list-style-type: none;
+    margin: 0 5px;
 }
 ul.linksToTabs li:before {
-    content: "\00BB \0020";
+    content: "‣ \0020";
 }
 ul.linksToTabs > li {
     line-height: 25px;
+    padding: 0 5px 0 5px;
     cursor: pointer;
     border: 1px var(--main-bg-color) solid ;
     border-radius: 4px;
