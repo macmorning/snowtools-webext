@@ -63,6 +63,7 @@ h1 {
 }
 h3 {
     line-height: 10px;
+    width: 100%;
 }
 ul.firstLvlUL {
     padding-left: 15px;
@@ -84,6 +85,11 @@ ul.linksToTabs > li {
 }
 ul.linksToTabs > li:hover {
     border-color: var(--main-color);
+}
+li.loading {
+    background-image: url("../icons/loading.svg");
+    background-repeat: no-repeat;
+    background-position: 0 15px;
 }
 li.selectedTab {
     color: var(--disabled-color);
@@ -131,6 +137,15 @@ button:hover {
 }
 button.btn-secondary:hover {
     color: var(--main-bg-color);
+}
+.instance-commands {
+    text-align: right;
+    float: right;
+    text-decoration: none;
+    color: var(--disabled-color);
+    font-size: larger;
+}
+.scan-nodes{
 }
 .deleteBtn {
     color: var(--disabled-color);

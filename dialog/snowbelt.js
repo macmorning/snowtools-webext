@@ -23,6 +23,15 @@ function newTab (evt) {
 }
 
 /**
+ * Starts scanning the instance nodes
+ * @param {object} evt the event that triggered the action
+ */
+function scanNode (evt) {
+    let targetInstance = evt.target.getAttribute("data-instance");
+    console.log(targetInstance);
+}
+
+/**
  * Saves the known instances; called after the open tabs have been parsed
  */
 function saveKnownInstances () {
@@ -62,6 +71,7 @@ function searchNow (evt) {
 function refreshList () {
     for (var key in context.tabs) {
         let li1 = document.createElement("li");
+        li1.classList.add("loading");
         let instanceName = "";
         if (context.knownInstances !== undefined && context.knownInstances[key] !== undefined) {
             instanceName = context.knownInstances[key];
@@ -69,10 +79,20 @@ function refreshList () {
             instanceName = key;
             context.knownInstances[key] = key; // save instance url into the knownInstances object
         }
-        li1.innerHTML += "<h3>" + instanceName + "</h3>";
+        let instanceNameH3 = document.createElement("h3");
+        instanceNameH3.innerHTML = instanceName;
+        let instanceCommandsNode = document.createElement("a");
+        instanceCommandsNode.setAttribute("href", "#");
+        instanceCommandsNode.classList.add("instance-commands");
+        instanceCommandsNode.setAttribute("data-instance", key);
+        instanceCommandsNode.innerHTML = "&#9022;";
+        instanceCommandsNode.onclick = scanNode;
+        instanceCommandsNode.title = "scan node";
+        instanceNameH3.appendChild(instanceCommandsNode);
+        li1.appendChild(instanceNameH3);
 
         let ul = document.createElement("ul");
-        ul.className = "linksToTabs";
+        ul.classList.add("linksToTabs");
 
         context.tabs[key].forEach(function (tab) {
             context.tabCount++;
