@@ -29,3 +29,33 @@ if (document.title === "ServiceNow") {
     const observer = new MutationObserver(handleTitleChange);
     observer.observe(context.headNode, { attributes: true, childList: true });
 }
+
+chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+    console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
+    if (request.command === "scanNodes") {
+        console.log("*SNOW TOOL BELT* going to search for nodes");
+        let scans = 0;
+        let maxScans = 30;
+        let nodes = [];
+        let instanceName = window.location.toString().split("/")[2];
+        var myRequest = new Request("https://" + instanceName + "/stats.do");
+        for (var i = 0; i < maxScans; i++) {
+            fetch(myRequest, {credentials: "same-origin"})
+                .then(function (response) {
+                    return response.text();
+                })
+                .then(function (text) {
+                    let m = text.split("<br/>")[1].split(": ")[1];
+                    if (nodes.indexOf(m) === -1) {
+                        console.log("*SNOW TOOL BELT* found " + m);
+                        nodes.push(m);
+                    }
+                    scans++; // increment number of finished scans
+                    if (scans >= maxScans) {
+                        sendResponse({"nodes": nodes});
+                    }
+                });
+        }
+        return true;
+    }
+});

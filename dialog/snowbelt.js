@@ -28,7 +28,12 @@ function newTab (evt) {
  */
 function scanNode (evt) {
     let targetInstance = evt.target.getAttribute("data-instance");
-    console.log(targetInstance);
+    let id = context.tabs[targetInstance][0].id; // we will ask the first tab found for the target instance to scan the nodes
+    document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
+    chrome.tabs.sendMessage(id, {"command": "scanNodes"}, function (response) {
+        document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
+        console.log("received response: " + JSON.stringify(response));
+    });
 }
 
 /**
@@ -71,13 +76,15 @@ function searchNow (evt) {
 function refreshList () {
     for (var key in context.tabs) {
         let li1 = document.createElement("li");
-        li1.classList.add("loading");
+        li1.setAttribute("data-instance", key);
         let instanceName = "";
         if (context.knownInstances !== undefined && context.knownInstances[key] !== undefined) {
+            // we already know about this instance
             instanceName = context.knownInstances[key];
         } else {
+            // else, save instance url into the knownInstances object
             instanceName = key;
-            context.knownInstances[key] = key; // save instance url into the knownInstances object
+            context.knownInstances[key] = key;
         }
         let instanceNameH3 = document.createElement("h3");
         instanceNameH3.innerHTML = instanceName;

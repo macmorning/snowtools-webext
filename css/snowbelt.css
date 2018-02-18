@@ -145,8 +145,6 @@ button.btn-secondary:hover {
     color: var(--disabled-color);
     font-size: larger;
 }
-.scan-nodes{
-}
 .deleteBtn {
     color: var(--disabled-color);
     font-size: larger;
