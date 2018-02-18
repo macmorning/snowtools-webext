@@ -107,6 +107,16 @@ select {
     font-size: 10pt;
     font-weight: bold;
 }
+select.nodes-list {
+    display: none;
+    color: var(--disabled-color);
+    outline: 0px;
+    border: none;
+    width: auto;
+    margin: 0 10px;
+    padding: 0 0;
+    font-weight: normal;
+}
 label {
     color: var(--secondary-color);
 }
@@ -142,7 +152,6 @@ button.btn-secondary:hover {
     text-align: right;
     float: right;
     text-decoration: none;
-    color: var(--disabled-color);
     font-size: larger;
 }
 .deleteBtn {

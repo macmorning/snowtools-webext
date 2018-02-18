@@ -2,7 +2,8 @@ const context = {
     tabCount: 0,
     tabs: {}, // array of tabs
     urlFilters: "",
-    knownInstances: {} // { "url1" : "instance 1 name", "url2" : "instnce 2 name", ...}
+    knownInstances: {}, // { "url1" : "instance 1 name", "url2" : "instnce 2 name", ...}
+    knownNodes: {} // { "url1" : ["node1","node2", ...], "url2" : ...}
 };
 
 /**
@@ -26,14 +27,31 @@ function newTab (evt) {
  * Starts scanning the instance nodes
  * @param {object} evt the event that triggered the action
  */
-function scanNode (evt) {
+function scanNodes (evt) {
     let targetInstance = evt.target.getAttribute("data-instance");
     let id = context.tabs[targetInstance][0].id; // we will ask the first tab found for the target instance to scan the nodes
     document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
     chrome.tabs.sendMessage(id, {"command": "scanNodes"}, function (response) {
         document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
-        console.log("received response: " + JSON.stringify(response));
+        if (response && response.nodes !== undefined && response.nodes.length > 0) {
+            let nodes = response.nodes;
+            nodes.sort();
+            saveNodes(targetInstance, nodes);
+            refreshNodes(targetInstance, response.current);
+        }
     });
+}
+
+/**
+ * Saves nodes in local storage
+ * @param {String} instanceName fqdn of target instance
+ * @param {Array} nodes array of nodes names
+ */
+function saveNodes (instanceName, nodes) {
+    context.knownNodes[instanceName] = nodes;
+    if (typeof (Storage) !== "undefined") {
+        localStorage.knownNodes = JSON.stringify(context.knownNodes);
+    }
 }
 
 /**
@@ -51,6 +69,7 @@ function saveKnownInstances () {
 function getOptions () {
     context.urlFilters = "service-now.com";
     context.knownInstances = {};
+    context.knownNodes = {};
     if (typeof (Storage) !== "undefined") {
         context.urlFilters = localStorage.urlFilters || "service-now.com";
         try {
@@ -59,7 +78,15 @@ function getOptions () {
             // could not parse the saved data, perhaps someone messed with it
             context.knownInstances = {};
         }
+        try {
+            context.knownNodes = JSON.parse(localStorage.knownNodes);
+        } catch (e) {
+            // could not parse the saved data, perhaps someone messed with it
+            context.knownNodes = {};
+        }
     }
+    console.log("Loaded options");
+    console.log(context);
 }
 /**
  * Searches on ServiceNow doc or api sites
@@ -93,8 +120,16 @@ function refreshList () {
         instanceCommandsNode.classList.add("instance-commands");
         instanceCommandsNode.setAttribute("data-instance", key);
         instanceCommandsNode.innerHTML = "&#9022;";
-        instanceCommandsNode.onclick = scanNode;
-        instanceCommandsNode.title = "scan node";
+        instanceCommandsNode.onclick = scanNodes;
+        instanceCommandsNode.title = "scan nodes";
+        let instanceNodes = document.createElement("select");
+        instanceNodes.className = "nodes-list";
+        instanceNodes.setAttribute("data-instance", key);
+        let option = document.createElement("option");
+        option.text = "Scan instance to discover its nodes";
+        instanceNodes.appendChild(option);
+
+        instanceNameH3.appendChild(instanceNodes);
         instanceNameH3.appendChild(instanceCommandsNode);
         li1.appendChild(instanceNameH3);
 
@@ -127,6 +162,50 @@ function refreshList () {
         option.setAttribute("value", "https://" + instanceKey + "/nav_to.do?uri=blank.do");
         option.setAttribute("data-instance", instanceKey);
         selectInstance.appendChild(option);
+    }
+}
+
+/**
+ * Generates the list of links to the tabs
+ * @param {Object} elt parent node
+ */
+function removeChildren (elt) {
+    while (elt.firstChild) {
+        elt.removeChild(elt.firstChild);
+    }
+}
+
+/**
+ * Generates the list of links to the tabs
+ * @param {String} instance optional - the instance for which we want to refresh the nodes list
+ * @param {String} selectNode optional - the current node for this instance
+ */
+function refreshNodes (instance, selectNode) {
+    if (context.knownNodes === undefined) { return false; }
+    var addNodes = function (key, elt, selectNode) {
+        context.knownNodes[key].forEach(function (item) {
+            let option = document.createElement("option");
+            option.value = item;
+            option.innerText = item;
+            if (selectNode !== undefined && item === selectNode) {
+                option.setAttribute("selected", "selected");
+            }
+            elt.appendChild(option);
+        });
+    };
+    if (instance !== undefined) {
+        let select = document.querySelector("select[data-instance=\"" + instance + "\"]");
+        removeChildren(select);
+        addNodes(instance, select, selectNode);
+        select.style.display = "inline-block";
+    } else {
+        Object.keys(context.knownNodes).forEach(function (key) {
+            let select = document.querySelector("select[data-instance=\"" + key + "\"]");
+            if (select) {
+                removeChildren(select);
+                addNodes(key, select);
+            }
+        });
     }
 }
 
@@ -168,6 +247,7 @@ function bootStrap () {
         });
         refreshList();
         saveKnownInstances();
+        // refreshNodes();
     };
     chrome.tabs.query({}, getTabs);
 }

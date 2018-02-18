@@ -35,27 +35,56 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     if (request.command === "scanNodes") {
         console.log("*SNOW TOOL BELT* going to search for nodes");
         let scans = 0;
-        let maxScans = 30;
+        let error = false;
+        let maxScans = 10;
         let nodes = [];
         let instanceName = window.location.toString().split("/")[2];
-        var myRequest = new Request("https://" + instanceName + "/stats.do");
+        var url = new Request("https://" + instanceName + "/stats.do");
         for (var i = 0; i < maxScans; i++) {
-            fetch(myRequest, {credentials: "same-origin"})
-                .then(function (response) {
-                    return response.text();
-                })
-                .then(function (text) {
-                    let m = text.split("<br/>")[1].split(": ")[1];
-                    if (nodes.indexOf(m) === -1) {
-                        console.log("*SNOW TOOL BELT* found " + m);
-                        nodes.push(m);
-                    }
-                    scans++; // increment number of finished scans
-                    if (scans >= maxScans) {
-                        sendResponse({"nodes": nodes});
-                    }
-                });
+            if (!error) {
+                fetch(url)
+                    .then(function (response) {
+                        scans++; // increment number of requests sent
+                        if (response.ok && response.status === 200) {
+                            return response.text();
+                        } else {
+                            error = true;
+                            sendResponse({"nodes": [], "current": ""});
+                        }
+                    })
+                    .then(function (text) {
+                        if (!text) { return false; }
+                        let m = text.split("<br/>")[1].split(": ")[1];
+                        if (nodes.indexOf(m) === -1) {
+                            console.log("*SNOW TOOL BELT* found " + m);
+                            nodes.push(m);
+                        }
+                        if (scans >= maxScans) {
+                            // assume we got'em all and get the current node by using the same-origin header
+                            fetch(url, {credentials: "same-origin"})
+                                .then(function (response) {
+                                    return response.text();
+                                })
+                                .then(function (text) {
+                                    let m = text.split("<br/>")[1].split(": ")[1];
+                                    sendResponse({"nodes": nodes, "current": m});
+                                });
+                        }
+                    });
+            }
         }
+        return true;
+    } else if (request.command === "getNode") {
+        console.log("*SNOW TOOL BELT* get current node");
+        fetch(url, {credentials: "same-origin"})
+            .then(function (response) {
+                return response.text();
+            })
+            .then(function (text) {
+                let m = text.split("<br/>")[1].split(": ")[1];
+                console.log("*SNOW TOOL BELT* current node : " + m);
+                sendResponse({"current": m});
+            });
         return true;
     }
 });
