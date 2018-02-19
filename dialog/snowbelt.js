@@ -33,9 +33,13 @@ function scanNodes (evt) {
     document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
     chrome.tabs.sendMessage(id, {"command": "scanNodes"}, function (response) {
         document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
-        if (response && response.nodes !== undefined && response.nodes.length > 0) {
+        if (response && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
             let nodes = response.nodes;
             nodes.sort();
+            saveNodes(targetInstance, nodes);
+            refreshNodes(targetInstance, response.current);
+        } else if (response.status !== 200) {
+            let nodes = ["Got http status " + response.status];
             saveNodes(targetInstance, nodes);
             refreshNodes(targetInstance, response.current);
         }
@@ -119,7 +123,7 @@ function refreshList () {
         instanceCommandsNode.setAttribute("href", "#");
         instanceCommandsNode.classList.add("instance-commands");
         instanceCommandsNode.setAttribute("data-instance", key);
-        instanceCommandsNode.innerHTML = "&#9022;";
+        instanceCommandsNode.innerHTML = "&#128270;";
         instanceCommandsNode.onclick = scanNodes;
         instanceCommandsNode.title = "scan nodes";
         let instanceNodes = document.createElement("select");
