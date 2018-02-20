@@ -33,6 +33,9 @@ if (document.title === "ServiceNow") {
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
     if (request.command === "scanNodes") {
+        /**
+         *  scanNodes
+         */
         console.log("*SNOW TOOL BELT* going to search for nodes");
         let scans = 0;
         let maxScans = 30;
@@ -80,6 +83,9 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
             });
         return true;
     } else if (request.command === "getNode") {
+        /**
+         *  getNode
+         */
         console.log("*SNOW TOOL BELT* get current node");
         fetch(url, {credentials: "same-origin"})
             .then(function (response) {
@@ -87,9 +93,18 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
             })
             .then(function (text) {
                 let m = text.split("<br/>")[1].split(": ")[1];
+                if (m.indexOf(":") > -1) {
+                    m = m.split(":")[1];
+                }
                 console.log("*SNOW TOOL BELT* current node : " + m);
                 sendResponse({"current": m});
             });
         return true;
+    } else if (request.command === "switchNode") {
+        /**
+         *  switchNode
+         */
+        console.log("*SNOW TOOL BELT* switch to node " + request.node);
+        sendResponse({"status": 200});
     }
 });

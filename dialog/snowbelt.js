@@ -19,8 +19,19 @@ function switchTab (evt) {
  * @param {object} evt the event that triggered the action
  */
 function newTab (evt) {
-    let targetUrl = evt.target.value;
+    let targetUrl = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
+    targetUrl = "https://" + targetUrl + "/nav_to.do?uri=blank.do";
     chrome.tabs.create({ url: targetUrl });
+}
+
+/**
+ * Closes a tab given its id
+ * @param {object} evt the event that triggered the action
+ */
+function closeTab (evt) {
+    console.log(evt.target.getAttribute("data-id"));
+    let tabid = parseInt(evt.target.getAttribute("data-id"));
+    chrome.tabs.remove(tabid);
 }
 
 /**
@@ -42,6 +53,26 @@ function scanNodes (evt) {
             let nodes = ["Got http status " + response.status];
             saveNodes(targetInstance, nodes);
             refreshNodes(targetInstance, response.current);
+        }
+    });
+}
+
+/**
+ * Switch to instance node
+ * @param {object} evt the event that triggered the action
+ */
+function switchNode (evt) {
+    let targetInstance = evt.target.getAttribute("data-instance");
+    let targetNode = evt.target.value;
+    let id = context.tabs[targetInstance][0].id; // we will ask the first tab found for the target instance to switch node
+    console.log("switching " + targetInstance + " to " + targetNode);
+    document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
+    chrome.tabs.sendMessage(id, {"command": "switchNode", "node": targetNode}, function (response) {
+        document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
+        if (response && response.status === 200) {
+            console.log("ok!");
+        } else if (response.status !== 200) {
+            console.log("ko! " + response.status);
         }
     });
 }
@@ -119,16 +150,32 @@ function refreshList () {
         }
         let instanceNameH3 = document.createElement("h3");
         instanceNameH3.innerHTML = instanceName;
+
+        // new tab link
+        let newTabAction = document.createElement("a");
+        newTabAction.setAttribute("href", "#");
+        newTabAction.setAttribute("data-instance", key);
+        newTabAction.className = "button-muted";
+        newTabAction.innerHTML = "&plus;";
+        newTabAction.onclick = newTab;
+        newTabAction.title = "open a new tab";
+        instanceNameH3.appendChild(newTabAction);
+
+        // commands
         let instanceCommandsNode = document.createElement("a");
         instanceCommandsNode.setAttribute("href", "#");
-        instanceCommandsNode.classList.add("instance-commands");
+        instanceCommandsNode.classList.add("instance-commands", "button-muted");
         instanceCommandsNode.setAttribute("data-instance", key);
         instanceCommandsNode.innerHTML = "&#128270;";
         instanceCommandsNode.onclick = scanNodes;
         instanceCommandsNode.title = "scan nodes";
+
+        // nodes list
         let instanceNodes = document.createElement("select");
         instanceNodes.className = "nodes-list";
         instanceNodes.setAttribute("data-instance", key);
+        instanceNodes.onchange = switchNode;
+        // nodes list default option
         let option = document.createElement("option");
         option.text = "Scan instance to discover its nodes";
         instanceNodes.appendChild(option);
@@ -137,6 +184,7 @@ function refreshList () {
         instanceNameH3.appendChild(instanceCommandsNode);
         li1.appendChild(instanceNameH3);
 
+        // unordered list of tabs for current instance
         let ul = document.createElement("ul");
         ul.classList.add("linksToTabs");
 
@@ -149,6 +197,17 @@ function refreshList () {
             li.onclick = switchTab;
             li.id = tab.id; // li id is the same as tab id for easy switching
             li.innerHTML = tab.title;
+
+            // close tab link
+            let closeTabAction = document.createElement("a");
+            closeTabAction.setAttribute("href", "#");
+            closeTabAction.setAttribute("data-id", tab.id);
+            closeTabAction.className = "button-muted";
+            closeTabAction.innerHTML = "&times;";
+            closeTabAction.onclick = closeTab;
+            closeTabAction.title = "close tab";
+            li.appendChild(closeTabAction);
+
             ul.appendChild(li);
         });
         li1.appendChild(ul);
@@ -159,11 +218,13 @@ function refreshList () {
         li1.innerHTML += "<p class=\"text-muted\">No tab found :( Have you configured your URL filters in the options page?</p>";
         document.querySelector("#opened_tabs").appendChild(li1);
     }
+
+    // "Select" object for new tabs
     let selectInstance = document.getElementById("new_tab");
     for (var instanceKey in context.knownInstances) {
         let option = document.createElement("option");
         option.text = context.knownInstances[instanceKey];
-        option.setAttribute("value", "https://" + instanceKey + "/nav_to.do?uri=blank.do");
+        option.setAttribute("value", instanceKey);
         option.setAttribute("data-instance", instanceKey);
         selectInstance.appendChild(option);
     }

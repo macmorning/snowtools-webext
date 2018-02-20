@@ -3,7 +3,7 @@
     --main-color: #f36d14;
     --secondary-color: #000000;
     --alt-bg-color: #e7e7e7;
-    --disabled-color: #888888;
+    --disabled-color: #cecece;
     --btn-color: var(--main-color);
     --btn-hover-color:#ce5707;
 }
@@ -63,12 +63,12 @@ h1 {
     color: var(--secondary-color);
 }
 h3 {
-    line-height: 15px;
+    line-height: 20px;
     margin: 10px 5px;
     width: 100%;
 }
 ul.firstLvlUL {
-    padding-left: 15px;
+    padding-left: 10px;
     list-style-type: none;
 }
 ul.linksToTabs {
@@ -155,16 +155,19 @@ button.btn-secondary:hover {
     color: var(--main-bg-color);
 }
 .instance-commands {
-    color: var(--main-color);
     text-align: right;
     float: right;
-    text-decoration: none;
-    font-size: larger;
+    font-size: large;
 }
-.deleteBtn {
+.button-muted {
+    margin-left: 10px;
     color: var(--disabled-color);
     font-size: larger;
     text-decoration: none;   
+    font-weight: bold;
+}
+.button-muted:hover {
+    color: var(--main-color);
 }
 p.text-muted {
     font-size: small;

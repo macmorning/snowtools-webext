@@ -70,7 +70,7 @@ function restoreOptions () {
             input.value = context.knownInstances[key];
             let label = document.createElement("label");
             label.setAttribute("for", input.id);
-            label.innerHTML = "Label for " + key + " <a class=\"deleteBtn\" title=\"delete\" href=\"#\" id=\"del#" + input.id + "\">&#10799;</a>";
+            label.innerHTML = "Label for " + key + " <a class=\"button-muted\" title=\"delete\" href=\"#\" id=\"del#" + input.id + "\">&#10799;</a>";
             label.onclick = deleteInstance;
             document.getElementById("knownInstances").appendChild(label);
             document.getElementById("knownInstances").appendChild(input);
