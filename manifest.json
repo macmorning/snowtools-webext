@@ -14,6 +14,9 @@
       }
     }
   },
+  "background": {
+    "scripts": ["background/background.js"]
+  },
   "browser_action": {
     "browser_style": true,
     "default_title": "SNOW Toolbelt",
@@ -32,5 +35,10 @@
   "options_ui": {
     "page": "options/options.html"
   },
-  "permissions": ["tabs", "storage", "cookies"]
+  "permissions": [
+    "tabs", 
+    "storage", 
+    "cookies",
+    "*://*.service-now.com/"
+  ]
 }

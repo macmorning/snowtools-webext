@@ -6,6 +6,16 @@ const context = {
     headNode: document.getElementsByTagName("title")[0]
 };
 
+function getNameFromStatsPage (text) {
+    let instanceName = "";
+    instanceName = text.split("<br/>")[1].split(": ")[1];
+    // if current contains ":" then split it again
+    if (instanceName.indexOf(":") > -1) {
+        instanceName = instanceName.split(":")[1];
+    }
+    return instanceName;
+}
+
 if (document.title === "ServiceNow") {
     document.getElementById("gsft_main").onload = function () {
         console.log("*SNOW TOOL BELT* Changed tab title");
@@ -32,6 +42,8 @@ if (document.title === "ServiceNow") {
 
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
+    let instanceName = window.location.toString().split("/")[2];
+    let url = new Request("https://" + instanceName + "/stats.do");
     if (request.command === "scanNodes") {
         /**
          *  scanNodes
@@ -40,9 +52,6 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
         let scans = 0;
         let maxScans = 30;
         let nodes = [];
-        let current = "";
-        let instanceName = window.location.toString().split("/")[2];
-        var url = new Request("https://" + instanceName + "/stats.do");
         fetch(url, {credentials: "same-origin"})
             .then(function (response) {
                 if (response.ok && response.status === 200) {
@@ -54,11 +63,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
                 }
             })
             .then(function (text) {
-                current = text.split("<br/>")[1].split(": ")[1];
-                // if current contains ":" then split it again
-                if (current.indexOf(":") > -1) {
-                    current = current.split(":")[1];
-                }
+                let current = getNameFromStatsPage(text);
                 console.log("*SNOW TOOL BELT* found " + current);
                 nodes.push(current);
                 for (var i = 0; i < maxScans; i++) {
@@ -69,7 +74,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
                         })
                         .then(function (text) {
                             if (!text) { return false; }
-                            let m = text.split("<br/>")[1].split(": ")[1];
+                            let m = getNameFromStatsPage(text);
                             if (nodes.indexOf(m) === -1) {
                                 console.log("*SNOW TOOL BELT* found " + m);
                                 nodes.push(m);
@@ -82,29 +87,61 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
                 }
             });
         return true;
-    } else if (request.command === "getNode") {
-        /**
-         *  getNode
-         */
-        console.log("*SNOW TOOL BELT* get current node");
-        fetch(url, {credentials: "same-origin"})
-            .then(function (response) {
-                return response.text();
-            })
-            .then(function (text) {
-                let m = text.split("<br/>")[1].split(": ")[1];
-                if (m.indexOf(":") > -1) {
-                    m = m.split(":")[1];
-                }
-                console.log("*SNOW TOOL BELT* current node : " + m);
-                sendResponse({"current": m});
-            });
-        return true;
     } else if (request.command === "switchNode") {
         /**
          *  switchNode
          */
         console.log("*SNOW TOOL BELT* switch to node " + request.node);
-        sendResponse({"status": 200});
+        let targetNode = request.node.toString();
+        let maxTries = 40;
+        let tries = 0;
+        let tryAgain = function () {
+            fetch(url, {credentials: "same-origin"})
+                .then(function (response) {
+                    if (response.ok && response.status === 200) {
+                        return response.text();
+                    } else {
+                    // there was an error with this first fetch, stop here
+                        console.log("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
+                        sendResponse({"status": response.status});
+                    }
+                })
+                .then(function (text) {
+                    let current = getNameFromStatsPage(text);
+                    console.log("*SNOW TOOL BELT* node name: " + current);
+                    if (current === targetNode) {
+                        sendResponse({"status": 200});
+                    } else if (tries < maxTries) {
+                        tries++;
+                        // send the removeCookie command to background script, then try again
+                        chrome.runtime.sendMessage({"command": "removeCookie", "instance": instanceName}, tryAgain);
+                    } else {
+                        console.log("*SNOW TOOL BELT* maximum number of tries reached without success");
+                        sendResponse({"status": 500, "message": "Maximum number of tries reached", "current": current});
+                    }
+                });
+        };
+
+        fetch(url, {credentials: "same-origin"})
+            .then(function (response) {
+                if (response.ok && response.status === 200) {
+                    return response.text();
+                } else {
+                // there was an error with this first fetch, stop here
+                    console.log("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
+                    sendResponse({"status": response.status});
+                }
+            })
+            .then(function (text) {
+                let current = getNameFromStatsPage(text);
+                if (current === targetNode) {
+                    console.log("*SNOW TOOL BELT* teeeheee we are already on target node");
+                    sendResponse({"status": 200});
+                } else {
+                    // send the removeCookie command to background script, then try again
+                    chrome.runtime.sendMessage({"command": "removeCookie", "instance": instanceName}, tryAgain);
+                }
+            });
+        return true;
     }
 });

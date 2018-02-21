@@ -73,6 +73,9 @@ function switchNode (evt) {
             console.log("ok!");
         } else if (response.status !== 200) {
             console.log("ko! " + response.status);
+            if (response.current) {
+                refreshNodes(targetInstance, response.current);
+            }
         }
     });
 }
