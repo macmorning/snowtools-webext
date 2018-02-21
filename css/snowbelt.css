@@ -25,6 +25,10 @@ div#config {
     cursor: pointer;
     color: var(--main-color);    
 }
+div#messages {
+    text-align: center;
+    font-weight: bold;
+}
 div#search {
     font-size: smaller;
     height: 35px;

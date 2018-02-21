@@ -8,7 +8,7 @@ const context = {
  */
 function displayMessage (txt) {
     document.getElementById("messages").innerHTML = txt;
-    window.setTimeout(function () { document.getElementById("messages").innerHTML = "&nbsp;"; }, 2500);
+    window.setTimeout(function () { document.getElementById("messages").innerHTML = "&nbsp;"; }, 3000);
 }
 /**
  * Rebuild the knownInstances from the object returned by sortProperties.

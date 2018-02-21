@@ -110,7 +110,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
                     let current = getNameFromStatsPage(text);
                     console.log("*SNOW TOOL BELT* node name: " + current);
                     if (current === targetNode) {
-                        sendResponse({"status": 200});
+                        sendResponse({"status": 200, "current": current});
                     } else if (tries < maxTries) {
                         tries++;
                         // send the removeCookie command to background script, then try again

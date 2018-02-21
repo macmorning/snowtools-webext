@@ -7,6 +7,14 @@ const context = {
 };
 
 /**
+ * Displays a message for a short time.
+ * @param {String} txt Message to display.
+ */
+function displayMessage (txt) {
+    document.getElementById("messages").innerHTML = txt.toString();
+    window.setTimeout(function () { document.getElementById("messages").innerHTML = "&nbsp;"; }, 3000);
+}
+/**
  * Switches to the tab that has the same id as the event target
  * @param {object} evt the event that triggered the action
  */
@@ -29,8 +37,8 @@ function newTab (evt) {
  * @param {object} evt the event that triggered the action
  */
 function closeTab (evt) {
-    console.log(evt.target.getAttribute("data-id"));
     let tabid = parseInt(evt.target.getAttribute("data-id"));
+    document.getElementById(tabid).parentNode.removeChild(document.getElementById(tabid));
     chrome.tabs.remove(tabid);
 }
 
@@ -63,6 +71,10 @@ function scanNodes (evt) {
  */
 function switchNode (evt) {
     let targetInstance = evt.target.getAttribute("data-instance");
+    if (targetInstance.indexOf("service-now.com") === -1) {
+        displayMessage("Sorry! Switching nodes is only supported on service-now.com instances for now.");
+        return true;
+    }
     let targetNode = evt.target.value;
     let id = context.tabs[targetInstance][0].id; // we will ask the first tab found for the target instance to switch node
     console.log("switching " + targetInstance + " to " + targetNode);
@@ -70,9 +82,9 @@ function switchNode (evt) {
     chrome.tabs.sendMessage(id, {"command": "switchNode", "node": targetNode}, function (response) {
         document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
         if (response && response.status === 200) {
-            console.log("ok!");
+            displayMessage("Node switched to " + response.current);
         } else if (response.status !== 200) {
-            console.log("ko! " + response.status);
+            displayMessage("Error switching to " + response.current + " (" + response.status + ")");
             if (response.current) {
                 refreshNodes(targetInstance, response.current);
             }
