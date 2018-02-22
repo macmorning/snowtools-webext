@@ -6,7 +6,8 @@ This extension was built to help ServiceNow developpers with every day tasks.
 * for older UI versions, change the tab name from "ServiceNow" to the actual content name
 * allow setting a friendly label for each instance
 * scanning instance for nodes and show current node
+* switching to a specific instance node
 
 To do
-* switching to a specific instance node
+* Open the tool belt in a sidebar
 

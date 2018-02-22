@@ -38,7 +38,7 @@ function newTab (evt) {
  */
 function closeTab (evt) {
     let tabid = parseInt(evt.target.getAttribute("data-id"));
-    document.getElementById(tabid).parentNode.removeChild(document.getElementById(tabid));
+    // document.getElementById(tabid).parentNode.removeChild(document.getElementById(tabid));
     chrome.tabs.remove(tabid);
 }
 
@@ -72,7 +72,7 @@ function scanNodes (evt) {
 function switchNode (evt) {
     let targetInstance = evt.target.getAttribute("data-instance");
     if (targetInstance.indexOf("service-now.com") === -1) {
-        displayMessage("Sorry! Switching nodes is only supported on service-now.com instances for now.");
+        displayMessage("Sorry! Switching nodes only works on service-now.com instances for now.");
         return true;
     }
     let targetNode = evt.target.value;
@@ -151,6 +151,8 @@ function searchNow (evt) {
  * Generates the list of links to the tabs
  */
 function refreshList () {
+    let openTabs = document.querySelector("#opened_tabs");
+    removeChildren(openTabs);
     for (var key in context.tabs) {
         let li1 = document.createElement("li");
         li1.setAttribute("data-instance", key);
@@ -206,36 +208,41 @@ function refreshList () {
         context.tabs[key].forEach(function (tab) {
             context.tabCount++;
             let li = document.createElement("li");
-            if (!tab.active) {
-                li.className = "linkToTab";
-            } else { li.className = "selectedTab"; }
+            if (tab.active) {
+                activeTab = tab.id;
+            }
+            li.className = "linkToTab";
             li.onclick = switchTab;
             li.id = tab.id; // li id is the same as tab id for easy switching
-            li.innerHTML = tab.title;
-
-            // close tab link
-            let closeTabAction = document.createElement("a");
-            closeTabAction.setAttribute("href", "#");
-            closeTabAction.setAttribute("data-id", tab.id);
-            closeTabAction.className = "button-muted";
-            closeTabAction.innerHTML = "&times;";
-            closeTabAction.onclick = closeTab;
-            closeTabAction.title = "close tab";
-            li.appendChild(closeTabAction);
+            li.innerText = tab.title;
 
             ul.appendChild(li);
+            addCloseLink(tab.id, li);
         });
         li1.appendChild(ul);
-        document.querySelector("#opened_tabs").appendChild(li1);
+        openTabs.appendChild(li1);
+    }
+    if (activeTab) {
+        setActiveTab(activeTab);
     }
     if (context.tabCount === 0) {
         let li1 = document.createElement("li");
         li1.innerHTML += "<p class=\"text-muted\">No tab found :( Have you configured your URL filters in the options page?</p>";
-        document.querySelector("#opened_tabs").appendChild(li1);
+        openTabs.appendChild(li1);
     }
+}
 
-    // "Select" object for new tabs
+/**
+ * Generates the select list of known instances
+ */
+function refreshKnownInstances () {
     let selectInstance = document.getElementById("new_tab");
+    removeChildren(selectInstance);
+
+    let optionDefault = document.createElement("option");
+    optionDefault.text = "Select a known instance to open a new tab";
+    selectInstance.appendChild(optionDefault);
+
     for (var instanceKey in context.knownInstances) {
         let option = document.createElement("option");
         option.text = context.knownInstances[instanceKey];
@@ -244,13 +251,14 @@ function refreshList () {
         selectInstance.appendChild(option);
     }
 }
-
 /**
  * Generates the list of links to the tabs
  * @param {Object} elt parent node
  */
 function removeChildren (elt) {
+    console.log("removeChildren " + elt.id);
     while (elt.firstChild) {
+        console.log(" > removing " + elt.firstChild.id);
         elt.removeChild(elt.firstChild);
     }
 }
@@ -293,43 +301,131 @@ function refreshNodes (instance, selectNode) {
  * Initial function that gets the saved preferences and the list of open tabs
  */
 function bootStrap () {
-    let urlFiltersArr = context.urlFilters.split(";");
-
     var getTabs = function (tabs) {
         tabs.forEach(function (tab) {
-            let splittedInstance = tab.url.toString().split("/");
-            tab.instance = splittedInstance[2];
-            if (tab.instance === "signon.service-now.com") {
-                // known non-instance subdomains of service-now.com
-                return false;
-            }
-            let matchFound = false;
-            urlFiltersArr.forEach(function (filter) {
-                if (matchFound || filter.trim() === "") return true;
-                if (tab.url.toString().indexOf(filter.trim()) > -1) {
-                    matchFound = true;
-                }
-            });
-            if (matchFound) {
-                let splittedName = tab.title.toString().split("|");
-                if (splittedName.length === 3) {
-                    // this is a specific object
-                    tab.title = splittedName[1].toString().trim() + " - " + splittedName[0].toString().trim();
-                } else if (splittedName.length === 2) {
-                    // this is a list of objects
-                    tab.title = splittedName[0].toString().trim();
-                }
-
-                // if this is the first tab we find for this instance, create the container is the context.tab object
-                if (!context.tabs.hasOwnProperty(tab.instance)) { context.tabs[tab.instance] = []; }
-                context.tabs[tab.instance].push(tab);
-            }
+            tabCreated(tab);
         });
         refreshList();
         saveKnownInstances();
+        refreshKnownInstances();
         // refreshNodes();
     };
     chrome.tabs.query({}, getTabs);
+}
+
+/**
+ * Returns the updated title
+ * @param {String} title Original title of the tab
+ */
+function transformTitle (title) {
+    let splittedName = title.toString().split("|");
+    if (splittedName.length === 3) {
+        // this is a specific object
+        return splittedName[1].toString().trim() + " - " + splittedName[0].toString().trim();
+    } else if (splittedName.length === 2) {
+        // this is a list of objects
+        return splittedName[0].toString().trim();
+    } else {
+        return title;
+    }
+}
+
+/**
+ * Adds the close link to the li element
+ * @param {Integer} tabId the id of the updated tab
+ * @param {Element} li element to which the close action must be appended
+ */
+function addCloseLink (tabid, li) {
+    // close tab link
+    let closeTabAction = document.createElement("a");
+    closeTabAction.setAttribute("href", "#");
+    closeTabAction.setAttribute("data-id", tabid);
+    closeTabAction.className = "button-muted";
+    closeTabAction.innerHTML = "&times;";
+    closeTabAction.onclick = closeTab;
+    closeTabAction.title = "close tab";
+    li.appendChild(closeTabAction);
+}
+
+/**
+ * Reflects changes that occur when a tab is found or created
+ * @param {Tab} tab the Tab object itself
+ */
+function tabCreated (tab) {
+    let urlFiltersArr = context.urlFilters.split(";");
+    let splittedInstance = tab.url.toString().split("/");
+    tab.instance = splittedInstance[2];
+    if (tab.instance === "signon.service-now.com") {
+        // known non-instance subdomains of service-now.com
+        return false;
+    }
+    let matchFound = false;
+    urlFiltersArr.forEach(function (filter) {
+        if (matchFound || filter.trim() === "") return true;
+        if (tab.url.toString().indexOf(filter.trim()) > -1) {
+            matchFound = true;
+        }
+    });
+    if (matchFound) {
+        tab.title = transformTitle(tab.title);
+        // if this is the first tab we find for this instance, create the container is the context.tab object
+        if (!context.tabs.hasOwnProperty(tab.instance)) { context.tabs[tab.instance] = []; }
+        context.tabs[tab.instance].push(tab);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Reflects changes that occur on tabs
+ * @param {Integer} tabId the id of the updated tab
+ * @param {Object} changeInfo contains the informations that changed
+ * @param {Tab} tab the Tab object itself
+ */
+function tabUpdated (tabId, changeInfo, tab) {
+    let tabLi = document.getElementById(tabId);
+    if (tabLi && changeInfo.title !== undefined) {
+        tabLi.innerText = changeInfo.title;
+        addCloseLink(tabId, tabLi);
+    } else if (!tabLi) {
+        if (tabCreated(tab)) {
+            refreshList();
+            refreshKnownInstances();
+        }
+    }
+}
+
+/**
+ * Reflects changes that occur when a tab is removed
+ * @param {Integer} tabId the id of the updated tab
+ * @param {Object} removeInfo contains the informations about the remove event
+ */
+function tabRemoved (tabId, removeInfo) {
+    let tabLi = document.getElementById(tabId);
+    if (tabLi) {
+        tabLi.parentNode.removeChild(tabLi);
+    }
+}
+
+/**
+ * Reflects changes that occur when a tab is activated
+ * @param {Object} activeInfo contains the informations about the activated event (tabId & windowId)
+ */
+function tabActivated (activeInfo) {
+    setActiveTab(activeInfo.tabId);
+}
+
+/**
+ * Shows the current active tabs
+ * @param {Integer} tabId the id of the updated tab
+ */
+function setActiveTab (tabId) {
+    let elems = document.querySelectorAll("li.selectedTab");
+
+    [].forEach.call(elems, function (el) {
+        el.classList.remove("selectedTab");
+    });
+    document.getElementById(tabId).className = "selectedTab";
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -352,4 +448,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
     document.getElementById("searchInput").focus();
+
+    // listen to tabs events
+    chrome.tabs.onUpdated.addListener(tabUpdated);
+    chrome.tabs.onRemoved.addListener(tabRemoved);
+    chrome.tabs.onActivated.addListener(tabActivated);
 });
