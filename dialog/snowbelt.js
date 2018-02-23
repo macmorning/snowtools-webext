@@ -2,6 +2,7 @@ const context = {
     tabCount: 0,
     tabs: {}, // array of tabs
     urlFilters: "",
+    urlFiltersArr: [],
     knownInstances: {}, // { "url1" : "instance 1 name", "url2" : "instnce 2 name", ...}
     knownNodes: {} // { "url1" : ["node1","node2", ...], "url2" : ...}
 };
@@ -118,10 +119,12 @@ function saveKnownInstances () {
  */
 function getOptions () {
     context.urlFilters = "service-now.com";
+    context.urlFiltersArr = ["service-now.com"];
     context.knownInstances = {};
     context.knownNodes = {};
     if (typeof (Storage) !== "undefined") {
         context.urlFilters = localStorage.urlFilters || "service-now.com";
+        context.urlFiltersArr = context.urlFilters.split(";");
         try {
             context.knownInstances = JSON.parse(localStorage.knownInstances);
         } catch (e) {
@@ -152,6 +155,7 @@ function searchNow (evt) {
  */
 function refreshList () {
     let openTabs = document.querySelector("#opened_tabs");
+    let activeTab = "";
     removeChildren(openTabs);
     for (var key in context.tabs) {
         let li1 = document.createElement("li");
@@ -212,6 +216,7 @@ function refreshList () {
                 activeTab = tab.id;
             }
             li.className = "linkToTab";
+            li.setAttribute("data-instance", key);
             li.onclick = switchTab;
             li.id = tab.id; // li id is the same as tab id for easy switching
             li.innerText = tab.title;
@@ -256,9 +261,7 @@ function refreshKnownInstances () {
  * @param {Object} elt parent node
  */
 function removeChildren (elt) {
-    console.log("removeChildren " + elt.id);
     while (elt.firstChild) {
-        console.log(" > removing " + elt.firstChild.id);
         elt.removeChild(elt.firstChild);
     }
 }
@@ -295,22 +298,6 @@ function refreshNodes (instance, selectNode) {
             }
         });
     }
-}
-
-/**
- * Initial function that gets the saved preferences and the list of open tabs
- */
-function bootStrap () {
-    var getTabs = function (tabs) {
-        tabs.forEach(function (tab) {
-            tabCreated(tab);
-        });
-        refreshList();
-        saveKnownInstances();
-        refreshKnownInstances();
-        // refreshNodes();
-    };
-    chrome.tabs.query({}, getTabs);
 }
 
 /**
@@ -352,7 +339,6 @@ function addCloseLink (tabid, li) {
  * @param {Tab} tab the Tab object itself
  */
 function tabCreated (tab) {
-    let urlFiltersArr = context.urlFilters.split(";");
     let splittedInstance = tab.url.toString().split("/");
     tab.instance = splittedInstance[2];
     if (tab.instance === "signon.service-now.com") {
@@ -360,7 +346,7 @@ function tabCreated (tab) {
         return false;
     }
     let matchFound = false;
-    urlFiltersArr.forEach(function (filter) {
+    context.urlFiltersArr.forEach(function (filter) {
         if (matchFound || filter.trim() === "") return true;
         if (tab.url.toString().indexOf(filter.trim()) > -1) {
             matchFound = true;
@@ -385,7 +371,7 @@ function tabCreated (tab) {
 function tabUpdated (tabId, changeInfo, tab) {
     let tabLi = document.getElementById(tabId);
     if (tabLi && changeInfo.title !== undefined) {
-        tabLi.innerText = changeInfo.title;
+        tabLi.innerText = transformTitle(changeInfo.title);
         addCloseLink(tabId, tabLi);
     } else if (!tabLi) {
         if (tabCreated(tab)) {
@@ -403,6 +389,16 @@ function tabUpdated (tabId, changeInfo, tab) {
 function tabRemoved (tabId, removeInfo) {
     let tabLi = document.getElementById(tabId);
     if (tabLi) {
+        // remove the tab from context.tabs
+        let instance = tabLi.getAttribute("data-instance");
+        if (instance && context.tabs.hasOwnProperty(instance)) {
+            for (var i = 0; i < context.tabs[instance].length; i++) {
+                if (context.tabs[instance][i].id === tabId) {
+                    context.tabs[instance].splice(i, 1);
+                }
+            }
+        }
+        // then remove the node
         tabLi.parentNode.removeChild(tabLi);
     }
 }
@@ -426,6 +422,22 @@ function setActiveTab (tabId) {
         el.classList.remove("selectedTab");
     });
     document.getElementById(tabId).className = "selectedTab";
+}
+
+/**
+ * Initial function that gets the saved preferences and the list of open tabs
+ */
+function bootStrap () {
+    var getTabs = function (tabs) {
+        tabs.forEach(function (tab) {
+            tabCreated(tab);
+        });
+        refreshList();
+        saveKnownInstances();
+        refreshKnownInstances();
+        // refreshNodes();
+    };
+    chrome.tabs.query({}, getTabs);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
