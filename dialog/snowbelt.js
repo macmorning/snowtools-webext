@@ -455,6 +455,9 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("search_api").addEventListener("click", searchNow);
     document.getElementById("searchInput").addEventListener("keyup", function (event) {
         event.preventDefault();
+        if (event.target.value.length > 2) {
+            console.log(words.length);
+        }
         if (event.keyCode === 13) {
             document.getElementById("search_doc").click();
         }
