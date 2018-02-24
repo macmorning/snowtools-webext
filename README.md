@@ -7,7 +7,9 @@ This extension was built to help ServiceNow developpers with every day tasks.
 * allow setting a friendly label for each instance
 * scanning instance for nodes and show current node
 * switching to a specific instance node
+* search for keywords on docs & api sites of servicenow.com with autocomplete
 
-To do
-* Open the tool belt in a sidebar
+To do:
+* ... who knows? Post an enhancement request! 
+
 
