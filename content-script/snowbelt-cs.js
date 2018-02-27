@@ -90,8 +90,9 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
                 }
             })
             .catch(function (err) {
-                console.log("*SNOW TOOL BELT* there was an error with the first scan, stopping now: " + err);
-                sendResponse({"nodes": [], "current": "", "status": err});            
+                console.log("*SNOW TOOL BELT* there was an error with the first scan, stopping now");
+                console.log(err);
+                sendResponse({"nodes": [], "current": "", "status": 500});
             });
         return true;
     } else if (request.command === "switchNode") {

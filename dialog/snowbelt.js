@@ -107,7 +107,18 @@ function switchNode (evt) {
         return true;
     }
     let targetNode = evt.target.value;
-    let id = context.tabs[targetInstance][0].id; // we will ask the first tab found for the target instance to switch node
+    // try to find a non discarded tab for the instance to run the scan
+    let id = -1;
+    for (var i = 0; i < context.tabs[targetInstance].length; i++) {
+        if (id < 0 && !context.tabs[targetInstance][i].discarded) {
+            id = context.tabs[targetInstance][i].id;
+        }
+    }
+    if (id < 0) {
+        displayMessage("No tab is available for node scan.");
+        return false;
+    }
+
     console.log("switching " + targetInstance + " to " + targetNode);
     document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
     chrome.tabs.sendMessage(id, {"command": "switchNode", "node": targetNode}, function (response) {
