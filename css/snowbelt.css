@@ -159,8 +159,10 @@ button.btn-secondary:hover {
     color: var(--main-bg-color);
 }
 .instance-commands {
+    cursor: pointer;
     text-align: right;
     float: right;
+    margin-right: 15px;
     font-size: large;
 }
 .button-muted {
@@ -169,6 +171,7 @@ button.btn-secondary:hover {
     font-size: larger;
     text-decoration: none;   
     font-weight: bold;
+    cursor: pointer;
 }
 .button-muted:hover {
     color: var(--main-color);

@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
          */
         console.log("*SNOW TOOL BELT* going to search for nodes");
         let scans = 0;
-        let maxScans = 30;
+        let maxScans = 50;
         let nodes = [];
         fetch(url, {credentials: "same-origin"})
             .then(function (response) {
@@ -58,11 +58,14 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
                     return response.text();
                 } else {
                     // there was an error with this first fetch, stop here
-                    console.log("*SNOW TOOL BELT* there was an error with the first scan, stopping now" + m);
+                    console.log("*SNOW TOOL BELT* there was an error with the first scan, stopping now: " + response.status);
                     sendResponse({"nodes": [], "current": "", "status": response.status});
                 }
             })
             .then(function (text) {
+                if (text === undefined || !text) {
+                    return false;
+                }
                 let current = getNameFromStatsPage(text);
                 console.log("*SNOW TOOL BELT* found " + current);
                 nodes.push(current);
@@ -85,6 +88,10 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
                             }
                         });
                 }
+            })
+            .catch(function (err) {
+                console.log("*SNOW TOOL BELT* there was an error with the first scan, stopping now: " + err);
+                sendResponse({"nodes": [], "current": "", "status": err});            
             });
         return true;
     } else if (request.command === "switchNode") {

@@ -28,9 +28,17 @@ function switchTab (evt) {
  * @param {object} evt the event that triggered the action
  */
 function newTab (evt) {
-    let targetUrl = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
-    targetUrl = "https://" + targetUrl + "/nav_to.do?uri=blank.do";
-    chrome.tabs.create({ url: targetUrl });
+    let instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
+    let targetUrl = "https://" + instance + "/nav_to.do?uri=blank.do";
+    // is there an open tab for this instance ? if yes, insert the new tab after the last one
+    if (context.tabs[instance] !== undefined) {
+        let lastTab = context.tabs[instance][context.tabs[instance].length - 1];
+        let index = lastTab.index + 1;
+        let windowId = lastTab.windowId;
+        chrome.tabs.create({ index: index, windowId: windowId, url: targetUrl });
+    } else {
+        chrome.tabs.create({ url: targetUrl });
+    }
 }
 
 /**
@@ -39,8 +47,18 @@ function newTab (evt) {
  */
 function closeTab (evt) {
     let tabid = parseInt(evt.target.getAttribute("data-id"));
-    // document.getElementById(tabid).parentNode.removeChild(document.getElementById(tabid));
     chrome.tabs.remove(tabid);
+}
+
+/**
+ * Closes all tabs given their instance
+ * @param {object} evt the event that triggered the action
+ */
+function closeTabs (evt) {
+    let instance = evt.target.getAttribute("data-instance");
+    context.tabs[instance].forEach(function (tab) {
+        chrome.tabs.remove(parseInt(tab.id));
+    });
 }
 
 /**
@@ -49,7 +67,19 @@ function closeTab (evt) {
  */
 function scanNodes (evt) {
     let targetInstance = evt.target.getAttribute("data-instance");
-    let id = context.tabs[targetInstance][0].id; // we will ask the first tab found for the target instance to scan the nodes
+
+    // try to find a non discarded tab for the instance to run the scan
+    let id = -1;
+    for (var i = 0; i < context.tabs[targetInstance].length; i++) {
+        if (id < 0 && !context.tabs[targetInstance][i].discarded) {
+            id = context.tabs[targetInstance][i].id;
+        }
+    }
+    if (id < 0) {
+        displayMessage("No tab is available for node scan.");
+        return false;
+    }
+
     document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
     chrome.tabs.sendMessage(id, {"command": "scanNodes"}, function (response) {
         document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
@@ -174,7 +204,6 @@ function refreshList () {
 
         // new tab link
         let newTabAction = document.createElement("a");
-        newTabAction.setAttribute("href", "#");
         newTabAction.setAttribute("data-instance", key);
         newTabAction.className = "button-muted";
         newTabAction.innerHTML = "&plus;";
@@ -182,9 +211,17 @@ function refreshList () {
         newTabAction.title = "open a new tab";
         instanceNameH3.appendChild(newTabAction);
 
+        // close tabs link
+        let closeTabsAction = document.createElement("a");
+        closeTabsAction.setAttribute("data-instance", key);
+        closeTabsAction.className = "button-muted";
+        closeTabsAction.innerHTML = "&times;";
+        closeTabsAction.onclick = closeTabs;
+        closeTabsAction.title = "close tabs";
+        instanceNameH3.appendChild(closeTabsAction);
+
         // commands
         let instanceCommandsNode = document.createElement("a");
-        instanceCommandsNode.setAttribute("href", "#");
         instanceCommandsNode.classList.add("instance-commands", "button-muted");
         instanceCommandsNode.setAttribute("data-instance", key);
         instanceCommandsNode.innerHTML = "&#128270;";
@@ -341,7 +378,7 @@ function addCloseLink (tabid, li) {
 function tabCreated (tab) {
     let splittedInstance = tab.url.toString().split("/");
     tab.instance = splittedInstance[2];
-    if (tab.instance === "signon.service-now.com") {
+    if (tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com") {
         // known non-instance subdomains of service-now.com
         return false;
     }
