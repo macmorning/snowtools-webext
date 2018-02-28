@@ -66,14 +66,40 @@ div#options-container {
 h1 {
     color: var(--secondary-color);
 }
-h3 {
-    line-height: 20px;
-    margin: 10px 5px;
-    width: 100%;
-}
 ul.firstLvlUL {
+    user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
     padding-left: 10px;
     list-style-type: none;
+}
+label.instance-label {
+    line-height: 30px;
+    margin: 10px 5px;
+    width: 100%;
+    font-size: large;
+    color: var(--main-color);
+    cursor: pointer;
+}
+input[type="checkbox"] {
+    position: absolute;
+    left: -9999px;
+}
+input[type="checkbox"] ~ ul {
+    height: 0;
+    transform: scaleY(0);
+}
+input[type="checkbox"]:checked ~ ul {
+    height: 100%;
+    transform-origin: top;
+    transition: transform .2s ease-out;
+    transform: scaleY(1); 
+}
+input[type="checkbox"] ~ label:before {
+    content: "˃ \0020";
+}
+input[type="checkbox"]:checked ~ label:before {
+    content: "˅ \0020";
 }
 ul.linksToTabs {
     list-style-type: none;
@@ -115,7 +141,7 @@ select {
 }
 select.nodes-list {
     display: none;
-    color: var(--disabled-color);
+    color: var(--main-color);
     outline: 0px;
     border: none;
     width: auto;
@@ -168,7 +194,7 @@ button.btn-secondary:hover {
 .button-muted {
     margin-left: 10px;
     color: var(--disabled-color);
-    font-size: larger;
+    font-size: x-large;
     text-decoration: none;   
     font-weight: bold;
     cursor: pointer;

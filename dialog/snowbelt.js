@@ -1,5 +1,6 @@
 const context = {
     tabCount: 0,
+    collapseThreshold: 5,
     tabs: {}, // array of tabs
     urlFilters: "",
     urlFiltersArr: [],
@@ -83,15 +84,15 @@ function scanNodes (evt) {
     document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
     chrome.tabs.sendMessage(id, {"command": "scanNodes"}, function (response) {
         document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
-        if (response && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
+        if (response !== undefined && response && response.status !== undefined && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
             let nodes = response.nodes;
             nodes.sort();
             saveNodes(targetInstance, nodes);
             refreshNodes(targetInstance, response.current);
-        } else if (response.status !== 200) {
-            let nodes = ["Got http status " + response.status];
-            saveNodes(targetInstance, nodes);
-            refreshNodes(targetInstance, response.current);
+        } else if (response !== undefined && response.status !== undefined && response.status !== 200) {
+            displayMessage("Got http status " + response.status + "...");
+        } else if (response === undefined) {
+            displayMessage("Couldn't get an answer from tab; try refreshing it.");
         }
     });
 }
@@ -195,7 +196,7 @@ function searchNow (evt) {
  * Generates the list of links to the tabs
  */
 function refreshList () {
-    let openTabs = document.querySelector("#opened_tabs");
+    let openTabs = document.getElementById("opened_tabs");
     let activeTab = "";
     removeChildren(openTabs);
     for (var key in context.tabs) {
@@ -210,26 +211,34 @@ function refreshList () {
             instanceName = key;
             context.knownInstances[key] = key;
         }
-        let instanceNameH3 = document.createElement("h3");
-        instanceNameH3.innerHTML = instanceName;
+
+        let instanceNameCheckbox = document.createElement("input");
+        instanceNameCheckbox.type = "checkbox";
+        instanceNameCheckbox.id = key;
+        if (context.tabs[key].length <= context.collapseThreshold) {
+            instanceNameCheckbox.setAttribute("checked", "checked");
+        }
+
+        let instanceNameLabel = document.createElement("label");
+        instanceNameLabel.className = "instance-label";
+        instanceNameLabel.setAttribute("for", key);
+        instanceNameLabel.innerText = instanceName;
 
         // new tab link
         let newTabAction = document.createElement("a");
         newTabAction.setAttribute("data-instance", key);
-        newTabAction.className = "button-muted";
+        newTabAction.classList = "button-muted instance-action";
         newTabAction.innerHTML = "&plus;";
         newTabAction.onclick = newTab;
         newTabAction.title = "open a new tab";
-        instanceNameH3.appendChild(newTabAction);
 
         // close tabs link
         let closeTabsAction = document.createElement("a");
         closeTabsAction.setAttribute("data-instance", key);
-        closeTabsAction.className = "button-muted";
+        closeTabsAction.classList = "button-muted instance-action";
         closeTabsAction.innerHTML = "&times;";
         closeTabsAction.onclick = closeTabs;
         closeTabsAction.title = "close tabs";
-        instanceNameH3.appendChild(closeTabsAction);
 
         // commands
         let instanceCommandsNode = document.createElement("a");
@@ -249,9 +258,12 @@ function refreshList () {
         option.text = "Scan instance to discover its nodes";
         instanceNodes.appendChild(option);
 
-        instanceNameH3.appendChild(instanceNodes);
-        instanceNameH3.appendChild(instanceCommandsNode);
-        li1.appendChild(instanceNameH3);
+        li1.appendChild(instanceNameCheckbox);
+        li1.appendChild(instanceNameLabel);
+        li1.appendChild(newTabAction);
+        li1.appendChild(closeTabsAction);
+        li1.appendChild(instanceNodes);
+        li1.appendChild(instanceCommandsNode);
 
         // unordered list of tabs for current instance
         let ul = document.createElement("ul");
@@ -447,7 +459,13 @@ function tabRemoved (tabId, removeInfo) {
             }
         }
         // then remove the node
-        tabLi.parentNode.removeChild(tabLi);
+        let parent = tabLi.parentNode;
+        parent.removeChild(tabLi);
+        // if there is no tab left for the instance, remove the instance list item
+        if (context.tabs[instance].length === 0) {
+            delete context.tabs[instance];
+            document.getElementById("opened_tabs").removeChild(document.querySelector("li[data-instance=\"" + instance + "\""));
+        }
     }
 }
 
