@@ -269,31 +269,36 @@ function refreshList () {
         let ul = document.createElement("ul");
         ul.classList.add("linksToTabs");
 
+        // get the html template structure
+        let templateLI = document.getElementById("tab-row");
+
         context.tabs[key].forEach(function (tab) {
             context.tabCount++;
-            let li = document.createElement("li");
-            if (tab.active) {
-                activeTab = tab.id;
-            }
-            li.className = "linkToTab";
-            li.setAttribute("data-instance", key);
-            li.onclick = switchTab;
-            li.id = tab.id; // li id is the same as tab id for easy switching
-            li.innerText = tab.title;
-
-            ul.appendChild(li);
-            addCloseLink(tab.id, li);
+            // replace template placeholders with their actual values
+            ul.innerHTML += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title);
         });
         li1.appendChild(ul);
         openTabs.appendChild(li1);
     }
-    if (activeTab) {
-        setActiveTab(activeTab);
-    }
+
     if (context.tabCount === 0) {
         let li1 = document.createElement("li");
         li1.innerHTML += "<p class=\"text-muted\">No tab found :( Have you configured your URL filters in the options page?</p>";
         openTabs.appendChild(li1);
+    } else {
+        if (activeTab) {
+            setActiveTab(activeTab);
+        }
+        // add close tab actions
+        let closeElems = document.querySelectorAll("a[title=\"close tab\"]");
+        [].forEach.call(closeElems, function (el) {
+            el.addEventListener("click", closeTab);
+        });
+        // add switch tab actions
+        let tabElems = document.querySelectorAll("li.link-to-tab");
+        [].forEach.call(tabElems, function (el) {
+            el.addEventListener("click", switchTab);
+        });
     }
 }
 
