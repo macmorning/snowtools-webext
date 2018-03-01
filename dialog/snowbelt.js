@@ -4,7 +4,8 @@ const context = {
     tabs: {}, // array of tabs
     urlFilters: "",
     urlFiltersArr: [],
-    knownInstances: {}, // { "url1" : "instance 1 name", "url2" : "instnce 2 name", ...}
+    knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
+    instanceCheckStates: {}, // { "url1": boolean, "url2": boolean}
     knownNodes: {} // { "url1" : ["node1","node2", ...], "url2" : ...}
 };
 
@@ -40,6 +41,16 @@ function newTab (evt) {
     } else {
         chrome.tabs.create({ url: targetUrl });
     }
+}
+
+/**
+ * Handles when an instance checkbox is clicked (collapse)
+ * @param {object} evt the event that triggered the action
+ */
+function checkInstance (evt) {
+    let instance = evt.target.getAttribute("data-instance");
+    context.instanceCheckStates[instance] = evt.target.checked;
+    saveInstanceCheckStates();
 }
 
 /**
@@ -157,6 +168,15 @@ function saveKnownInstances () {
 }
 
 /**
+ * Saves the instances checked states
+ */
+function saveInstanceCheckStates () {
+    if (typeof (Storage) !== "undefined") {
+        localStorage.instanceCheckStates = JSON.stringify(context.instanceCheckStates);
+    }
+}
+
+/**
  * Retrieves saved options
  */
 function getOptions () {
@@ -164,6 +184,7 @@ function getOptions () {
     context.urlFiltersArr = ["service-now.com"];
     context.knownInstances = {};
     context.knownNodes = {};
+    context.instanceCheckStates = {};
     if (typeof (Storage) !== "undefined") {
         context.urlFilters = localStorage.urlFilters || "service-now.com";
         context.urlFiltersArr = context.urlFilters.split(";");
@@ -174,10 +195,10 @@ function getOptions () {
             context.knownInstances = {};
         }
         try {
-            context.knownNodes = JSON.parse(localStorage.knownNodes);
+            context.instanceCheckStates = JSON.parse(localStorage.instanceCheckStates);
         } catch (e) {
             // could not parse the saved data, perhaps someone messed with it
-            context.knownNodes = {};
+            context.instanceCheckStates = {};
         }
     }
     console.log("Loaded options");
@@ -213,7 +234,12 @@ function refreshList () {
         // get the html template structure for the instance row
         let templateInstance = document.getElementById("instance-row");
         // replace template placeholders with their actual values
-        let checked = (context.tabs[key].length <= context.collapseThreshold ? "checked" : "");
+        let checked = "";
+        if (context.instanceCheckStates[key] !== undefined) {
+            checked = (context.instanceCheckStates[key] ? "checked" : "");
+        } else {
+            checked = (context.tabs[key].length <= context.collapseThreshold ? "checked" : "");
+        }
         let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
 
         // get the html template structure for the tab row
@@ -272,6 +298,12 @@ function refreshList () {
         elements = document.querySelectorAll(".nodes-list");
         [].forEach.call(elements, function (el) {
             el.addEventListener("change", switchNode);
+        });
+
+        // add check listener
+        elements = document.querySelectorAll(".instance-checkbox");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("change", checkInstance);
         });
     }
 }
