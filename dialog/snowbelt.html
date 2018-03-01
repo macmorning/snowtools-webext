@@ -26,7 +26,7 @@
 
         <template id="instance-row">
             <li data-instance="{{instance}}">
-                <input id="{{instance}}" data-instance="{{instance}}" type="checkbox" checked={{checked}}></input>
+                <input id="{{instance}}" data-instance="{{instance}}" type="checkbox" {{checked}}></input>
                 <label for="{{instance}}" class="instance-label">{{instanceName}}</label>
                 <a data-instance="{{instance}}" class="button-muted instance-action" title="open a new tab">&plus;</a>
                 <a data-instance="{{instance}}" class="button-muted instance-action" title="close tabs">&times;</a>

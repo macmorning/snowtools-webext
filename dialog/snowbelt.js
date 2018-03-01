@@ -213,7 +213,8 @@ function refreshList () {
         // get the html template structure for the instance row
         let templateInstance = document.getElementById("instance-row");
         // replace template placeholders with their actual values
-        let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{instance\}\}/g, key);
+        let checked = (context.tabs[key].length <= context.collapseThreshold ? "checked" : "");
+        let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
 
         // get the html template structure for the tab row
         let templateLI = document.getElementById("tab-row");
