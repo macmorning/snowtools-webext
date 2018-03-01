@@ -75,7 +75,6 @@ ul.firstLvlUL {
 }
 label.instance-label {
     line-height: 30px;
-    margin: 10px 5px;
     width: 100%;
     font-size: large;
     color: var(--main-color);
@@ -101,21 +100,21 @@ input[type="checkbox"] ~ label:before {
 input[type="checkbox"]:checked ~ label:before {
     content: "˅ \0020";
 }
-ul.linksToTabs {
+ul.links-to-tabs {
     list-style-type: none;
     margin: 0 5px;
 }
-ul.linksToTabs li:before {
+ul.links-to-tabs li:before {
     content: "‣ \0020";
 }
-ul.linksToTabs > li {
+ul.links-to-tabs > li {
     line-height: 25px;
     padding: 0 5px 0 5px;
     cursor: pointer;
     border: 1px var(--main-bg-color) solid ;
     border-radius: 4px;
 }
-ul.linksToTabs > li:hover {
+ul.links-to-tabs > li:hover {
     border-color: var(--main-color);
 }
 li.loading {

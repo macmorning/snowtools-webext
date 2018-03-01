@@ -200,8 +200,6 @@ function refreshList () {
     let activeTab = "";
     removeChildren(openTabs);
     for (var key in context.tabs) {
-        let li1 = document.createElement("li");
-        li1.setAttribute("data-instance", key);
         let instanceName = "";
         if (context.knownInstances !== undefined && context.knownInstances[key] !== undefined) {
             // we already know about this instance
@@ -212,73 +210,22 @@ function refreshList () {
             context.knownInstances[key] = key;
         }
 
-        let instanceNameCheckbox = document.createElement("input");
-        instanceNameCheckbox.type = "checkbox";
-        instanceNameCheckbox.id = key;
-        if (context.tabs[key].length <= context.collapseThreshold) {
-            instanceNameCheckbox.setAttribute("checked", "checked");
-        }
+        // get the html template structure for the instance row
+        let templateInstance = document.getElementById("instance-row");
+        // replace template placeholders with their actual values
+        let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{instance\}\}/g, key);
 
-        let instanceNameLabel = document.createElement("label");
-        instanceNameLabel.className = "instance-label";
-        instanceNameLabel.setAttribute("for", key);
-        instanceNameLabel.innerText = instanceName;
-
-        // new tab link
-        let newTabAction = document.createElement("a");
-        newTabAction.setAttribute("data-instance", key);
-        newTabAction.classList = "button-muted instance-action";
-        newTabAction.innerHTML = "&plus;";
-        newTabAction.onclick = newTab;
-        newTabAction.title = "open a new tab";
-
-        // close tabs link
-        let closeTabsAction = document.createElement("a");
-        closeTabsAction.setAttribute("data-instance", key);
-        closeTabsAction.classList = "button-muted instance-action";
-        closeTabsAction.innerHTML = "&times;";
-        closeTabsAction.onclick = closeTabs;
-        closeTabsAction.title = "close tabs";
-
-        // commands
-        let instanceCommandsNode = document.createElement("a");
-        instanceCommandsNode.classList.add("instance-commands", "button-muted");
-        instanceCommandsNode.setAttribute("data-instance", key);
-        instanceCommandsNode.innerHTML = "&#128270;";
-        instanceCommandsNode.onclick = scanNodes;
-        instanceCommandsNode.title = "scan nodes";
-
-        // nodes list
-        let instanceNodes = document.createElement("select");
-        instanceNodes.className = "nodes-list";
-        instanceNodes.setAttribute("data-instance", key);
-        instanceNodes.onchange = switchNode;
-        // nodes list default option
-        let option = document.createElement("option");
-        option.text = "Scan instance to discover its nodes";
-        instanceNodes.appendChild(option);
-
-        li1.appendChild(instanceNameCheckbox);
-        li1.appendChild(instanceNameLabel);
-        li1.appendChild(newTabAction);
-        li1.appendChild(closeTabsAction);
-        li1.appendChild(instanceNodes);
-        li1.appendChild(instanceCommandsNode);
-
-        // unordered list of tabs for current instance
-        let ul = document.createElement("ul");
-        ul.classList.add("linksToTabs");
-
-        // get the html template structure
+        // get the html template structure for the tab row
         let templateLI = document.getElementById("tab-row");
-
+        let tabList = "";
         context.tabs[key].forEach(function (tab) {
             context.tabCount++;
             // replace template placeholders with their actual values
-            ul.innerHTML += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title);
+            tabList += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title);
         });
-        li1.appendChild(ul);
-        openTabs.appendChild(li1);
+        instanceRow = instanceRow.replace(/\{\{linksToTabs\}\}/g, tabList);
+
+        openTabs.innerHTML += instanceRow;
     }
 
     if (context.tabCount === 0) {
@@ -289,15 +236,41 @@ function refreshList () {
         if (activeTab) {
             setActiveTab(activeTab);
         }
+
         // add close tab actions
-        let closeElems = document.querySelectorAll("a[title=\"close tab\"]");
-        [].forEach.call(closeElems, function (el) {
+        let elements = {};
+        elements = document.querySelectorAll("a[title=\"close tab\"]");
+        [].forEach.call(elements, function (el) {
             el.addEventListener("click", closeTab);
         });
         // add switch tab actions
-        let tabElems = document.querySelectorAll("li.link-to-tab");
-        [].forEach.call(tabElems, function (el) {
+        elements = document.querySelectorAll("li.link-to-tab");
+        [].forEach.call(elements, function (el) {
             el.addEventListener("click", switchTab);
+        });
+
+        // add close tabs actions
+        elements = document.querySelectorAll("a[title=\"close tabs\"]");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("click", closeTabs);
+        });
+
+        // add open new tab actions
+        elements = document.querySelectorAll("a[title=\"open a new tab\"]");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("click", newTab);
+        });
+
+        // add scan nodes actions
+        elements = document.querySelectorAll("a[title=\"scan nodes\"]");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("click", scanNodes);
+        });
+
+        // add switch node actions
+        elements = document.querySelectorAll(".nodes-list");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("change", switchNode);
         });
     }
 }
@@ -390,7 +363,6 @@ function transformTitle (title) {
 function addCloseLink (tabid, li) {
     // close tab link
     let closeTabAction = document.createElement("a");
-    closeTabAction.setAttribute("href", "#");
     closeTabAction.setAttribute("data-id", tabid);
     closeTabAction.className = "button-muted";
     closeTabAction.innerHTML = "&times;";
