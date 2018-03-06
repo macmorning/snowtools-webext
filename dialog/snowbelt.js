@@ -246,6 +246,9 @@ function refreshList () {
         let templateLI = document.getElementById("tab-row");
         let tabList = "";
         context.tabs[key].forEach(function (tab) {
+            if (tab.active) {
+                activeTab = tab.id;
+            }
             context.tabCount++;
             // replace template placeholders with their actual values
             tabList += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title);
@@ -497,7 +500,7 @@ function setActiveTab (tabId) {
     [].forEach.call(elems, function (el) {
         el.classList.remove("selectedTab");
     });
-    document.getElementById(tabId).className = "selectedTab";
+    document.getElementById(tabId).classList.add("selectedTab");
 }
 
 /**

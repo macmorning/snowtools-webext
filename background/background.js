@@ -16,8 +16,6 @@ function getOptions () {
     }
 }
 
-getOptions();
-
 // Configure message listener
 var msgListener = function (message, sender, sendResponse) {
     console.log("*SNOW TOOL BELT Background* received message from content script: " + JSON.stringify(message));
@@ -28,10 +26,13 @@ var msgListener = function (message, sender, sendResponse) {
         });
         return true;
     } else if (message.command === "isServiceNow" && message.url) {
+        getOptions();
+        console.log("*SNOW TOOL BELT Background* urlFilters: " + context.urlFilters);
         let matchFound = false;
         context.urlFiltersArr.forEach(function (filter) {
             if (matchFound || filter.trim() === "") return true;
             if (message.url.toString().indexOf(filter.trim()) > -1) {
+                console.log("*SNOW TOOL BELT Background* matchFound: " + filter);
                 matchFound = true;
                 sendResponse(true);
             }

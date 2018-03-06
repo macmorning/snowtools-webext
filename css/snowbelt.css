@@ -95,10 +95,10 @@ input[type="checkbox"]:checked ~ ul {
     transform: scaleY(1); 
 }
 input[type="checkbox"] ~ label:before {
-    content: "˃ \0020";
+    content: "📕 \0020";
 }
 input[type="checkbox"]:checked ~ label:before {
-    content: "˅ \0020";
+    content: "📖 \0020";
 }
 ul.links-to-tabs {
     list-style-type: none;
@@ -193,7 +193,6 @@ button.btn-secondary:hover {
 .button-muted {
     margin-left: 10px;
     color: var(--disabled-color);
-    font-size: x-large;
     text-decoration: none;   
     font-weight: bold;
     cursor: pointer;

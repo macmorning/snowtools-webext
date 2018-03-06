@@ -28,9 +28,9 @@
             <li data-instance="{{instance}}">
                 <input id="{{instance}}" class="instance-checkbox" data-instance="{{instance}}" type="checkbox" {{checked}}></input>
                 <label for="{{instance}}" class="instance-label">{{instanceName}}</label>
-                <a data-instance="{{instance}}" class="button-muted instance-action" title="open a new tab">&plus;</a>
-                <a data-instance="{{instance}}" class="button-muted instance-action" title="close tabs">&times;</a>
                 <a data-instance="{{instance}}" class="button-muted instance-commands" title="scan nodes">&#128270;</a>
+                <a data-instance="{{instance}}" class="button-muted instance-commands" title="close tabs">&#10006;</a>
+                <a data-instance="{{instance}}" class="button-muted instance-commands" title="open a new tab">&#10010;</a>
                 <select class="nodes-list" data-instance="{{instance}}">
                     <option>Scan instance to discover its nodes</option>
                 </select>
