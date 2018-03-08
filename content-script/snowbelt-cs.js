@@ -53,7 +53,16 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
             console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
             let instanceName = window.location.toString().split("/")[2];
             let url = new Request("https://" + instanceName + "/stats.do");
-            if (request.command === "scanNodes") {
+            if (request.command === "grabLogs") {
+                let debugDiv = document.getElementById("debug_related");
+                if (debugDiv === undefined || !debugDiv.id) {
+                    console.log("*SNOW TOOL BELT* No debug information found");
+                    sendResponse({"status": "No debug information found"});
+                } else {
+                    console.log("*SNOW TOOL BELT* Debug information found");
+                    sendResponse({"content": debugDiv.innerHTML});
+                }
+            } else if (request.command === "scanNodes") {
                 /**
                      *  scanNodes
                      */

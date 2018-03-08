@@ -22,7 +22,10 @@ function displayMessage (txt) {
  * @param {object} evt the event that triggered the action
  */
 function switchTab (evt) {
-    chrome.tabs.update(parseInt(evt.target.id), {active: true});
+    // evt target could be the span containing the tab title instead of the list item
+    let id = (evt.target.id ? evt.target.id : evt.target.parentNode.id);
+
+    chrome.tabs.update(parseInt(id.replace("tab", "")), {active: true});
 }
 
 /**
@@ -60,6 +63,21 @@ function checkInstance (evt) {
 function closeTab (evt) {
     let tabid = parseInt(evt.target.getAttribute("data-id"));
     chrome.tabs.remove(tabid);
+}
+
+/**
+ * Grabs logs for tab
+ * @param {object} evt the event that triggered the action
+ */
+function grabLogs (evt) {
+    let tabid = parseInt(evt.target.getAttribute("data-id"));
+    chrome.tabs.sendMessage(tabid, {"command": "grabLogs"}, function (response) {
+        if (!response.content && response.status) {
+            displayMessage(response.status);
+        } else {
+            console.log(response.content);
+        }
+    });
 }
 
 /**
@@ -273,6 +291,11 @@ function refreshList () {
         [].forEach.call(elements, function (el) {
             el.addEventListener("click", closeTab);
         });
+        // add grab logs actions
+        elements = document.querySelectorAll("a[title=\"grab logs\"]");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("click", grabLogs);
+        });
         // add switch tab actions
         elements = document.querySelectorAll("li.link-to-tab");
         [].forEach.call(elements, function (el) {
@@ -392,22 +415,6 @@ function transformTitle (title) {
 }
 
 /**
- * Adds the close link to the li element
- * @param {Integer} tabId the id of the updated tab
- * @param {Element} li element to which the close action must be appended
- */
-function addCloseLink (tabid, li) {
-    // close tab link
-    let closeTabAction = document.createElement("a");
-    closeTabAction.setAttribute("data-id", tabid);
-    closeTabAction.className = "button-muted";
-    closeTabAction.innerHTML = "&times;";
-    closeTabAction.onclick = closeTab;
-    closeTabAction.title = "close tab";
-    li.appendChild(closeTabAction);
-}
-
-/**
  * Reflects changes that occur when a tab is found or created
  * @param {Tab} tab the Tab object itself
  */
@@ -442,10 +449,10 @@ function tabCreated (tab) {
  * @param {Tab} tab the Tab object itself
  */
 function tabUpdated (tabId, changeInfo, tab) {
-    let tabLi = document.getElementById(tabId);
+    let tabLi = document.querySelector("#tab" + tabId + " > span");
     if (tabLi && changeInfo.title !== undefined) {
+        console.log(tabLi.innerText);
         tabLi.innerText = transformTitle(changeInfo.title);
-        addCloseLink(tabId, tabLi);
     } else if (!tabLi) {
         if (tabCreated(tab)) {
             refreshList();
@@ -460,7 +467,7 @@ function tabUpdated (tabId, changeInfo, tab) {
  * @param {Object} removeInfo contains the informations about the remove event
  */
 function tabRemoved (tabId, removeInfo) {
-    let tabLi = document.getElementById(tabId);
+    let tabLi = document.getElementById("tab" + tabId);
     if (tabLi) {
         // remove the tab from context.tabs
         let instance = tabLi.getAttribute("data-instance");
@@ -500,7 +507,7 @@ function setActiveTab (tabId) {
     [].forEach.call(elems, function (el) {
         el.classList.remove("selectedTab");
     });
-    document.getElementById(tabId).classList.add("selectedTab");
+    document.getElementById("tab" + tabId).classList.add("selectedTab");
 }
 
 /**
