@@ -190,6 +190,9 @@ button.btn-secondary:hover {
     margin-right: 15px;
     font-size: large;
 }
+.tab-commands {
+    font-size: larger;
+}
 .button-muted {
     margin-left: 10px;
     color: var(--disabled-color);

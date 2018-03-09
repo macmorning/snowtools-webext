@@ -1,5 +1,6 @@
 const context = {
-    knownInstances: {}
+    knownInstances: {},
+    separator: ","
 };
 
 /**
@@ -54,6 +55,7 @@ function sortProperties (obj, isNumericSort) {
  */
 function restoreOptions () {
     document.getElementById("urlFilters").value = localStorage.urlFilters || "service-now.com;";
+    document.getElementById("separator").value = localStorage.separator || ",";
     try {
         context.knownInstances = JSON.parse(localStorage.knownInstances);
     } catch (e) {
@@ -98,6 +100,7 @@ function saveOptions (evt) {
     evt.preventDefault();
     try {
         localStorage.urlFilters = document.getElementById("urlFilters").value;
+        localStorage.separator = document.getElementById("separator").value || ",";
         for (var key in context.knownInstances) {
             context.knownInstances[key] = document.getElementById(key).value;
         }

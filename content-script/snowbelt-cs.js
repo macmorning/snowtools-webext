@@ -54,8 +54,11 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
             let instanceName = window.location.toString().split("/")[2];
             let url = new Request("https://" + instanceName + "/stats.do");
             if (request.command === "grabLogs") {
-                let debugDiv = document.getElementById("debug_related");
-                if (debugDiv === undefined || !debugDiv.id) {
+                /**
+                *  grabLogs
+                */
+                let debugDiv = (document.getElementById("debug_related") ? document.getElementById("debug_messages") : document.getElementById("gsft_main").contentWindow.document.getElementById("debug_messages"));
+                if (debugDiv === undefined || !debugDiv) {
                     console.log("*SNOW TOOL BELT* No debug information found");
                     sendResponse({"status": "No debug information found"});
                 } else {
@@ -64,8 +67,8 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
                 }
             } else if (request.command === "scanNodes") {
                 /**
-                     *  scanNodes
-                     */
+                *  scanNodes
+                */
                 console.log("*SNOW TOOL BELT* going to search for nodes");
                 let scans = 0;
                 let maxScans = 50;

@@ -4,6 +4,8 @@
     <head>
         <meta charset="utf-8">
         <link rel="stylesheet" href="../css/snowbelt.css"/>
+        <script src="basicContext.min.js"></script>
+        <link rel="stylesheet" href="basicContext.min.css"/>
         <script async src="autocomplete.js"></script>
     </head>
     <body>
@@ -28,20 +30,18 @@
             <li data-instance="{{instance}}">
                 <input id="{{instance}}" class="instance-checkbox" data-instance="{{instance}}" type="checkbox" {{checked}}></input>
                 <label for="{{instance}}" class="instance-label">{{instanceName}}</label>
-                <a data-instance="{{instance}}" class="button-muted instance-commands" title="scan nodes">&#128270;</a>
-                <a data-instance="{{instance}}" class="button-muted instance-commands" title="close tabs">&#10006;</a>
-                <a data-instance="{{instance}}" class="button-muted instance-commands" title="open a new tab">&#10010;</a>
-                <select class="nodes-list" data-instance="{{instance}}">
-                    <option>Scan instance to discover its nodes</option>
-                </select>
+                <a data-instance="{{instance}}" class="button-muted instance-commands" title="scan nodes">&#128270;</a> <!-- 🔎 -->
+                <a data-instance="{{instance}}" class="button-muted instance-commands" title="close tabs">&#10006;</a> <!-- ✖ -->
+                <a data-instance="{{instance}}" class="button-muted instance-commands" title="open a new tab">&#10010;</a> <!-- ✚ -->
+                <select class="nodes-list" data-instance="{{instance}}"></select>
                 <ul class="links-to-tabs">{{linksToTabs}}</ul>
             </li>
         </template>
         <template id="tab-row">
             <li id="tab{{tabid}}" class="link-to-tab" data-instance="{{instance}}">
                 <span>{{title}}</span>
-                <a data-id="{{tabid}}" class="button-muted" title="close tab">&times;</a>
-                <a data-id="{{tabid}}" class="button-muted" title="grab logs">&#128190;</a>
+                <a data-id="{{tabid}}" class="button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
+                <a data-id="{{tabid}}" class="button-muted tab-commands" title="other commands">&#133;</a> <!-- … -->
             </li>
         </template>
     </body>

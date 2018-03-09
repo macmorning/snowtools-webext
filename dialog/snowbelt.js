@@ -6,7 +6,8 @@ const context = {
     urlFiltersArr: [],
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
     instanceCheckStates: {}, // { "url1": boolean, "url2": boolean}
-    knownNodes: {} // { "url1" : ["node1","node2", ...], "url2" : ...}
+    knownNodes: {}, // { "url1" : ["node1","node2", ...], "url2" : ...}
+    separator: "," // separator for downloaded csv files
 };
 
 /**
@@ -70,12 +71,45 @@ function closeTab (evt) {
  * @param {object} evt the event that triggered the action
  */
 function grabLogs (evt) {
-    let tabid = parseInt(evt.target.getAttribute("data-id"));
+    let tabid = "";
+    if (evt.target.getAttribute("data-id")) {
+        tabid = evt.target.getAttribute("data-id");
+    } else if (context.clicked && context.clicked.getAttribute("data-id")) {
+        tabid = context.clicked.getAttribute("data-id");
+    }
+    tabid = parseInt(tabid);
+
     chrome.tabs.sendMessage(tabid, {"command": "grabLogs"}, function (response) {
-        if (!response.content && response.status) {
+        if (response === undefined || !response) {
+            displayMessage("Couldn't get an answer from tab. Try refreshing it.");
+        } else if (!response.content && response.status) {
             displayMessage(response.status);
-        } else {
-            console.log(response.content);
+        } else if (response.content) {
+            let logEl = document.createElement("div");
+            logEl.innerHTML = response.content;
+            if (logEl.hasChildNodes()) {
+                let s = context.separator;
+                let file = "data:text/plain;charset=utf-8,type" + s + "timestamp" + s + "execution time" + s + "text%0A";
+                let logElChildNodes = logEl.childNodes;
+                for (var i = 0; i < logElChildNodes.length; i++) {
+                    let splitLog = logElChildNodes[i].innerText.split(": ");
+                    file += logElChildNodes[i].classList[1].replace("debug_", "").toUpperCase() + s + splitLog[0].trim() + s;
+                    if (splitLog[1].trim() === "Time") {
+                        file += splitLog[2].replace(" for", "").trim() + s + splitLog[3].trim();
+                    } else {
+                        file += "-------" + s + splitLog[1].trim();
+                    }
+
+                    file += "%0A"; // end line
+                }
+                let anchor = document.createElement("a");
+                anchor.setAttribute("href", file);
+                anchor.setAttribute("download", "logs.csv");
+                anchor.style.display = "none";
+                document.body.appendChild(anchor);
+                anchor.click();
+                document.body.removeChild(anchor);
+            }
         }
     });
 }
@@ -204,6 +238,7 @@ function getOptions () {
     context.knownNodes = {};
     context.instanceCheckStates = {};
     if (typeof (Storage) !== "undefined") {
+        context.separator = localStorage.separator || ",";
         context.urlFilters = localStorage.urlFilters || "service-now.com";
         context.urlFiltersArr = context.urlFilters.split(";");
         try {
@@ -291,11 +326,21 @@ function refreshList () {
         [].forEach.call(elements, function (el) {
             el.addEventListener("click", closeTab);
         });
-        // add grab logs actions
-        elements = document.querySelectorAll("a[title=\"grab logs\"]");
+        // add the "other actions" menu
+        elements = document.querySelectorAll("a[title=\"other commands\"]");
         [].forEach.call(elements, function (el) {
-            el.addEventListener("click", grabLogs);
+            el.addEventListener("click", function (e) {
+                context.clicked = e.target;
+                let items = [
+                    { },
+                    { title: "&#128190; Grab logs", icon: "", fn: grabLogs },
+                    { }
+                ];
+
+                basicContext.show(items, e);
+            });
         });
+
         // add switch tab actions
         elements = document.querySelectorAll("li.link-to-tab");
         [].forEach.call(elements, function (el) {
@@ -451,7 +496,6 @@ function tabCreated (tab) {
 function tabUpdated (tabId, changeInfo, tab) {
     let tabLi = document.querySelector("#tab" + tabId + " > span");
     if (tabLi && changeInfo.title !== undefined) {
-        console.log(tabLi.innerText);
         tabLi.innerText = transformTitle(changeInfo.title);
     } else if (!tabLi) {
         if (tabCreated(tab)) {
