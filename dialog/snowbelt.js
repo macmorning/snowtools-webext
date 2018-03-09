@@ -67,11 +67,27 @@ function closeTab (evt) {
 }
 
 /**
- * Grabs logs for tab
+ * Grabs logs for tab in CSV format
  * @param {object} evt the event that triggered the action
  */
-function grabLogs (evt) {
+function grabLogsCSV (evt) {
+    grabLogs(evt, "csv");
+}
+/**
+ * Grabs logs for tab in TXT format
+ * @param {object} evt the event that triggered the action
+ */
+function grabLogsTXT (evt) {
+    grabLogs(evt, "txt");
+}
+/**
+ * Grabs logs for tab
+ * @param {object} evt the event that triggered the action
+ * @param {string} format csv or txt
+ */
+function grabLogs (evt, format) {
     let tabid = "";
+    if (!format) { format = "txt"; }
     if (evt.target.getAttribute("data-id")) {
         tabid = evt.target.getAttribute("data-id");
     } else if (context.clicked && context.clicked.getAttribute("data-id")) {
@@ -89,26 +105,35 @@ function grabLogs (evt) {
             logEl.innerHTML = response.content;
             if (logEl.hasChildNodes()) {
                 let s = context.separator;
-                let file = "data:text/plain;charset=utf-8,type" + s + "timestamp" + s + "execution time" + s + "text%0A";
+                let file = "";
+                if (format === "csv") {
+                    file = "data:text/plain;charset=utf-8,type" + s + "timestamp" + s + "execution time" + s + "text%0A";
+                } else {
+                    file = "data:text/plain;charset=utf-8,";
+                }
                 let logElChildNodes = logEl.childNodes;
                 for (var i = 0; i < logElChildNodes.length; i++) {
-                    let splitLog = logElChildNodes[i].innerText.split(": ");
-                    file += logElChildNodes[i].classList[1].replace("debug_", "").toUpperCase() + s + splitLog[0].trim() + s;
-                    if (splitLog[1].trim() === "Time") {
-                        file += splitLog[2].replace(" for", "").trim() + s + splitLog[3].trim();
+                    if (format === "csv") {
+                        let splitLog = logElChildNodes[i].innerText.split(": ");
+                        file += logElChildNodes[i].classList[1].replace("debug_", "").toUpperCase() + s + splitLog[0].trim() + s;
+                        if (splitLog[1].trim() === "Time") {
+                            file += splitLog[2].replace(" for", "").trim() + s + splitLog[3].trim();
+                        } else {
+                            file += "-------" + s + splitLog[1].trim();
+                        }
                     } else {
-                        file += "-------" + s + splitLog[1].trim();
+                        file += logElChildNodes[i].classList[1] + " " + logElChildNodes[i].innerText;
                     }
-
                     file += "%0A"; // end line
                 }
                 let anchor = document.createElement("a");
                 anchor.setAttribute("href", file);
-                anchor.setAttribute("download", "logs.csv");
-                anchor.style.display = "none";
+                anchor.setAttribute("download", "logs." + format);
+                anchor.innerText = "download";
+                // anchor.style.display = "none";
                 document.body.appendChild(anchor);
-                anchor.click();
-                document.body.removeChild(anchor);
+                // anchor.click();
+                // document.body.removeChild(anchor);
             }
         }
     });
@@ -332,9 +357,8 @@ function refreshList () {
             el.addEventListener("click", function (e) {
                 context.clicked = e.target;
                 let items = [
-                    { },
-                    { title: "&#128190; Grab logs", icon: "", fn: grabLogs },
-                    { }
+                    { title: "&#128190; Grab logs (csv)", icon: "", fn: grabLogsCSV },
+                    { title: "&#128190; Grab logs (txt)", icon: "", fn: grabLogsTXT }
                 ];
 
                 basicContext.show(items, e);
