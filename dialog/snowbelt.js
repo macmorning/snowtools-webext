@@ -67,6 +67,28 @@ function closeTab (evt) {
 }
 
 /**
+ * Moves tab into a navigation frame
+ * @param {object} evt the event that triggered the action
+ */
+function popIn (evt) {
+    let tabid = "";
+    if (evt.target.getAttribute("data-id")) {
+        tabid = evt.target.getAttribute("data-id");
+    } else if (context.clicked && context.clicked.getAttribute("data-id")) {
+        tabid = context.clicked.getAttribute("data-id");
+    }
+    tabid = parseInt(tabid);
+    chrome.tabs.get(tabid, function (tab) {
+        let urlArray = tab.url.split("/");
+        if (urlArray[3].indexOf("nav_to.do") === -1) {
+            let newUrl = "https://" + urlArray[2] + "/nav_to.do?uri=" + encodeURI(urlArray[3]);
+            chrome.tabs.update(tab.id, {url: newUrl});
+        } else {
+            displayMessage("Already in a frame");
+        }
+    });
+}
+/**
  * Grabs logs for tab in CSV format
  * @param {object} evt the event that triggered the action
  */
@@ -122,18 +144,18 @@ function grabLogs (evt, format) {
                             file += "-------" + s + splitLog[1].trim();
                         }
                     } else {
-                        file += logElChildNodes[i].classList[1] + " " + logElChildNodes[i].innerText;
+                        file += logElChildNodes[i].classList[1] + " " + logElChildNodes[i].innerText.trim();
                     }
                     file += "%0A"; // end line
                 }
                 let anchor = document.createElement("a");
                 anchor.setAttribute("href", file);
                 anchor.setAttribute("download", "logs." + format);
-                anchor.innerText = "download";
-                // anchor.style.display = "none";
+                // anchor.innerText = "download";
+                anchor.style.display = "none";
                 document.body.appendChild(anchor);
-                // anchor.click();
-                // document.body.removeChild(anchor);
+                anchor.click();
+                document.body.removeChild(anchor);
             }
         }
     });
@@ -357,8 +379,9 @@ function refreshList () {
             el.addEventListener("click", function (e) {
                 context.clicked = e.target;
                 let items = [
-                    { title: "&#128190; Grab logs (csv)", icon: "", fn: grabLogsCSV },
-                    { title: "&#128190; Grab logs (txt)", icon: "", fn: grabLogsTXT }
+                    { title: "&#8690; Reopen in frame", fn: popIn },
+                    { title: "&#128190; Grab logs (csv)", fn: grabLogsCSV },
+                    { title: "&#128190; Grab logs (txt)", fn: grabLogsTXT }
                 ];
 
                 basicContext.show(items, e);

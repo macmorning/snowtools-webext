@@ -136,7 +136,8 @@ li.loading {
     background-position: 0 15px;
 }
 li.selectedTab {
-    color: var(--disabled-color);
+    color: var(--main-bg-color);
+    background-color: var(--main-color);
 }
 input[type=text], select {
     width: 100%;
@@ -216,6 +217,10 @@ button.btn-secondary:hover {
 .button-muted:hover {
     color: var(--main-color);
 }
+li.selectedTab > .button-muted:hover {
+    color: var(--main-bg-color);
+}
+
 p.text-muted {
     font-size: small;
     font-weight: normal;
