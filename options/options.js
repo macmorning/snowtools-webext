@@ -1,5 +1,6 @@
 const context = {
     knownInstances: {},
+    instancesColors: {},
     separator: ","
 };
 

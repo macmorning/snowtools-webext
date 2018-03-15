@@ -16,6 +16,18 @@ function getOptions () {
     }
 }
 
+/**
+ * Reflects changes that occur on tabs
+ * @param {Integer} tabId the id of the updated tab
+ * @param {Object} changeInfo contains the informations that changed
+ * @param {Tab} tab the Tab object itself
+ */
+function tabUpdated (tabId, changeInfo, tab) {
+    if (changeInfo.favIconUrl !== undefined) {
+        chrome.tabs.sendMessage(tabId, {"command": "updateFavicon", "url": changeInfo.favIconUrl, "color": "#0ab"});
+    }
+}
+
 // Configure message listener
 var msgListener = function (message, sender, sendResponse) {
     console.log("*SNOW TOOL BELT Background* received message from content script: " + JSON.stringify(message));
@@ -44,6 +56,8 @@ var msgListener = function (message, sender, sendResponse) {
 
 if (isChrome) {
     chrome.runtime.onMessage.addListener(msgListener);
+    chrome.tabs.onUpdated.addListener(tabUpdated);
 } else {
     browser.runtime.onMessage.addListener(msgListener);
+    browser.tabs.onUpdated.addListener(tabUpdated);
 }

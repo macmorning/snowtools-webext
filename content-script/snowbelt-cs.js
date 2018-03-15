@@ -20,6 +20,35 @@ function getNameFromStatsPage (text) {
     return instanceName;
 }
 
+/**
+ * Updates favicon
+ */
+function updateFavicon (url, color) {
+    var link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+        link = document.createElement("link");
+        link.setAttribute("rel", "shortcut icon");
+        document.head.appendChild(link);
+    }
+    var faviconUrl = link.href || window.location.origin + "/favicon.ico";
+    function onImageLoaded () {
+        var canvas = document.createElement("canvas");
+        canvas.width = 16;
+        canvas.height = 16;
+        var context = canvas.getContext("2d");
+        context.drawImage(img, 0, 0);
+        context.globalCompositeOperation = "source-in";
+        context.fillStyle = color;
+        context.fillRect(0, 0, 16, 16);
+        context.fill();
+        link.type = "image/x-icon";
+        link.href = canvas.toDataURL();
+    };
+    var img = document.createElement("img");
+    img.addEventListener("load", onImageLoaded);
+    img.src = faviconUrl;
+}
+
 // ask background script if this url is to be considered as a ServiceNow instance
 chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.hostname}, function (response) {
     if (response === undefined || response === false) {
@@ -53,7 +82,12 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
             console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
             let instanceName = window.location.toString().split("/")[2];
             let url = new Request("https://" + instanceName + "/stats.do");
-            if (request.command === "grabLogs") {
+            if (request.command === "updateFavicon") {
+                /**
+                *  change Favicon color
+                */
+                updateFavicon(request.url, request.color);
+            } else if (request.command === "grabLogs") {
                 /**
                 *  grabLogs
                 */
