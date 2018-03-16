@@ -86,9 +86,12 @@ ul.firstLvlUL {
     padding-left: 10px;
     list-style-type: none;
 }
-label.instance-label {
+div.instance-label {
+    margin-left: 5px;
+    display: inline-block;
+}
+.instance-label {
     line-height: 30px;
-    width: 100%;
     font-size: large;
     color: var(--main-color);
     cursor: pointer;

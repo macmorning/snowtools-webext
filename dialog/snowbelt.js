@@ -5,7 +5,7 @@ const context = {
     urlFilters: "",
     urlFiltersArr: [],
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
-    instanceCheckStates: {}, // { "url1": boolean, "url2": boolean}
+    instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color}, "url2": ...}
     knownNodes: {}, // { "url1" : ["node1","node2", ...], "url2" : ...}
     separator: "," // separator for downloaded csv files
 };
@@ -53,8 +53,11 @@ function newTab (evt) {
  */
 function checkInstance (evt) {
     let instance = evt.target.getAttribute("data-instance");
-    context.instanceCheckStates[instance] = evt.target.checked;
-    saveInstanceCheckStates();
+    if (context.instanceOptions[instance] === undefined) {
+        context.instanceOptions[instance] = {};
+    }
+    context.instanceOptions[instance]["checkState"] = evt.target.checked;
+    saveInstanceOptions();
 }
 
 /**
@@ -173,11 +176,39 @@ function closeTabs (evt) {
 }
 
 /**
+ * Lets the user edit the name of the instance
+ * @param {object} evt the event that triggered the action
+ */
+function renameInstance (evt) {
+    let targetInstance = "";
+    if (evt.target.getAttribute("data-instance")) {
+        targetInstance = evt.target.getAttribute("data-instance");
+    } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
+        targetInstance = context.clicked.getAttribute("data-instance");
+    }
+    let instanceLabel = document.querySelector("div[data-instance='" + targetInstance + "']");
+    instanceLabel.setAttribute("contenteditable", "true");
+    instanceLabel.focus();
+    var range = document.createRange();
+    var sel = window.getSelection();
+    range.setStart(instanceLabel, 0);
+    range.setEnd(instanceLabel, 1);
+    // range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+}
+
+/**
  * Starts scanning the instance nodes
  * @param {object} evt the event that triggered the action
  */
 function scanNodes (evt) {
-    let targetInstance = evt.target.getAttribute("data-instance");
+    let targetInstance = "";
+    if (evt.target.getAttribute("data-instance")) {
+        targetInstance = evt.target.getAttribute("data-instance");
+    } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
+        targetInstance = context.clicked.getAttribute("data-instance");
+    }
 
     // try to find a non discarded tab for the instance to run the scan
     let id = -1;
@@ -269,9 +300,9 @@ function saveKnownInstances () {
 /**
  * Saves the instances checked states
  */
-function saveInstanceCheckStates () {
+function saveInstanceOptions () {
     if (typeof (Storage) !== "undefined") {
-        localStorage.instanceCheckStates = JSON.stringify(context.instanceCheckStates);
+        localStorage.instanceOptions = JSON.stringify(context.instanceOptions);
     }
 }
 
@@ -283,7 +314,7 @@ function getOptions () {
     context.urlFiltersArr = ["service-now.com"];
     context.knownInstances = {};
     context.knownNodes = {};
-    context.instanceCheckStates = {};
+    context.instanceOptions = {};
     if (typeof (Storage) !== "undefined") {
         context.separator = localStorage.separator || ",";
         context.urlFilters = localStorage.urlFilters || "service-now.com";
@@ -295,10 +326,10 @@ function getOptions () {
             context.knownInstances = {};
         }
         try {
-            context.instanceCheckStates = JSON.parse(localStorage.instanceCheckStates);
+            context.instanceOptions = JSON.parse(localStorage.instanceOptions);
         } catch (e) {
             // could not parse the saved data, perhaps someone messed with it
-            context.instanceCheckStates = {};
+            context.instanceOptions = {};
         }
     }
     console.log("Loaded options");
@@ -329,14 +360,15 @@ function refreshList () {
             // else, save instance url into the knownInstances object
             instanceName = key;
             context.knownInstances[key] = key;
+            context.instanceOptions[key] = {};
         }
 
         // get the html template structure for the instance row
         let templateInstance = document.getElementById("instance-row");
         // replace template placeholders with their actual values
         let checked = "";
-        if (context.instanceCheckStates[key] !== undefined) {
-            checked = (context.instanceCheckStates[key] ? "checked" : "");
+        if (context.instanceOptions[key] !== undefined && context.instanceOptions[key]["checkState"] !== undefined) {
+            checked = (context.instanceOptions[key]["checkState"] ? "checked" : "");
         } else {
             checked = (context.tabs[key].length <= context.collapseThreshold ? "checked" : "");
         }
@@ -406,10 +438,38 @@ function refreshList () {
             el.addEventListener("click", newTab);
         });
 
-        // add scan nodes actions
-        elements = document.querySelectorAll("a[title=\"scan nodes\"]");
+        // add the "other actions" menu
+        elements = document.querySelectorAll("a[title=\"other options\"]");
         [].forEach.call(elements, function (el) {
-            el.addEventListener("click", scanNodes);
+            el.addEventListener("click", function (e) {
+                context.clicked = e.target;
+                let items = [
+                    { title: "&#128270; Scan nodes", fn: scanNodes },
+                    { title: "&#10000; Rename", fn: renameInstance }
+                    // { title: "&#10050; Select color", fn: scanNodes } coming soon !
+                ];
+
+                basicContext.show(items, e);
+            });
+        });
+
+        // Instance name edition
+        elements = document.querySelectorAll("div[data-instance]");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("keydown", function (e) {
+                if (e.keyCode === 13) {
+                    e.preventDefault();
+                    e.target.blur();
+                }
+            });
+            el.addEventListener("blur", function (e) {
+                e.preventDefault();
+                let newText = e.target.innerText.trim();
+                e.target.innerText = newText;
+                context.knownInstances[e.target.getAttribute("data-instance")] = newText;
+                e.target.setAttribute("contenteditable", "false");
+                saveKnownInstances();
+            });
         });
 
         // add switch node actions
@@ -611,6 +671,7 @@ function bootStrap () {
         });
         refreshList();
         saveKnownInstances();
+        saveInstanceOptions();
         refreshKnownInstances();
         // refreshNodes();
     };
@@ -632,9 +693,6 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("search_api").addEventListener("click", searchNow);
     document.getElementById("searchInput").addEventListener("keyup", function (event) {
         event.preventDefault();
-        if (event.target.value.length > 2) {
-            console.log(words.length);
-        }
         if (event.keyCode === 13) {
             document.getElementById("search_doc").click();
         }

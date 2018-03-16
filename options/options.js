@@ -71,12 +71,22 @@ function restoreOptions () {
             input.setAttribute("type", "text");
             input.setAttribute("id", key);
             input.value = context.knownInstances[key];
+
             let label = document.createElement("label");
             label.setAttribute("for", input.id);
             label.innerHTML = "Label for " + key + " <a class=\"button-muted\" title=\"delete\" href=\"#\" id=\"del#" + input.id + "\">&#10799;</a>";
             label.onclick = deleteInstance;
+
+            /*
+            let inputColor = document.createElement("input");
+            inputColor.setAttribute("type", "color");
+            inputColor.setAttribute("id", key + "_color");
+            inputColor.value = context.knownInstancesColors[key];
+            */
+
             document.getElementById("knownInstances").appendChild(label);
             document.getElementById("knownInstances").appendChild(input);
+            // document.getElementById("knownInstances").appendChild(inputColor);
         }
     }
 }

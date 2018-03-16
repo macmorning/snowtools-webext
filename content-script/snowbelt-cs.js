@@ -24,6 +24,7 @@ function getNameFromStatsPage (text) {
  * Updates favicon
  */
 function updateFavicon (url, color) {
+/*
     var link = document.querySelector("link[rel~='icon']");
     if (!link) {
         link = document.createElement("link");
@@ -47,6 +48,7 @@ function updateFavicon (url, color) {
     var img = document.createElement("img");
     img.addEventListener("load", onImageLoaded);
     img.src = faviconUrl;
+*/
 }
 
 // ask background script if this url is to be considered as a ServiceNow instance
