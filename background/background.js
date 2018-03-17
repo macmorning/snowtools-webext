@@ -1,7 +1,8 @@
 const isChrome = (chrome !== undefined);
 const context = {
     urlFilters: "",
-    urlFiltersArr: []
+    urlFiltersArr: [],
+    instanceOptions: {}
 };
 
 /**
@@ -13,6 +14,12 @@ function getOptions () {
     if (typeof (Storage) !== "undefined") {
         context.urlFilters = localStorage.urlFilters || "service-now.com";
         context.urlFiltersArr = context.urlFilters.split(";");
+        try {
+            context.instanceOptions = JSON.parse(localStorage.instanceOptions);
+        } catch (e) {
+            console.log("*SNOW TOOL BELT Background* could not parse the saved data, perhaps someone messed with it?");
+            context.instanceOptions = {};
+        }
     }
 }
 
@@ -23,9 +30,21 @@ function getOptions () {
  * @param {Tab} tab the Tab object itself
  */
 function tabUpdated (tabId, changeInfo, tab) {
+    let instance = tab.url.split("/")[2];
     if (changeInfo.favIconUrl !== undefined) {
-        chrome.tabs.sendMessage(tabId, {"command": "updateFavicon", "url": changeInfo.favIconUrl, "color": "#0ab"});
+        if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
+            chrome.tabs.sendMessage(tabId, {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"]});
+        }
     }
+}
+
+/**
+ * Handles a change event coming from storage
+ * @param {Object} e the event itself
+ */
+function storageEvent (e) {
+    console.log("*SNOW TOOL BELT Background* Storage update, reloading options");
+    getOptions();
 }
 
 // Configure message listener
@@ -44,12 +63,17 @@ var msgListener = function (message, sender, sendResponse) {
         context.urlFiltersArr.forEach(function (filter) {
             if (matchFound || filter.trim() === "") return true;
             if (message.url.toString().indexOf(filter.trim()) > -1) {
+                let instance = message.url.split("/")[2];
+                let color = "";
+                if (context.instanceOptions[instance] !== undefined) {
+                    color = context.instanceOptions[instance]["color"];
+                }
                 console.log("*SNOW TOOL BELT Background* matchFound: " + filter);
                 matchFound = true;
-                sendResponse(true);
+                sendResponse({ "isServiceNow": true, "favIconColor": color });
             }
         });
-        sendResponse(false);
+        sendResponse({ "isServiceNow": false });
     }
     sendResponse("");
 };
@@ -60,4 +84,10 @@ if (isChrome) {
 } else {
     browser.runtime.onMessage.addListener(msgListener);
     browser.tabs.onUpdated.addListener(tabUpdated);
+}
+
+if (window.addEventListener) {
+    addEventListener("storage", storageEvent, false);
+} else if (window.attachEvent) {
+    attachEvent("onstorage", storageEvent, false);
 }

@@ -23,8 +23,7 @@ function getNameFromStatsPage (text) {
 /**
  * Updates favicon
  */
-function updateFavicon (url, color) {
-/*
+function updateFavicon (color) {
     var link = document.querySelector("link[rel~='icon']");
     if (!link) {
         link = document.createElement("link");
@@ -48,14 +47,16 @@ function updateFavicon (url, color) {
     var img = document.createElement("img");
     img.addEventListener("load", onImageLoaded);
     img.src = faviconUrl;
-*/
 }
 
 // ask background script if this url is to be considered as a ServiceNow instance
 chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.hostname}, function (response) {
-    if (response === undefined || response === false) {
+    if (response === undefined || response.isServiceNow === false) {
         console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
     } else {
+        if (response.favIconColor) {
+            updateFavicon(response.favIconColor);
+        }
         if (document.title === "ServiceNow") {
             document.getElementById("gsft_main").onload = function () {
                 console.log("*SNOW TOOL BELT* Changed tab title");
@@ -88,7 +89,7 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
                 /**
                 *  change Favicon color
                 */
-                updateFavicon(request.url, request.color);
+                updateFavicon(request.color);
             } else if (request.command === "grabLogs") {
                 /**
                 *  grabLogs

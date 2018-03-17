@@ -199,6 +199,30 @@ function renameInstance (evt) {
 }
 
 /**
+ * Opens the colorPicker popup
+ * @param {object} evt the event that triggered the action
+ */
+function selectColor (evt) {
+    let targetInstance = "";
+    if (evt.target.getAttribute("data-instance")) {
+        targetInstance = evt.target.getAttribute("data-instance");
+    } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
+        targetInstance = context.clicked.getAttribute("data-instance");
+    }
+
+    if (context.instanceOptions[targetInstance] === undefined) {
+        context.instanceOptions[targetInstance] = {};
+    } else {
+        document.getElementById("colorPicker").querySelector("[name='instanceName']").innerText = targetInstance;
+        if (context.instanceOptions[targetInstance]["color"] !== undefined) {
+            document.getElementById("colorPickerColor").value = context.instanceOptions[targetInstance]["color"];
+        } else {
+            document.getElementById("colorPickerColor").value = "#000000";
+        }
+    }
+    document.getElementById("colorPicker").style.display = "block";
+}
+/**
  * Starts scanning the instance nodes
  * @param {object} evt the event that triggered the action
  */
@@ -304,6 +328,40 @@ function saveInstanceOptions () {
     if (typeof (Storage) !== "undefined") {
         localStorage.instanceOptions = JSON.stringify(context.instanceOptions);
     }
+}
+
+/**
+ * Saves selected color
+ * @param {object} evt the event that triggered the action
+ */
+function saveColor (evt) {
+    let targetInstance = "";
+    targetInstance = context.clicked.getAttribute("data-instance");
+    document.getElementById("colorPicker").style.display = "none";
+    if (context.instanceOptions[targetInstance] === undefined) {
+        context.instanceOptions[targetInstance] = {};
+    }
+    context.instanceOptions[targetInstance]["color"] = document.getElementById("colorPickerColor").value;
+    saveInstanceOptions();
+}
+
+/**
+ * Saves no color for the instance
+ * @param {object} evt the event that triggered the action
+ */
+function saveNoColor (evt) {
+    let targetInstance = "";
+    targetInstance = context.clicked.getAttribute("data-instance");
+    document.getElementById("colorPicker").style.display = "none";
+    if (context.instanceOptions[targetInstance] === undefined) {
+        context.instanceOptions[targetInstance] = {};
+    }
+    try {
+        delete context.instanceOptions[targetInstance]["color"];
+    } catch (e) {
+        console.log(e);
+    }
+    saveInstanceOptions();
 }
 
 /**
@@ -445,8 +503,8 @@ function refreshList () {
                 context.clicked = e.target;
                 let items = [
                     { title: "&#128270; Scan nodes", fn: scanNodes },
-                    { title: "&#10000; Rename", fn: renameInstance }
-                    // { title: "&#10050; Select color", fn: scanNodes } coming soon !
+                    { title: "&#10000; Rename", fn: renameInstance },
+                    { title: "&#10050; Select color", fn: selectColor }
                 ];
 
                 basicContext.show(items, e);
@@ -483,6 +541,10 @@ function refreshList () {
         [].forEach.call(elements, function (el) {
             el.addEventListener("change", checkInstance);
         });
+
+        // Save and close button
+        document.getElementById("popin_color").addEventListener("click", saveColor);
+        document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
     }
 }
 
