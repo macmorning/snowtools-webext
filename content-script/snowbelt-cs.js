@@ -24,18 +24,21 @@ function getNameFromStatsPage (text) {
  * Updates favicon
  */
 function updateFavicon (color) {
-    var link = document.querySelector("link[rel~='icon']");
+    let link = document.querySelector("link[rel~='icon']");
+    if (color === "" || color === undefined) {
+        return true;
+    }
     if (!link) {
         link = document.createElement("link");
         link.setAttribute("rel", "shortcut icon");
         document.head.appendChild(link);
     }
-    var faviconUrl = link.href || window.location.origin + "/favicon.ico";
+    let faviconUrl = link.href || window.location.origin + "/favicon.ico";
     function onImageLoaded () {
-        var canvas = document.createElement("canvas");
+        let canvas = document.createElement("canvas");
         canvas.width = 16;
         canvas.height = 16;
-        var context = canvas.getContext("2d");
+        let context = canvas.getContext("2d");
         context.drawImage(img, 0, 0);
         context.globalCompositeOperation = "source-in";
         context.fillStyle = color;
@@ -44,17 +47,18 @@ function updateFavicon (color) {
         link.type = "image/x-icon";
         link.href = canvas.toDataURL();
     };
-    var img = document.createElement("img");
+    let img = document.createElement("img");
+    img.id = "originalIcon";
     img.addEventListener("load", onImageLoaded);
     img.src = faviconUrl;
 }
 
-// ask background script if this url is to be considered as a ServiceNow instance
+// ask background script if this url is to be considered as a ServiceNow instance, and get the favicon color
 chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.hostname}, function (response) {
     if (response === undefined || response.isServiceNow === false) {
         console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
     } else {
-        if (response.favIconColor) {
+        if (response.favIconColor !== undefined) {
             updateFavicon(response.favIconColor);
         }
         if (document.title === "ServiceNow") {

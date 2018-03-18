@@ -45,6 +45,16 @@ function tabUpdated (tabId, changeInfo, tab) {
 function storageEvent (e) {
     console.log("*SNOW TOOL BELT Background* Storage update, reloading options");
     getOptions();
+    chrome.tabs.query({}, function (tabs) {
+        for (var i = 0; i < tabs.length; ++i) {
+            let instance = tabs[i].url.toString().split("/")[2];
+            if (instance && context.instanceOptions[instance] !== undefined) {
+                let message = {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"] || ""};
+                console.log("*SNOW TOOL BELT Background* Send update message > " + i + " > " + tabs[i].url + " > " + context.instanceOptions[instance]["color"]);
+                chrome.tabs.sendMessage(tabs[i].id, message);
+            }
+        }
+    });
 }
 
 // Configure message listener
@@ -63,14 +73,15 @@ var msgListener = function (message, sender, sendResponse) {
         context.urlFiltersArr.forEach(function (filter) {
             if (matchFound || filter.trim() === "") return true;
             if (message.url.toString().indexOf(filter.trim()) > -1) {
-                let instance = message.url.split("/")[2];
                 let color = "";
-                if (context.instanceOptions[instance] !== undefined) {
-                    color = context.instanceOptions[instance]["color"];
+                if (context.instanceOptions[message.url] !== undefined) {
+                    color = context.instanceOptions[message.url]["color"];
                 }
                 console.log("*SNOW TOOL BELT Background* matchFound: " + filter);
                 matchFound = true;
-                sendResponse({ "isServiceNow": true, "favIconColor": color });
+                let response = { "isServiceNow": true, "favIconColor": color };
+                console.log(response);
+                sendResponse(response);
             }
         });
         sendResponse({ "isServiceNow": false });

@@ -173,7 +173,7 @@ label {
     color: var(--secondary-color);
 }
 button {
-    width: 90%;
+    width: 100%;
     background-color: var(--btn-color);
     color: var(--main-bg-color);
     padding: 14px 20px;
@@ -184,14 +184,12 @@ button {
     font-size: larger;
     font-weight: bold;
 }
+button.thin {
+    padding: 7px 10px;
+}
 button.btn-secondary {
     background-color: var(--main-bg-color);
     color: var(--main-color);
-    padding: 14px 20px;
-    margin: 6px 0;
-    cursor: pointer;
-    font-size: larger;
-    font-weight: bold;
 }
 button:hover {
     background-color: var(--btn-hover-color);
@@ -242,10 +240,13 @@ p.text-muted {
 div.popin {
     padding: 15px 15px 15px 15px;
 	width: 250px;
-	height: 220px;
     margin: 0 auto;
     border: 1px var(--main-color) solid;
     background-color: var(--main-bg-color);
     border-radius: 5px;
     text-align: center;
+}
+input#colorPickerColor {
+    margin-bottom: 15px;
+    width: 50px;
 }
