@@ -1,3 +1,4 @@
+const isChrome = (typeof browser === "undefined");
 const context = {
     tabCount: 0,
     collapseThreshold: 5,
@@ -503,10 +504,12 @@ function refreshList () {
                 context.clicked = e.target;
                 let items = [
                     { title: "&#128270; Scan nodes", fn: scanNodes },
-                    { title: "&#10000; Rename", fn: renameInstance },
-                    { title: "&#10050; Select color", fn: selectColor }
+                    { title: "&#10000; Rename", fn: renameInstance }
                 ];
-
+                // only add the select color option if we are on Chrome, because FF closes the popup when it displays the color picker
+                if (isChrome) {
+                    items.push({ title: "&#10050; Select color", fn: selectColor });
+                }
                 basicContext.show(items, e);
             });
         });

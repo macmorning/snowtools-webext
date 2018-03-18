@@ -1,4 +1,4 @@
-const isChrome = (chrome !== undefined);
+const isChrome = (typeof browser === "undefined");
 const context = {
     urlFilters: "",
     urlFiltersArr: [],

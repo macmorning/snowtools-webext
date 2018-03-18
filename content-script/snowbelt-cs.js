@@ -1,4 +1,4 @@
-// content-script.js
+const isChrome = (typeof browser === "undefined");
 console.log("*SNOW TOOL BELT* Content script loaded");
 const context = {
     loops: 0,
@@ -25,7 +25,7 @@ function getNameFromStatsPage (text) {
  */
 function updateFavicon (color) {
     let link = document.querySelector("link[rel~='icon']");
-    if (color === "" || color === undefined) {
+    if (color === undefined || color === "") {
         return true;
     }
     if (!link) {
@@ -43,12 +43,13 @@ function updateFavicon (color) {
         context.globalCompositeOperation = "source-in";
         context.fillStyle = color;
         context.fillRect(0, 0, 16, 16);
-        context.fill();
-        link.type = "image/x-icon";
+        if (isChrome) {
+            context.fill();
+        }
         link.href = canvas.toDataURL();
+        link.type = "image/x-icon";
     };
     let img = document.createElement("img");
-    img.id = "originalIcon";
     img.addEventListener("load", onImageLoaded);
     img.src = faviconUrl;
 }

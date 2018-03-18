@@ -1,6 +1,6 @@
 const context = {
     knownInstances: {},
-    instancesColors: {},
+    instanceOptions: {},
     separator: ","
 };
 
@@ -21,6 +21,31 @@ function sortInstances (arr) {
     arr.forEach(function (item) {
         context.knownInstances[item[0]] = item[1];
     });
+}
+
+/**
+ * Opens the colorPicker popup
+ * @param {object} evt the event that triggered the action
+ */
+function selectColor (evt) {
+    let targetInstance = "";
+    if (evt.target.getAttribute("data-instance")) {
+        targetInstance = evt.target.getAttribute("data-instance");
+    } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
+        targetInstance = context.clicked.getAttribute("data-instance");
+    }
+
+    if (context.instanceOptions[targetInstance] === undefined) {
+        context.instanceOptions[targetInstance] = {};
+    } else {
+        document.getElementById("colorPicker").querySelector("[name='instanceName']").innerText = targetInstance;
+        if (context.instanceOptions[targetInstance]["color"] !== undefined) {
+            document.getElementById("colorPickerColor").value = context.instanceOptions[targetInstance]["color"];
+        } else {
+            document.getElementById("colorPickerColor").value = "#000000";
+        }
+    }
+    document.getElementById("colorPicker").style.display = "block";
 }
 
 /**
@@ -63,6 +88,12 @@ function restoreOptions () {
         context.knownInstances = {};
         console.log(e);
     }
+    try {
+        context.instanceOptions = JSON.parse(localStorage.instanceOptions);
+    } catch (e) {
+        context.instanceOptions = {};
+        console(e);
+    }
     if (context.knownInstances !== {}) {
         // if knownInstances is not empty, then sort it by label and build the input fields
         sortInstances(sortProperties(context.knownInstances, false));
@@ -74,21 +105,68 @@ function restoreOptions () {
 
             let label = document.createElement("label");
             label.setAttribute("for", input.id);
-            label.innerHTML = "Label for " + key + " <a class=\"button-muted\" title=\"delete\" href=\"#\" id=\"del#" + input.id + "\">&#10799;</a>";
-            label.onclick = deleteInstance;
-
-            /*
-            let inputColor = document.createElement("input");
-            inputColor.setAttribute("type", "color");
-            inputColor.setAttribute("id", key + "_color");
-            inputColor.value = context.knownInstancesColors[key];
-            */
+            label.innerHTML = "Label for " + key +
+                " <a class=\"button-muted\" data-instance=\"" + key + "\" title=\"delete\" id=\"del#" + input.id + "\">&#10799;</a>" +
+                "<a class=\"button-muted\" data-instance=\"" + key + "\" title=\"select color\" id=\"color#" + input.id + "\">&#10050;</a>";
 
             document.getElementById("knownInstances").appendChild(label);
             document.getElementById("knownInstances").appendChild(input);
-            // document.getElementById("knownInstances").appendChild(inputColor);
         }
+
+        // add remove instance
+        let elements = {};
+        elements = document.querySelectorAll("a[title=\"delete\"]");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("click", deleteInstance);
+        });
+
+        // add close tab actions
+        elements = document.querySelectorAll("a[title=\"select color\"]");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("click", function (e) {
+                context.clicked = e.target;
+                selectColor(e);
+            });
+        });
+
+        // Save and close button
+        document.getElementById("popin_color").addEventListener("click", saveColor);
+        document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
     }
+}
+
+/**
+ * Saves selected color
+ * @param {object} evt the event that triggered the action
+ */
+function saveColor (evt) {
+    let targetInstance = "";
+    targetInstance = context.clicked.getAttribute("data-instance");
+    document.getElementById("colorPicker").style.display = "none";
+    if (context.instanceOptions[targetInstance] === undefined) {
+        context.instanceOptions[targetInstance] = {};
+    }
+    context.instanceOptions[targetInstance]["color"] = document.getElementById("colorPickerColor").value;
+    saveInstanceOptions();
+}
+
+/**
+ * Saves no color for the instance
+ * @param {object} evt the event that triggered the action
+ */
+function saveNoColor (evt) {
+    let targetInstance = "";
+    targetInstance = context.clicked.getAttribute("data-instance");
+    document.getElementById("colorPicker").style.display = "none";
+    if (context.instanceOptions[targetInstance] === undefined) {
+        context.instanceOptions[targetInstance] = {};
+    }
+    try {
+        delete context.instanceOptions[targetInstance]["color"];
+    } catch (e) {
+        console.log(e);
+    }
+    saveInstanceOptions();
 }
 
 /**
@@ -104,6 +182,15 @@ function deleteInstance (evt) {
 }
 
 /**
+ * Saves the instances checked states
+ */
+function saveInstanceOptions () {
+    if (typeof (Storage) !== "undefined") {
+        localStorage.instanceOptions = JSON.stringify(context.instanceOptions);
+    }
+}
+
+/**
  * Save the options into local storage
  * @param {object} evt the event that triggered the action
  */
@@ -114,6 +201,9 @@ function saveOptions (evt) {
         localStorage.separator = document.getElementById("separator").value || ",";
         for (var key in context.knownInstances) {
             context.knownInstances[key] = document.getElementById(key).value;
+            if (context.instanceOptions[key] === undefined) {
+                context.instanceOptions[key] = {};
+            }
         }
         sortInstances(sortProperties(context.knownInstances, false));
         localStorage.knownInstances = JSON.stringify(context.knownInstances);
