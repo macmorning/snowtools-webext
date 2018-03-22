@@ -41,3 +41,13 @@ To easily spot the tabs open on any instance, set a color a fill the favicon for
 Chrome users do that directly from the extension popup in the contextual menu of the instance. For Firefox and Chrome, you can select a color in the options box.
 
 ![change color](assets/change_color.gif "Change color")
+
+# Working with nodes
+
+Use the "scan nodes" contextual menu option to display a list of nodes for this instance.
+
+![scan nodes](assets/scan_nodes.gif "Scan nodes")
+
+Note that if you have many nodes, you may see an incomplete list. This is a known limitation due that the scan is made by sending a limited number of requests to the instance. In some cases, these requests may not be spread across all active nodes, making the other nodes unnoticed.
+
+On service-now.com instances, you can use the drop-down list to switch to a specific node.
