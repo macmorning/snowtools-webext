@@ -2,7 +2,6 @@
 
 ServiceNow Tool Belt is a set of tools designed to help the ServiceNow administrator or developer in his every day tasks.
 
-{:toc}
 
 # Install the extension
 
@@ -18,7 +17,7 @@ If you are working on Firefox, you may want to move the icon in a place that wil
 ![move icon](assets/move_icon.gif "Move icon")
 
 
-"Out of the bow", the extension will start automatically bookmarking and listing every instances you visit on the service-now.com domain. You can quickly set a friendly name of your choosing via the contextual instance menu.
+"Out of the box", the extension will start automatically bookmarking and listing every instances you visit on the service-now.com domain. You can quickly set a friendly name of your choosing via the contextual instance menu.
 
 ![add and rename](assets/add_and_rename.gif "Add and rename")
 
