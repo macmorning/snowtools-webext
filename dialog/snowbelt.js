@@ -408,7 +408,7 @@ function searchNow (evt) {
  */
 function refreshList () {
     let openTabs = document.getElementById("opened_tabs");
-    let activeTab = "";
+    let activeTab = [];
     removeChildren(openTabs);
     for (var key in context.tabs) {
         let instanceName = "";
@@ -438,7 +438,7 @@ function refreshList () {
         let tabList = "";
         context.tabs[key].forEach(function (tab) {
             if (tab.active) {
-                activeTab = tab.id;
+                activeTab.push(tab.id);
             }
             context.tabCount++;
             // replace template placeholders with their actual values
@@ -454,7 +454,7 @@ function refreshList () {
         li1.innerHTML += "<p class=\"text-muted\">No tab found :( Have you configured your URL filters in the options page?</p>";
         openTabs.appendChild(li1);
     } else {
-        if (activeTab) {
+        if (activeTab.length > 0) {
             setActiveTab(activeTab);
         }
 
@@ -715,7 +715,7 @@ function tabActivated (activeInfo) {
 
 /**
  * Shows the current active tabs
- * @param {Integer} tabId the id of the updated tab
+ * @param {Integer or Array of Integer} tabId the id (or array of ids) of the updated tab(s)
  */
 function setActiveTab (tabId) {
     let elems = document.querySelectorAll("li.selectedTab");
@@ -723,7 +723,13 @@ function setActiveTab (tabId) {
     [].forEach.call(elems, function (el) {
         el.classList.remove("selectedTab");
     });
-    document.getElementById("tab" + tabId).classList.add("selectedTab");
+    if (Array.isArray(tabId)) {
+        tabId.forEach(function (id) {
+            document.getElementById("tab" + id).classList.add("selectedTab");
+        });
+    } else if (parseInt(tabId) > 0) {
+        document.getElementById("tab" + tabId).classList.add("selectedTab");
+    }
 }
 
 /**
