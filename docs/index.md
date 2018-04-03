@@ -12,6 +12,8 @@ To install the extension for your browser, just click the links below:
 
 # Ok that was easy, now what?
 
+><h3>&#127381; You can now access the tools with the Alt+C shortcut!</h3>
+
 If you are working on Firefox, you may want to move the icon in a place that will be more accessible to you, depending on how you are used to work.
 
 ![move icon](assets/move_icon.gif "Move icon")

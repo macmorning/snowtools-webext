@@ -408,7 +408,6 @@ function searchNow (evt) {
  */
 function refreshList () {
     let openTabs = document.getElementById("opened_tabs");
-    let activeTab = [];
     removeChildren(openTabs);
     for (var key in context.tabs) {
         let instanceName = "";
@@ -437,9 +436,6 @@ function refreshList () {
         let templateLI = document.getElementById("tab-row");
         let tabList = "";
         context.tabs[key].forEach(function (tab) {
-            if (tab.active) {
-                activeTab.push(tab.id);
-            }
             context.tabCount++;
             // replace template placeholders with their actual values
             tabList += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title);
@@ -454,9 +450,7 @@ function refreshList () {
         li1.innerHTML += "<p class=\"text-muted\">No tab found :( Have you configured your URL filters in the options page?</p>";
         openTabs.appendChild(li1);
     } else {
-        if (activeTab.length > 0) {
-            setActiveTab(activeTab);
-        }
+        setActiveTab();
 
         // add close tab actions
         let elements = {};
@@ -638,7 +632,7 @@ function transformTitle (title) {
 function tabCreated (tab) {
     let splittedInstance = tab.url.toString().split("/");
     tab.instance = splittedInstance[2];
-    if (tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com") {
+    if (tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com" || tab.instance === "partnerportal.service-now.com") {
         // known non-instance subdomains of service-now.com
         return false;
     }
@@ -710,26 +704,24 @@ function tabRemoved (tabId, removeInfo) {
  * @param {Object} activeInfo contains the informations about the activated event (tabId & windowId)
  */
 function tabActivated (activeInfo) {
-    setActiveTab(activeInfo.tabId);
+    setActiveTab();
 }
 
 /**
  * Shows the current active tabs
- * @param {Integer or Array of Integer} tabId the id (or array of ids) of the updated tab(s)
  */
-function setActiveTab (tabId) {
-    let elems = document.querySelectorAll("li.selectedTab");
-
-    [].forEach.call(elems, function (el) {
-        el.classList.remove("selectedTab");
-    });
-    if (Array.isArray(tabId)) {
-        tabId.forEach(function (id) {
-            document.getElementById("tab" + id).classList.add("selectedTab");
+function setActiveTab () {
+    chrome.tabs.query({active: true}, function (tabs) {
+        let elems = document.querySelectorAll("li.selectedTab");
+        [].forEach.call(elems, function (el) {
+            el.classList.remove("selectedTab");
         });
-    } else if (parseInt(tabId) > 0) {
-        document.getElementById("tab" + tabId).classList.add("selectedTab");
-    }
+        tabs.forEach(function (tab) {
+            try {
+                document.getElementById("tab" + tab.id).classList.add("selectedTab");
+            } catch (e) {}
+        });
+    });
 }
 
 /**
