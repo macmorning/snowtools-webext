@@ -2,7 +2,7 @@
 
 ServiceNow Tool Belt is a set of tools designed to help the ServiceNow administrator or developer in his every day tasks.
 
-<img src="../icons/tools2-128.png" align="right" alt="big icon"/>
+<img src="assets/tools2-128.png" align="right" alt="big icon"/>
 <!-- TOC -->
 
 - [What is this about](#what-is-this-about)
