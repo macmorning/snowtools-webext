@@ -1,11 +1,11 @@
 :root {
-    --main-bg-color: #ffffff;
-    --main-color: #f36d14;
+    --main-bg-color: #F7F7F7;
+    --main-color: #293E40;
     --secondary-color: #000000;
     --alt-bg-color: #e7e7e7;
     --disabled-color: #cecece;
     --btn-color: var(--main-color);
-    --btn-hover-color:#ce5707;
+    --btn-hover-color:#81B5A1;
 }
 body {
     font-family: 'Helvetica', sans-serif;
@@ -172,6 +172,7 @@ select.nodes-list {
     padding: 0 0;
     font-weight: normal;
     -moz-appearance: none;
+    appearance: none;
     text-indent: 0.01px;
     text-overflow: '';
     cursor: pointer;    
