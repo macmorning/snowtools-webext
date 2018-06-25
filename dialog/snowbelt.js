@@ -502,7 +502,7 @@ function refreshList () {
                 ];
                 // only add the select color option if we are on Chrome, because FF closes the popup when it displays the color picker
                 if (isChrome) {
-                    items.push({ title: "&#10050; Select color", fn: selectColor });
+                    items.push({ title: "&#127912; Select color", fn: selectColor }); // -- 🎨
                 }
                 basicContext.show(items, e);
             });
