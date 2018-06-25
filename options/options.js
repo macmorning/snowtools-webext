@@ -69,7 +69,7 @@ function restoreOptions () {
             label.setAttribute("for", input.id);
             label.innerHTML = "Label for " + key +
                 " <a class=\"button-muted\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a>" +
-                "<a class=\"button-muted\" data-instance=\"" + key + "\" title=\"pick a color\" id=\"color#" + input.id + "\">&#127912;</a>"; // --> 🎨
+                "<a class=\"button-muted\" data-instance=\"" + key + "\" title=\"pick a color\" id=\"color#" + input.id + "\">&#127912;</a>";
 
             document.getElementById("knownInstances").appendChild(label);
             document.getElementById("knownInstances").appendChild(input);
@@ -77,13 +77,13 @@ function restoreOptions () {
 
         // add remove instance
         let elements = {};
-        elements = document.querySelectorAll("a[title=\"delete\"]");
+        elements = document.querySelectorAll("a[title=\"forget this instance\"]");
         [].forEach.call(elements, function (el) {
             el.addEventListener("click", deleteInstance);
         });
 
         // add close tab actions
-        elements = document.querySelectorAll("a[title=\"select color\"]");
+        elements = document.querySelectorAll("a[title=\"pick a color\"]");
         [].forEach.call(elements, function (el) {
             el.addEventListener("click", function (e) {
                 context.clicked = e.target;
