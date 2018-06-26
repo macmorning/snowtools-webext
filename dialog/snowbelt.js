@@ -400,7 +400,16 @@ function getOptions () {
  */
 function searchNow (evt) {
     let currentText = document.getElementById("searchInput").value;
-    let targetUrl = (evt.target.id === "search_doc" ? "https://docs.servicenow.com/search?q=" + currentText : "https://developer.servicenow.com/app.do#!/search?category=API&q=" + currentText);
+    let targetUrl = "";
+    if (evt.target.id === "search_doc") {
+        targetUrl = "https://docs.servicenow.com/search?q=";
+    } else if (evt.target.id === "search_api") {
+        targetUrl = "https://developer.servicenow.com/app.do#!/search?category=API&q=";
+    } else {
+        targetUrl = "https://cse.google.com/cse?cx=009916188806958231212:pa-o5rpnjhs&ie=UTF-8&q=";
+    }
+
+    targetUrl = targetUrl + currentText;
     chrome.tabs.create({ url: targetUrl });
 }
 /**
@@ -752,12 +761,13 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
     document.getElementById("new_tab").addEventListener("change", newTab);
+    document.getElementById("search_custom").addEventListener("click", searchNow);
     document.getElementById("search_doc").addEventListener("click", searchNow);
     document.getElementById("search_api").addEventListener("click", searchNow);
     document.getElementById("searchInput").addEventListener("keyup", function (event) {
         event.preventDefault();
         if (event.keyCode === 13) {
-            document.getElementById("search_doc").click();
+            document.getElementById("search_custom").click();
         }
     });
     document.getElementById("searchInput").focus();
