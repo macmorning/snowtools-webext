@@ -63,13 +63,14 @@ function restoreOptions () {
             input.setAttribute("type", "text");
             input.setAttribute("id", key);
             input.value = context.knownInstances[key];
-
+            var hidden = (context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
             let label = document.createElement("label");
             label.className = "instance-label";
             label.setAttribute("for", input.id);
-            label.innerHTML = "Label for " + key +
-                " <a class=\"button-muted\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a>" +
-                "<a class=\"button-muted\" data-instance=\"" + key + "\" title=\"pick a color\" id=\"color#" + input.id + "\">&#127912;</a>";
+            label.innerHTML = "<label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
+                "<a class=\"button\" data-instance=\"" + key + "\" title=\"pick a color\" id=\"color#" + input.id + "\">&#127912;</a>" +
+                " Label for " + key +
+                " <a class=\"button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a>";
 
             document.getElementById("knownInstances").appendChild(label);
             document.getElementById("knownInstances").appendChild(input);
@@ -166,8 +167,10 @@ function saveOptions (evt) {
             if (context.instanceOptions[key] === undefined) {
                 context.instanceOptions[key] = {};
             }
+            context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
         }
         localStorage.knownInstances = JSON.stringify(context.knownInstances);
+        saveInstanceOptions();
         displayMessage("Options saved!");
     } catch (e) {
         console.log(e);

@@ -6,7 +6,7 @@ const context = {
     urlFilters: "",
     urlFiltersArr: [],
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
-    instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color}, "url2": ...}
+    instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
     knownNodes: {}, // { "url1" : ["node1","node2", ...], "url2" : ...}
     separator: "," // separator for downloaded csv files
 };
@@ -512,9 +512,28 @@ function refreshList () {
                 // only add the select color option if we are on Chrome, because FF closes the popup when it displays the color picker
                 if (isChrome) {
                     items.push({ title: "&#127912; Select color", fn: selectColor }); // -- 🎨
+                } else {
+                    items.push({ title: "&#127912; Select color", fn: openOptions }); // -- 🎨
                 }
                 basicContext.show(items, e);
             });
+        });
+
+        // Display colors
+        elements = document.querySelectorAll("span.color-indicator");
+        [].forEach.call(elements, function (el) {
+            let instance = el.getAttribute("data-instance");
+            console.log("*** got el for " + instance);
+            let color = "";
+            if (instance) {
+                color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "");
+            }
+            console.log("*** color " + color);
+            if (color) {
+                el.style.color = color;
+            } else {
+                el.style.display = "none";
+            }
         });
 
         // Instance name edition
@@ -566,11 +585,13 @@ function refreshKnownInstances () {
     selectInstance.appendChild(optionDefault);
 
     for (var instanceKey in context.knownInstances) {
-        let option = document.createElement("option");
-        option.text = context.knownInstances[instanceKey];
-        option.setAttribute("value", instanceKey);
-        option.setAttribute("data-instance", instanceKey);
-        selectInstance.appendChild(option);
+        if (!context.instanceOptions[instanceKey].hidden) {
+            let option = document.createElement("option");
+            option.text = context.knownInstances[instanceKey];
+            option.setAttribute("value", instanceKey);
+            option.setAttribute("data-instance", instanceKey);
+            selectInstance.appendChild(option);
+        }
     }
 }
 /**
@@ -732,7 +753,13 @@ function setActiveTab () {
         });
     });
 }
-
+function openOptions () {
+    if (chrome.runtime.openOptionsPage) {
+        chrome.runtime.openOptionsPage();
+    } else {
+        window.open(chrome.runtime.getURL("options.html"));
+    }
+}
 /**
  * Initial function that gets the saved preferences and the list of open tabs
  */
@@ -753,13 +780,7 @@ function bootStrap () {
 document.addEventListener("DOMContentLoaded", function () {
     getOptions();
     bootStrap();
-    document.getElementById("config").addEventListener("click", function () {
-        if (chrome.runtime.openOptionsPage) {
-            chrome.runtime.openOptionsPage();
-        } else {
-            window.open(chrome.runtime.getURL("options.html"));
-        }
-    });
+    document.getElementById("config").addEventListener("click", openOptions);
     document.getElementById("new_tab").addEventListener("change", newTab);
     document.getElementById("search_custom").addEventListener("click", searchNow);
     document.getElementById("search_doc").addEventListener("click", searchNow);
