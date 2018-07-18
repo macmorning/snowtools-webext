@@ -92,78 +92,6 @@ function popIn (evt) {
         }
     });
 }
-/**
- * Grabs logs for tab in CSV format
- * @param {object} evt the event that triggered the action
- */
-function grabLogsCSV (evt) {
-    grabLogs(evt, "csv");
-}
-/**
- * Grabs logs for tab in TXT format
- * @param {object} evt the event that triggered the action
- */
-function grabLogsTXT (evt) {
-    grabLogs(evt, "txt");
-}
-/**
- * Grabs logs for tab
- * @param {object} evt the event that triggered the action
- * @param {string} format csv or txt
- */
-function grabLogs (evt, format) {
-    let tabid = "";
-    if (!format) { format = "txt"; }
-    if (evt.target.getAttribute("data-id")) {
-        tabid = evt.target.getAttribute("data-id");
-    } else if (context.clicked && context.clicked.getAttribute("data-id")) {
-        tabid = context.clicked.getAttribute("data-id");
-    }
-    tabid = parseInt(tabid);
-
-    chrome.tabs.sendMessage(tabid, {"command": "grabLogs"}, function (response) {
-        if (response === undefined || !response) {
-            displayMessage("Couldn't get an answer from tab. Try refreshing it.");
-        } else if (!response.content && response.status) {
-            displayMessage(response.status);
-        } else if (response.content) {
-            let logEl = document.createElement("div");
-            logEl.innerHTML = response.content;
-            if (logEl.hasChildNodes()) {
-                let s = context.separator;
-                let file = "";
-                if (format === "csv") {
-                    file = "data:text/plain;charset=utf-8,type" + s + "timestamp" + s + "execution time" + s + "text%0A";
-                } else {
-                    file = "data:text/plain;charset=utf-8,";
-                }
-                let logElChildNodes = logEl.childNodes;
-                for (var i = 0; i < logElChildNodes.length; i++) {
-                    if (format === "csv") {
-                        let splitLog = logElChildNodes[i].innerText.split(": ");
-                        file += logElChildNodes[i].classList[1].replace("debug_", "").toUpperCase() + s + splitLog[0].trim() + s;
-                        if (splitLog[1].trim() === "Time") {
-                            file += splitLog[2].replace(" for", "").trim() + s + splitLog[3].trim();
-                        } else {
-                            file += "-------" + s + splitLog[1].trim();
-                        }
-                    } else {
-                        file += logElChildNodes[i].classList[1] + " " + logElChildNodes[i].innerText.trim();
-                    }
-                    file += "%0A"; // end line
-                }
-                let anchor = document.createElement("a");
-                anchor.setAttribute("href", file);
-                anchor.setAttribute("download", "logs." + format);
-                // anchor.innerText = "download";
-                anchor.style.display = "none";
-                document.body.appendChild(anchor);
-                anchor.click();
-                document.body.removeChild(anchor);
-            }
-        }
-    });
-}
 
 /**
  * Closes all tabs given their instance
@@ -467,20 +395,25 @@ function refreshList () {
         [].forEach.call(elements, function (el) {
             el.addEventListener("click", closeTab);
         });
+
+        elements = document.querySelectorAll("a[title=\"reopen in a frame\"]");
+        [].forEach.call(elements, function (el) {
+            el.addEventListener("click", popIn);
+        });
         // add the "other actions" menu
+        /* removed for now
         elements = document.querySelectorAll("a[title=\"other commands\"]");
         [].forEach.call(elements, function (el) {
             el.addEventListener("click", function (e) {
                 context.clicked = e.target;
                 let items = [
-                    { title: "&#8690; Reopen in frame", fn: popIn },
-                    { title: "&#128190; Grab logs (csv)", fn: grabLogsCSV },
-                    { title: "&#128190; Grab logs (txt)", fn: grabLogsTXT }
+                    { title: "", fn: }
                 ];
 
                 basicContext.show(items, e);
             });
         });
+        */
 
         // add switch tab actions
         elements = document.querySelectorAll("li.link-to-tab");

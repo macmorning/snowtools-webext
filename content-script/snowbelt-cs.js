@@ -24,23 +24,25 @@ function getNameFromStatsPage (text) {
  * Updates favicon
  */
 function updateFavicon (color) {
-    let link = document.querySelector("link[rel~='icon']");
     if (color === undefined || color === "") {
         return true;
     }
+    let link = document.querySelector("link[rel~='icon']");
     if (!link) {
         link = document.createElement("link");
         link.setAttribute("rel", "shortcut icon");
         document.head.appendChild(link);
     }
     let faviconUrl = link.href || window.location.origin + "/favicon.ico";
-    function onImageLoaded () {
+    function onImageLoaded (imgNotFound) {
         let canvas = document.createElement("canvas");
         canvas.width = 16;
         canvas.height = 16;
         let context = canvas.getContext("2d");
-        context.drawImage(img, 0, 0);
-        context.globalCompositeOperation = "source-in";
+        if (imgNotFound === undefined || !imgNotFound) {
+            context.drawImage(img, 0, 0);
+            context.globalCompositeOperation = "source-in";
+        }
         context.fillStyle = color;
         context.fillRect(0, 0, 16, 16);
         if (isChrome) {
@@ -49,12 +51,16 @@ function updateFavicon (color) {
         link.href = canvas.toDataURL();
         link.type = "image/x-icon";
     };
+    function onImageError () {
+        onImageLoaded(true);
+    };
     let img = document.createElement("img");
     img.addEventListener("load", onImageLoaded);
+    img.addEventListener("error", onImageError);
     img.src = faviconUrl;
 }
 
-// ask background script if this url is to be considered as a ServiceNow instance, and get the favicon color
+// ask background script if this url must be considered as a ServiceNow instance, and get the favicon color
 chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.hostname}, function (response) {
     if (response === undefined || response.isServiceNow === false) {
         console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
@@ -62,6 +68,8 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
         if (response.favIconColor !== undefined) {
             updateFavicon(response.favIconColor);
         }
+
+        // On older versions, tabs are all named "ServiceNow", which is confusing. This part might be trashed by the end of 2018.
         if (document.title === "ServiceNow") {
             document.getElementById("gsft_main").onload = function () {
                 console.log("*SNOW TOOL BELT* Changed tab title");
@@ -86,6 +94,7 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
             observer.observe(context.headNode, { attributes: true, childList: true });
         }
 
+        // Defining how to react to messages coming from the background script or the browser action
         chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
             console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
             let instanceName = window.location.toString().split("/")[2];
@@ -95,18 +104,6 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
                 *  change Favicon color
                 */
                 updateFavicon(request.color);
-            } else if (request.command === "grabLogs") {
-                /**
-                *  grabLogs
-                */
-                let debugDiv = (document.getElementById("debug_related") ? document.getElementById("debug_messages") : document.getElementById("gsft_main").contentWindow.document.getElementById("debug_messages"));
-                if (debugDiv === undefined || !debugDiv) {
-                    console.log("*SNOW TOOL BELT* No debug information found");
-                    sendResponse({"status": "No debug information found"});
-                } else {
-                    console.log("*SNOW TOOL BELT* Debug information found");
-                    sendResponse({"content": debugDiv.innerHTML});
-                }
             } else if (request.command === "scanNodes") {
                 /**
                 *  scanNodes
@@ -160,8 +157,8 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
                 return true;
             } else if (request.command === "switchNode") {
                 /**
-                     *  switchNode
-                     */
+                *  switchNode
+                */
                 console.log("*SNOW TOOL BELT* switch to node " + request.node);
                 let targetNode = request.node.toString();
                 let maxTries = 40;
