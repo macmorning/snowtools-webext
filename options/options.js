@@ -1,7 +1,6 @@
 const context = {
     knownInstances: {},
-    instanceOptions: {},
-    separator: ","
+    instanceOptions: {}
 };
 
 /**
@@ -43,7 +42,6 @@ function selectColor (evt) {
  */
 function restoreOptions () {
     document.getElementById("urlFilters").value = localStorage.urlFilters || "service-now.com;";
-    document.getElementById("separator").value = localStorage.separator || ",";
     try {
         context.knownInstances = JSON.parse(localStorage.knownInstances);
     } catch (e) {
@@ -67,9 +65,8 @@ function restoreOptions () {
             let label = document.createElement("label");
             label.className = "instance-label";
             label.setAttribute("for", input.id);
-            label.innerHTML = "<label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
+            label.innerHTML = key + " <label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
                 "<a class=\"button\" data-instance=\"" + key + "\" title=\"pick a color\" id=\"color#" + input.id + "\">&#127912;</a>" +
-                " Label for " + key +
                 " <a class=\"button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a>";
 
             document.getElementById("knownInstances").appendChild(label);
@@ -161,7 +158,6 @@ function saveOptions (evt) {
     evt.preventDefault();
     try {
         localStorage.urlFilters = document.getElementById("urlFilters").value;
-        localStorage.separator = document.getElementById("separator").value || ",";
         for (var key in context.knownInstances) {
             context.knownInstances[key] = document.getElementById(key).value;
             if (context.instanceOptions[key] === undefined) {

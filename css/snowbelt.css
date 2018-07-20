@@ -161,10 +161,12 @@ input[type=text], select {
 select {
     font-size: 10pt;
     font-weight: bold;
+    border-radius: 5px;
+    background-color: var(--main-bg-color);
+    color: var(--main-color);
 }
 select.nodes-list {
     display: none;
-    color: var(--main-color);
     outline: 0px;
     border: none;
     width: auto;
@@ -233,6 +235,7 @@ button.btn-secondary:hover {
     margin-left: 10px;
     color: var(--main-color);
     text-decoration: none;   
+    font-size: x-large;
     font-weight: bold;
     cursor: pointer;    
 }
