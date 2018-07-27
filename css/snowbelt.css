@@ -40,14 +40,9 @@ div#search {
     font-size: smaller;
     height: 35px;
     width: 420px;
-    margin-bottom: 15px;
 }
 div#search input[type=text] {
     width: 50%;
-    display: inline-block;
-    padding: 5px 5px;
-    line-height: 10px;
-    color: var(--main-color);
 }
 div#search button {
     display: inline-block;
@@ -60,7 +55,7 @@ div#search button {
 }
 div#container {
     min-width: 500px;
-    margin: 10px;
+    margin: 5px;
     padding: 10px;
     width: 95%;
     margin: auto;
@@ -159,11 +154,8 @@ input[type=text], select {
     box-sizing: border-box;
     color: var(--main-color);
 }
-select {
-    font-size: 10pt;
-    font-weight: bold;
-    border-radius: 3px;
-    color: var(--main-color);
+select.select-instance {
+    margin-bottom: 15px;
 }
 select.nodes-list {
     display: none;
@@ -173,8 +165,8 @@ select.nodes-list {
     margin: 0 10px;
     padding: 0 0;
     font-weight: normal;
-    -moz-appearance: none;
-    appearance: none;
+    /*-moz-appearance: none;
+    appearance: none;*/
     text-indent: 0.01px;
     text-overflow: '';
     cursor: pointer;    

@@ -517,7 +517,7 @@ function refreshKnownInstances () {
     removeChildren(selectInstance);
 
     let optionDefault = document.createElement("option");
-    optionDefault.text = "Select a known instance to open a new tab";
+    optionDefault.text = "select a known instance to open a new tab";
     selectInstance.appendChild(optionDefault);
 
     for (var instanceKey in context.knownInstances) {
