@@ -85,6 +85,7 @@ tr.basicContext__item:hover {
 }
 h1 {
     color: var(--secondary-color);
+    font-size: 1.5em;
 }
 ul.firstLvlUL {
     user-select: none;
@@ -151,8 +152,8 @@ li.selectedTab {
 }
 input[type=text], select {
     width: 100%;
-    padding: 12px 20px;
-    margin: 8px 0;
+    padding: 6px 10px;
+    margin: 4px 0;
     display: inline-block;
     border: 1px solid var(--main-color);
     box-sizing: border-box;
@@ -161,8 +162,7 @@ input[type=text], select {
 select {
     font-size: 10pt;
     font-weight: bold;
-    border-radius: 5px;
-    background-color: var(--main-bg-color);
+    border-radius: 3px;
     color: var(--main-color);
 }
 select.nodes-list {

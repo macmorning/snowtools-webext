@@ -235,9 +235,13 @@ function switchNode (evt) {
  * @param {Array} nodes array of nodes names
  */
 function saveNodes (instanceName, nodes) {
-    context.knownNodes[instanceName] = nodes;
-    if (typeof (Storage) !== "undefined") {
-        localStorage.knownNodes = JSON.stringify(context.knownNodes);
+    if (context.knownNodes[instanceName] !== undefined && context.knownNodes[instanceName].length > 0) {
+        context.knownNodes[instanceName] = context.knownNodes[instanceName].concat(nodes.filter(function (item) {
+            return context.knownNodes[instanceName].indexOf(item) < 0;
+        }));
+        context.knownNodes[instanceName].sort();
+    } else {
+        context.knownNodes[instanceName] = nodes;
     }
 }
 
@@ -300,7 +304,6 @@ function getOptions () {
     context.urlFilters = "service-now.com";
     context.urlFiltersArr = ["service-now.com"];
     context.knownInstances = {};
-    context.knownNodes = {};
     context.instanceOptions = {};
     if (typeof (Storage) !== "undefined") {
         context.separator = localStorage.separator || ",";
