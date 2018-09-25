@@ -11,6 +11,7 @@ ServiceNow Tool Belt is a set of tools designed to help the ServiceNow administr
 - [Using the extension](#using-the-extension)
 - [Setting a fill color for an instance favicon](#setting-a-fill-color-for-an-instance-favicon)
 - [Working with nodes](#working-with-nodes)
+- [Tell us what you think](#tell-us-what-you-think)
 
 <!-- /TOC -->
 
@@ -23,11 +24,6 @@ To install the extension for your browser, just click the links below:
 
 # Ok that was easy, now what?
 
-If you are working on Firefox, you may want to move the icon in a place that will be more accessible to you, depending on how you are used to work.
-
-![move icon](assets/move_icon.gif "Move icon")
-
-
 "Out of the box", the extension will automatically start bookmarking and listing every instances you visit on the service-now.com domain. You can quickly set a friendly name of your choosing via the contextual instance menu.
 
 ![add and rename](assets/add_and_rename.gif "Add and rename")
@@ -37,6 +33,7 @@ The filters are set in a single field, separated by semicolons.**
 
 ![add domain](assets/add_domains.gif "Add domain")
 
+If you are working on Firefox, you may want to move the icon in a place that will be more accessible to you, depending on how you are used to work.
 
 # Using the extension
 
@@ -57,10 +54,12 @@ Chrome users do that directly from the extension popup in the contextual menu of
 
 # Working with nodes
 
-Use the "scan nodes" contextual menu option to display a list of nodes for this instance.
+Use the "fetch nodes" contextual menu option to display a list of nodes for this instance.
 
 ![scan nodes](assets/scan_nodes.gif "Scan nodes")
 
-Note that if you have many nodes, you may see an incomplete list. This is a known limitation due to the fact that the scan is achieved by sending a limited number of requests to the instance. In some cases, these requests may not be spread accross all active nodes, making the other nodes unnoticed.
+The extension will fetch the xmlstats.do page for the instance. It will only work if you are logged in an active tab on this instance.
 
-On service-now.com instances, you can use the drop-down list to switch to a specific node.
+# Tell us what you think
+
+Now, visit [github](https://github.com/macmorning/snowtools-webext/issues) and give us some feedback. Do you have any issue with the extension? What is useful? What is useless? How could it help you more? Want to contribute?...

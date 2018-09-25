@@ -1,10 +1,10 @@
 const isChrome = (typeof browser === "undefined");
 console.log("*SNOW TOOL BELT* Content script loaded");
-const context = {
+/* const context = {
     loops: 0,
     currentTitle: "",
     headNode: document.getElementsByTagName("title")[0]
-};
+}; */
 
 /**
  * Parses the stats page and extracts the node name
@@ -12,10 +12,15 @@ const context = {
  */
 function getNameFromStatsPage (text) {
     let instanceName = "";
-    instanceName = text.split("<br/>")[1].split(": ")[1];
-    // if current contains ":" then split it again
-    if (instanceName.indexOf(":") > -1) {
-        instanceName = instanceName.split(":")[1];
+    try {
+        instanceName = text.split("<br/>")[1].split(": ")[1];
+        // if current contains ":" then split it again
+        if (instanceName.indexOf(":") > -1) {
+            instanceName = instanceName.split(":")[1];
+        }
+    } catch (e) {
+        console.log("*SNOW TOOL BELT* Couldn't analyse the text we got from the stats page");
+        console.log(text);
     }
     return instanceName;
 }
@@ -60,7 +65,7 @@ function updateFavicon (color) {
     img.src = faviconUrl;
 }
 
-// ask background script if this url must be considered as a ServiceNow instance, and get the favicon color
+// ask background script if this tab must be considered as a ServiceNow instance, and get the favicon color
 chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.hostname}, function (response) {
     if (response === undefined || response.isServiceNow === false) {
         console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
@@ -70,7 +75,8 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
         }
 
         // On older versions, tabs are all named "ServiceNow", which is confusing. This part might be trashed by the end of 2018.
-        if (document.title === "ServiceNow") {
+        // Deactivating this now. Sorry if you are still running Fuji or earlier versions.
+        /* if (document.title === "ServiceNow") {
             document.getElementById("gsft_main").onload = function () {
                 console.log("*SNOW TOOL BELT* Changed tab title");
                 context.currentTitle = document.getElementById("gsft_main").contentDocument.title;
@@ -92,7 +98,7 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
             };
             const observer = new MutationObserver(handleTitleChange);
             observer.observe(context.headNode, { attributes: true, childList: true });
-        }
+        } */
 
         // Defining how to react to messages coming from the background script or the browser action
         chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
@@ -109,44 +115,51 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
                 *  scanNodes
                 */
                 console.log("*SNOW TOOL BELT* going to search for nodes");
-                let scans = 0;
-                let maxScans = 50;
+                // let scans = 0;
+                // let maxScans = 50;
                 let nodes = [];
                 fetch(url, {credentials: "same-origin"})
                     .then(function (response) {
                         if (response.ok && response.status === 200) {
-                            return response.text();
+                            return response.text().then(function (text) {
+                                if (text === undefined || !text) {
+                                    return false;
+                                }
+                                let current = getNameFromStatsPage(text);
+                                console.log("*SNOW TOOL BELT* current: " + current);
+
+                                let xmlStatsURL = new Request("https://" + instanceName + "/xmlstats.do");
+                                fetch(xmlStatsURL, {credentials: "same-origin"})
+                                    .then(function (response) {
+                                        if (response.ok && response.status === 200) {
+                                            return response.text().then(function (txt) {
+                                                let parser = new DOMParser();
+                                                let xmlDoc = parser.parseFromString(txt, "text/xml");
+                                                let nodesList = xmlDoc.querySelectorAll("node system_id");
+                                                nodesList.forEach(function (node) {
+                                                    nodes.push(node.textContent.split(":")[1]);
+                                                });
+                                                console.log("*SNOW TOOL BELT* nodes: ");
+                                                console.log(nodes);
+
+                                                sendResponse({"nodes": nodes, "current": current, "status": 200});
+                                            });
+                                        } else {
+                                            // there was an error while fetching xmlstats, stop here
+                                            console.log("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now: " + response.status);
+                                            sendResponse({"nodes": [], "current": "", "status": response.status});
+                                        }
+                                    })
+                                    .catch(function (err) {
+                                        console.log("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now");
+                                        console.log(err);
+                                        sendResponse({"nodes": [], "current": "", "status": 500});
+                                    });
+                            });
                         } else {
                             // there was an error with this first fetch, stop here
-                            console.log("*SNOW TOOL BELT* there was an error with the first scan, stopping now: " + response.status);
+                            console.log("*SNOW TOOL BELT* there was an error with the first fetch, stopping now: " + response.status);
                             sendResponse({"nodes": [], "current": "", "status": response.status});
-                        }
-                    })
-                    .then(function (text) {
-                        if (text === undefined || !text) {
-                            return false;
-                        }
-                        let current = getNameFromStatsPage(text);
-                        console.log("*SNOW TOOL BELT* found " + current);
-                        nodes.push(current);
-                        for (var i = 0; i < maxScans; i++) {
-                            fetch(url)
-                                .then(function (response) {
-                                    scans++; // increment number of requests sent
-                                    return response.text();
-                                })
-                                .then(function (text) {
-                                    if (!text) { return false; }
-                                    let m = getNameFromStatsPage(text);
-                                    if (nodes.indexOf(m) === -1) {
-                                        console.log("*SNOW TOOL BELT* found " + m);
-                                        nodes.push(m);
-                                    }
-                                    if (scans >= maxScans) {
-                                        // assume we got'em all and get the current node by using the same-origin header
-                                        sendResponse({"nodes": nodes, "current": current, "status": 200});
-                                    }
-                                });
                         }
                     })
                     .catch(function (err) {

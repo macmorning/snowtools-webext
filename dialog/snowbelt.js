@@ -171,7 +171,7 @@ function scanNodes (evt) {
         }
     }
     if (id < 0) {
-        displayMessage("No tab is available for node scan.");
+        displayMessage("No tab is available to fetch nodes informations.");
         return false;
     }
 
@@ -196,6 +196,9 @@ function scanNodes (evt) {
  * @param {object} evt the event that triggered the action
  */
 function switchNode (evt) {
+    displayMessage("Sorry! Switching nodes is disabled for now due to recent changes in the ServiceNow platform.");
+    return false;
+    /*
     let targetInstance = evt.target.getAttribute("data-instance");
     if (targetInstance.indexOf("service-now.com") === -1) {
         displayMessage("Sorry! Switching nodes only works on service-now.com instances for now.");
@@ -227,6 +230,7 @@ function switchNode (evt) {
             }
         }
     });
+    */
 }
 
 /**
@@ -442,7 +446,7 @@ function refreshList () {
             el.addEventListener("click", function (e) {
                 context.clicked = e.target;
                 let items = [
-                    { title: "&#128270; Scan nodes", fn: scanNodes },
+                    { title: "&#128270; Fetch nodes", fn: scanNodes },
                     { title: "&#10000; Rename", fn: renameInstance }
                 ];
                 // only add the select color option if we are on Chrome, because FF closes the popup when it displays the color picker
