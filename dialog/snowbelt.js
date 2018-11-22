@@ -196,14 +196,7 @@ function scanNodes (evt) {
  * @param {object} evt the event that triggered the action
  */
 function switchNode (evt) {
-    displayMessage("Sorry! Switching nodes is disabled for now due to recent changes in the ServiceNow platform.");
-    return false;
-    /*
     let targetInstance = evt.target.getAttribute("data-instance");
-    if (targetInstance.indexOf("service-now.com") === -1) {
-        displayMessage("Sorry! Switching nodes only works on service-now.com instances for now.");
-        return true;
-    }
     let targetNode = evt.target.value;
     // try to find a non discarded tab for the instance to run the scan
     let id = -1;
@@ -224,13 +217,12 @@ function switchNode (evt) {
         if (response && response.status === 200) {
             displayMessage("Node switched to " + response.current);
         } else if (response.status !== 200) {
-            displayMessage("Error switching to " + response.current + " (" + response.status + ")");
+            displayMessage("Error switching to " + targetNode + " (" + response.message + ")");
             if (response.current) {
                 refreshNodes(targetInstance, response.current);
             }
         }
     });
-    */
 }
 
 /**

@@ -174,7 +174,7 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
                 */
                 console.log("*SNOW TOOL BELT* switch to node " + request.node);
                 let targetNode = request.node.toString();
-                let maxTries = 40;
+                let maxTries = 50;
                 let tries = 0;
                 let tryAgain = function () {
                     fetch(url, {credentials: "same-origin"})

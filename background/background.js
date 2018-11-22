@@ -119,9 +119,14 @@ var msgListener = function (message, sender, sendResponse) {
     console.log("*SNOW TOOL BELT Background* received message from content script: " + JSON.stringify(message));
     if (message.command === "removeCookie" && message.instance) {
         let targetInstance = message.instance;
-        chrome.cookies.remove({"url": "http://" + targetInstance, "name": "BIGipServerpool_" + targetInstance.split(".")[0]}, function (result) {
-            sendResponse(true);
+        chrome.cookies.getAll({"url": "https://" + targetInstance}, function (cookiesArray) {
+            cookiesArray.forEach(function (cookie) {
+                if (cookie.name.indexOf("BIGipServerpool") > -1 || cookie.name.indexOf("JSESSIONID") > -1 || cookie.name.indexOf("X-Mapping") > -1) {
+                    chrome.cookies.remove({"url": "https://" + targetInstance, "name": cookie.name});
+                }
+            });
         });
+        sendResponse(true);
         return true;
     } else if (message.command === "isServiceNow" && message.url) {
         console.log("*SNOW TOOL BELT Background* urlFilters: " + context.urlFilters);
