@@ -192,7 +192,7 @@ button {
     font-weight: bold;
 }
 button#save  {
-    padding: 0;
+    padding: 0 10px;
 }
 button.thin {
     padding: 7px 10px;
@@ -262,6 +262,7 @@ div.popin {
     padding: 15px 15px 15px 15px;
 	width: 250px;
     margin: 0 auto;
+    margin-top: 10px;
     border: 1px var(--main-color) solid;
     background-color: var(--main-bg-color);
     border-radius: 5px;
