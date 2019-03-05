@@ -41,58 +41,60 @@ function selectColor (evt) {
  * Restores the options saved into local storage
  */
 function restoreOptions () {
-    document.getElementById("urlFilters").value = localStorage.urlFilters || "service-now.com;";
-    try {
-        context.knownInstances = JSON.parse(localStorage.knownInstances);
-    } catch (e) {
-        context.knownInstances = {};
-        console.log(e);
-    }
-    try {
-        context.instanceOptions = JSON.parse(localStorage.instanceOptions);
-    } catch (e) {
-        context.instanceOptions = {};
-        console(e);
-    }
-    if (context.knownInstances !== {}) {
-        // if knownInstances is not empty, build the input fields
-        for (var key in context.knownInstances) {
-            let input = document.createElement("input");
-            input.setAttribute("type", "text");
-            input.setAttribute("id", key);
-            input.value = context.knownInstances[key];
-            var hidden = (context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
-            let label = document.createElement("label");
-            label.className = "instance-label";
-            label.setAttribute("for", input.id);
-            label.innerHTML = key + " <label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
-                "<a class=\"button\" data-instance=\"" + key + "\" title=\"pick a color\" id=\"color#" + input.id + "\">&#127912;</a>" +
-                " <a class=\"button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a>";
-
-            document.getElementById("knownInstances").appendChild(label);
-            document.getElementById("knownInstances").appendChild(input);
+    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+        document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
+        try {
+            context.knownInstances = JSON.parse(result.knownInstances);
+        } catch (e) {
+            context.knownInstances = {};
+            console.log(e);
         }
+        try {
+            context.instanceOptions = JSON.parse(result.instanceOptions);
+        } catch (e) {
+            context.instanceOptions = {};
+            console.log(e);
+        }
+        if (context.knownInstances !== {}) {
+            // if knownInstances is not empty, build the input fields
+            for (var key in context.knownInstances) {
+                let input = document.createElement("input");
+                input.setAttribute("type", "text");
+                input.setAttribute("id", key);
+                input.value = context.knownInstances[key];
+                var hidden = (context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
+                let label = document.createElement("label");
+                label.className = "instance-label";
+                label.setAttribute("for", input.id);
+                label.innerHTML = key + " <span class='pull-right'><label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
+                    "<a class=\"button\" data-instance=\"" + key + "\" title=\"pick a color\" id=\"color#" + input.id + "\">&#127912;</a>" +
+                    " <a class=\"button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
 
-        // add remove instance
-        let elements = {};
-        elements = document.querySelectorAll("a[title=\"forget this instance\"]");
-        [].forEach.call(elements, function (el) {
-            el.addEventListener("click", deleteInstance);
-        });
+                document.getElementById("knownInstances").appendChild(label);
+                document.getElementById("knownInstances").appendChild(input);
+            }
 
-        // add close tab actions
-        elements = document.querySelectorAll("a[title=\"pick a color\"]");
-        [].forEach.call(elements, function (el) {
-            el.addEventListener("click", function (e) {
-                context.clicked = e.target;
-                selectColor(e);
+            // add remove instance
+            let elements = {};
+            elements = document.querySelectorAll("a[title=\"forget this instance\"]");
+            [].forEach.call(elements, function (el) {
+                el.addEventListener("click", deleteInstance);
             });
-        });
 
-        // Save and close button
-        document.getElementById("popin_color").addEventListener("click", saveColor);
-        document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
-    }
+            // add close tab actions
+            elements = document.querySelectorAll("a[title=\"pick a color\"]");
+            [].forEach.call(elements, function (el) {
+                el.addEventListener("click", function (e) {
+                    context.clicked = e.target;
+                    selectColor(e);
+                });
+            });
+
+            // Save and close button
+            document.getElementById("popin_color").addEventListener("click", saveColor);
+            document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
+        }
+    });
 }
 
 /**
@@ -145,9 +147,11 @@ function deleteInstance (evt) {
  * Saves the instances checked states
  */
 function saveInstanceOptions () {
-    if (typeof (Storage) !== "undefined") {
-        localStorage.instanceOptions = JSON.stringify(context.instanceOptions);
-    }
+    chrome.storage.sync.set({
+        "instanceOptions": JSON.stringify(context.instanceOptions)
+    }, function () {
+        console.log("Saved instance options to storage.sync");
+    });
 }
 
 /**
@@ -157,7 +161,7 @@ function saveInstanceOptions () {
 function saveOptions (evt) {
     evt.preventDefault();
     try {
-        localStorage.urlFilters = document.getElementById("urlFilters").value;
+        context.urlFilters = document.getElementById("urlFilters").value;
         for (var key in context.knownInstances) {
             context.knownInstances[key] = document.getElementById(key).value;
             if (context.instanceOptions[key] === undefined) {
@@ -165,12 +169,18 @@ function saveOptions (evt) {
             }
             context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
         }
-        localStorage.knownInstances = JSON.stringify(context.knownInstances);
-        saveInstanceOptions();
-        displayMessage("Options saved!");
+        ;
+
+        chrome.storage.sync.set({
+            "knownInstances": JSON.stringify(context.knownInstances),
+            "instanceOptions": JSON.stringify(context.instanceOptions),
+            "urlFilters": context.urlFilters
+        }, function () {
+            displayMessage("Options saved!");
+        });
     } catch (e) {
         console.log(e);
-        displayMessage("Options could not be saved. Is localStorage enabled?");
+        displayMessage("Options could not be saved. Is storage enabled?");
     }
 }
 

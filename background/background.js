@@ -1,4 +1,3 @@
-const isChrome = (typeof browser === "undefined");
 const context = {
     urlFilters: "",
     urlFiltersArr: [],
@@ -10,33 +9,63 @@ const context = {
  * Retrieves saved options
  */
 function getOptions () {
-    context.urlFilters = "service-now.com";
-    context.urlFiltersArr = ["service-now.com"];
-    if (typeof (Storage) !== "undefined") {
-        context.urlFilters = localStorage.urlFilters || "service-now.com";
+    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+        if (Object.keys(result).length === 0) {
+            if (localStorage.urlFilters !== undefined) {
+                // Nothing is stored inside storage.sync; but we have something in localStorage, migrate to sync
+                context.urlFilters = localStorage.urlFilters;
+                context.knownInstances = localStorage.knownInstances;
+                context.instanceOptions = localStorage.instanceOptions;
+                chrome.storage.sync.set({
+                    "knownInstances": context.knownInstances,
+                    "instanceOptions": context.instanceOptions,
+                    "urlFilters": context.urlFilters
+                }, function () {
+                    console.log("Migrated data to storage.sync");
+                });
+            } else {
+                // Nothing is stored in localStorage nor in sync area
+                context.urlFilters = "service-now.com";
+                context.knownInstances = "{}";
+                context.instanceOptions = "{}";
+                chrome.storage.sync.set({
+                    "knownInstances": context.knownInstances,
+                    "instanceOptions": context.instanceOptions,
+                    "urlFilters": context.urlFilters
+                }, function () {
+                    console.log("Initialized data in storage.sync");
+                });
+            }
+        } else {
+            context.urlFilters = result.urlFilters;
+            context.knownInstances = result.knownInstances;
+            context.instanceOptions = result.instanceOptions;
+        }
+
         context.urlFiltersArr = context.urlFilters.split(";");
         try {
-            context.knownInstances = JSON.parse(localStorage.knownInstances);
+            context.knownInstances = JSON.parse(context.knownInstances);
         } catch (e) {
-            context.knownInstances = {};
             console.log(e);
+            context.knownInstances = {};
         }
         try {
-            context.instanceOptions = JSON.parse(localStorage.instanceOptions);
+            context.instanceOptions = JSON.parse(context.instanceOptions);
         } catch (e) {
-            console.log("*SNOW TOOL BELT Background* could not parse the saved data, perhaps someone messed with it?");
+            console.log(e);
             context.instanceOptions = {};
         }
-    }
+        console.log(context);
+    });
 }
 
 /**
  * Saves the known instances; called after the open tabs have been parsed
  */
 function saveKnownInstances () {
-    if (typeof (Storage) !== "undefined") {
-        localStorage.knownInstances = JSON.stringify(context.knownInstances);
-    }
+    chrome.storage.sync.set({"knownInstances": JSON.stringify(context.knownInstances)}, function (result) {
+        console.log("instances saved");
+    });
 }
 
 /**
@@ -97,21 +126,9 @@ function sortProperties (obj, isNumericSort) {
  * Handles a change event coming from storage
  * @param {Object} e the event itself
  */
-function storageEvent (e) {
-    console.log("*SNOW TOOL BELT Background* Storage update, reloading options");
+function storageEvent (objChanged, area) {
+    console.log("*SNOW TOOL BELT Background* Storage update, reloading options from area ", area);
     getOptions();
-    chrome.tabs.query({}, function (tabs) {
-        for (var i = 0; i < tabs.length; ++i) {
-            let instance = tabs[i].url.toString().split("/")[2];
-            if (instance && context.instanceOptions[instance] !== undefined) {
-                let message = {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"] || ""};
-                console.log("*SNOW TOOL BELT Background* Send update message > " + i + " > " + tabs[i].url + " > " + context.instanceOptions[instance]["color"]);
-                chrome.tabs.sendMessage(tabs[i].id, message);
-            }
-        }
-    });
-    sortInstances(sortProperties(context.knownInstances, false));
-    saveKnownInstances();
 }
 
 // Configure message listener
@@ -150,18 +167,8 @@ var msgListener = function (message, sender, sendResponse) {
     sendResponse("");
 };
 
-if (isChrome) {
-    chrome.runtime.onMessage.addListener(msgListener);
-    chrome.tabs.onUpdated.addListener(tabUpdated);
-} else {
-    browser.runtime.onMessage.addListener(msgListener);
-    browser.tabs.onUpdated.addListener(tabUpdated);
-}
-
-if (window.addEventListener) {
-    addEventListener("storage", storageEvent, false);
-} else if (window.attachEvent) {
-    attachEvent("onstorage", storageEvent, false);
-}
+chrome.runtime.onMessage.addListener(msgListener);
+chrome.tabs.onUpdated.addListener(tabUpdated);
+chrome.storage.onChanged.addListener(storageEvent);
 
 getOptions();

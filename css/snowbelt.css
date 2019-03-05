@@ -15,6 +15,9 @@ body {
     overflow-y: auto;
     font-size: 10pt;
 }
+span.pull-right {
+    float:right;
+}
 div.top-commands {
     position: absolute;
     font-size: 25px;
@@ -60,7 +63,7 @@ div#container {
 }
 div#options-container {
     overflow-y: auto;
-    height: 400px;
+    min-height: 400px;
     padding: 5px;
 }
 div.basicContext {
@@ -169,6 +172,9 @@ select.nodes-list {
     text-overflow: '';
     cursor: pointer;    
 }
+form {
+    width: 550px;
+}
 label {
     color: var(--secondary-color);
 }
@@ -184,6 +190,9 @@ button {
     cursor: pointer;
     font-size: larger;
     font-weight: bold;
+}
+button#save  {
+    padding: 0;
 }
 button.thin {
     padding: 7px 10px;

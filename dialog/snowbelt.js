@@ -6,9 +6,7 @@ const context = {
     urlFilters: "",
     urlFiltersArr: [],
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
-    instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
-    knownNodes: {}, // { "url1" : ["node1","node2", ...], "url2" : ...}
-    separator: "," // separator for downloaded csv files
+    instanceOptions: {} // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
 };
 
 /**
@@ -226,7 +224,7 @@ function switchNode (evt) {
 }
 
 /**
- * Saves nodes in local storage
+ * Saves nodes in local context
  * @param {String} instanceName fqdn of target instance
  * @param {Array} nodes array of nodes names
  */
@@ -243,20 +241,25 @@ function saveNodes (instanceName, nodes) {
 
 /**
  * Saves the known instances; called after the open tabs have been parsed
+ * Should be moved to background script one day!
  */
 function saveKnownInstances () {
-    if (typeof (Storage) !== "undefined") {
-        localStorage.knownInstances = JSON.stringify(context.knownInstances);
-    }
+    chrome.storage.sync.set({
+        "knownInstances": JSON.stringify(context.knownInstances)
+    }, function () {
+        console.log("Saved instances to storage.sync");
+    });
 }
 
 /**
  * Saves the instances checked states
  */
 function saveInstanceOptions () {
-    if (typeof (Storage) !== "undefined") {
-        localStorage.instanceOptions = JSON.stringify(context.instanceOptions);
-    }
+    chrome.storage.sync.set({
+        "instanceOptions": JSON.stringify(context.instanceOptions)
+    }, function () {
+        console.log("Saved instance options to storage.sync");
+    });
 }
 
 /**
@@ -301,25 +304,42 @@ function getOptions () {
     context.urlFiltersArr = ["service-now.com"];
     context.knownInstances = {};
     context.instanceOptions = {};
-    if (typeof (Storage) !== "undefined") {
-        context.separator = localStorage.separator || ",";
-        context.urlFilters = localStorage.urlFilters || "service-now.com";
+    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+        context.urlFilters = result.urlFilters || "service-now.com";
         context.urlFiltersArr = context.urlFilters.split(";");
         try {
-            context.knownInstances = JSON.parse(localStorage.knownInstances);
+            context.knownInstances = JSON.parse(result.knownInstances);
         } catch (e) {
-            // could not parse the saved data, perhaps someone messed with it
             context.knownInstances = {};
+            console.log(e);
         }
         try {
-            context.instanceOptions = JSON.parse(localStorage.instanceOptions);
+            context.instanceOptions = JSON.parse(result.instanceOptions);
         } catch (e) {
-            // could not parse the saved data, perhaps someone messed with it
             context.instanceOptions = {};
+            console.log(e);
         }
-    }
-    console.log("Loaded options");
-    console.log(context);
+
+        console.log("Loaded options");
+        console.log(context);
+        bootStrap();
+        document.getElementById("config").addEventListener("click", openOptions);
+        document.getElementById("new_tab").addEventListener("change", newTab);
+        document.getElementById("search_custom").addEventListener("click", searchNow);
+        document.getElementById("search_doc").addEventListener("click", searchNow);
+        document.getElementById("search_api").addEventListener("click", searchNow);
+        document.getElementById("searchInput").addEventListener("keyup", function (event) {
+            event.preventDefault();
+            if (event.keyCode === 13) {
+                document.getElementById("search_custom").click();
+            }
+        });
+        document.getElementById("searchInput").focus();
+        // listen to tabs events
+        chrome.tabs.onUpdated.addListener(tabUpdated);
+        chrome.tabs.onRemoved.addListener(tabRemoved);
+        chrome.tabs.onActivated.addListener(tabActivated);
+    });
 }
 /**
  * Searches on ServiceNow doc or api sites
@@ -711,22 +731,4 @@ function bootStrap () {
 
 document.addEventListener("DOMContentLoaded", function () {
     getOptions();
-    bootStrap();
-    document.getElementById("config").addEventListener("click", openOptions);
-    document.getElementById("new_tab").addEventListener("change", newTab);
-    document.getElementById("search_custom").addEventListener("click", searchNow);
-    document.getElementById("search_doc").addEventListener("click", searchNow);
-    document.getElementById("search_api").addEventListener("click", searchNow);
-    document.getElementById("searchInput").addEventListener("keyup", function (event) {
-        event.preventDefault();
-        if (event.keyCode === 13) {
-            document.getElementById("search_custom").click();
-        }
-    });
-    document.getElementById("searchInput").focus();
-
-    // listen to tabs events
-    chrome.tabs.onUpdated.addListener(tabUpdated);
-    chrome.tabs.onRemoved.addListener(tabRemoved);
-    chrome.tabs.onActivated.addListener(tabActivated);
 });
