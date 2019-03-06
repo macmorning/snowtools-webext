@@ -57,6 +57,7 @@ function restoreOptions () {
         }
         if (context.knownInstances !== {}) {
             // if knownInstances is not empty, build the input fields
+            sortInstances(sortProperties(context.knownInstances, false));
             for (var key in context.knownInstances) {
                 let input = document.createElement("input");
                 input.setAttribute("type", "text");
@@ -95,6 +96,45 @@ function restoreOptions () {
             document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
         }
     });
+}
+
+/**
+ * Rebuild the knownInstances from the object returned by sortProperties.
+ * @param {Array} arr array of items in [[key,value],[key,value],...] format.
+ */
+function sortInstances (arr) {
+    context.knownInstances = {};
+    arr.forEach(function (item) {
+        context.knownInstances[item[0]] = item[1];
+    });
+}
+
+/**
+ * Sort object properties (only own properties will be sorted).
+ * https://gist.github.com/umidjons/9614157
+ * @author umidjons
+ * @param {object} obj object to sort properties
+ * @param {bool} isNumericSort true - sort object properties as numeric value, false - sort as string value.
+ * @returns {Array} array of items in [[key,value],[key,value],...] format.
+ */
+function sortProperties (obj, isNumericSort) {
+    isNumericSort = isNumericSort || false; // by default text sort
+    var sortable = [];
+    for (var key in obj) {
+        if (obj.hasOwnProperty(key)) { sortable.push([key, obj[key]]); }
+    }
+    if (isNumericSort) {
+        sortable.sort(function (a, b) {
+            return a[1] - b[1];
+        });
+    } else {
+        sortable.sort(function (a, b) {
+            let x = a[1].toLowerCase();
+            let y = b[1].toLowerCase();
+            return x < y ? -1 : x > y ? 1 : 0;
+        });
+    }
+    return sortable; // array in format [ [ key1, val1 ], [ key2, val2 ], ... ]
 }
 
 /**
@@ -155,7 +195,7 @@ function saveInstanceOptions () {
 }
 
 /**
- * Save the options into local storage
+ * Save the options into sync storage
  * @param {object} evt the event that triggered the action
  */
 function saveOptions (evt) {

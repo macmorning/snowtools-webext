@@ -6,9 +6,22 @@ const context = {
 };
 
 /**
+ * Saves context into storage sync area
+ */
+function saveContext () {
+    chrome.storage.sync.set({
+        "knownInstances": JSON.stringify(context.knownInstances),
+        "instanceOptions": JSON.stringify(context.instanceOptions),
+        "urlFilters": context.urlFilters
+    }, function () {
+        console.log("Options saved!");
+    });
+}
+
+/**
  * Retrieves saved options
  */
-function getOptions () {
+function loadContext () {
     chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
         if (Object.keys(result).length === 0) {
             if (localStorage.urlFilters !== undefined) {
@@ -33,7 +46,7 @@ function getOptions () {
                     "instanceOptions": context.instanceOptions,
                     "urlFilters": context.urlFilters
                 }, function () {
-                    console.log("Initialized data in storage.sync");
+                    console.log("Initialized data structure in storage.sync");
                 });
             }
         } else {
@@ -60,15 +73,6 @@ function getOptions () {
 }
 
 /**
- * Saves the known instances; called after the open tabs have been parsed
- */
-function saveKnownInstances () {
-    chrome.storage.sync.set({"knownInstances": JSON.stringify(context.knownInstances)}, function (result) {
-        console.log("instances saved");
-    });
-}
-
-/**
  * Reflects changes that occur on tabs
  * @param {Integer} tabId the id of the updated tab
  * @param {Object} changeInfo contains the informations that changed
@@ -84,51 +88,31 @@ function tabUpdated (tabId, changeInfo, tab) {
 }
 
 /**
- * Rebuild the knownInstances from the object returned by sortProperties.
- * @param {Array} arr array of items in [[key,value],[key,value],...] format.
- */
-function sortInstances (arr) {
-    context.knownInstances = {};
-    arr.forEach(function (item) {
-        context.knownInstances[item[0]] = item[1];
-    });
-}
-
-/**
- * Sort object properties (only own properties will be sorted).
- * https://gist.github.com/umidjons/9614157
- * @author umidjons
- * @param {object} obj object to sort properties
- * @param {bool} isNumericSort true - sort object properties as numeric value, false - sort as string value.
- * @returns {Array} array of items in [[key,value],[key,value],...] format.
- */
-function sortProperties (obj, isNumericSort) {
-    isNumericSort = isNumericSort || false; // by default text sort
-    var sortable = [];
-    for (var key in obj) {
-        if (obj.hasOwnProperty(key)) { sortable.push([key, obj[key]]); }
-    }
-    if (isNumericSort) {
-        sortable.sort(function (a, b) {
-            return a[1] - b[1];
-        });
-    } else {
-        sortable.sort(function (a, b) {
-            let x = a[1].toLowerCase();
-            let y = b[1].toLowerCase();
-            return x < y ? -1 : x > y ? 1 : 0;
-        });
-    }
-    return sortable; // array in format [ [ key1, val1 ], [ key2, val2 ], ... ]
-}
-
-/**
  * Handles a change event coming from storage
- * @param {Object} e the event itself
+ * @param {Object} objChanged an object that contains the items that changed with newValue and oldValue
+ * @param {String} area Storage area (should be "sync")
  */
 function storageEvent (objChanged, area) {
-    console.log("*SNOW TOOL BELT Background* Storage update, reloading options from area ", area);
-    getOptions();
+    console.log("*SNOW TOOL BELT Background* Storage update, reloading options from area", area);
+    loadContext();
+    // instanceOptions changed, send an update message to content scripts
+    if (objChanged.instanceOptions !== undefined) {
+        let newInstanceOptions = JSON.parse(objChanged.instanceOptions.newValue);
+        let oldInstanceOptions = JSON.parse(objChanged.instanceOptions.oldValue);
+        chrome.tabs.query({}, function (tabs) {
+            for (var i = 0; i < tabs.length; ++i) {
+                let instance = tabs[i].url.toString().split("/")[2];
+                console.log(instance);
+                console.log(newInstanceOptions);
+                console.log(newInstanceOptions[instance]);
+                if (instance && newInstanceOptions[instance] !== undefined && newInstanceOptions[instance]["color"] !== oldInstanceOptions[instance]["color"]) {
+                    let message = {"command": "updateFavicon", "color": newInstanceOptions[instance]["color"] || ""};
+                    console.log("*SNOW TOOL BELT Background* Send update message > " + i + " > " + tabs[i].url + " > " + newInstanceOptions[instance]["color"]);
+                    chrome.tabs.sendMessage(tabs[i].id, message);
+                }
+            }
+        });
+    }
 }
 
 // Configure message listener
@@ -157,6 +141,15 @@ var msgListener = function (message, sender, sendResponse) {
                 }
                 console.log("*SNOW TOOL BELT Background* matchFound: " + filter);
                 matchFound = true;
+
+                // This is an instance we did not know about, save it
+                if (context.knownInstances[message.url] === undefined) {
+                    context.knownInstances[message.url] = message.url;
+                    context.instanceOptions[message.url] = {};
+                    console.log(context.knownInstances);
+                    saveContext();
+                }
+
                 let response = { "isServiceNow": true, "favIconColor": color };
                 console.log(response);
                 sendResponse(response);
@@ -171,4 +164,4 @@ chrome.runtime.onMessage.addListener(msgListener);
 chrome.tabs.onUpdated.addListener(tabUpdated);
 chrome.storage.onChanged.addListener(storageEvent);
 
-getOptions();
+loadContext();

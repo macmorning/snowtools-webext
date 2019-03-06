@@ -217,6 +217,7 @@ button.btn-secondary:hover {
 }
 .color-indicator {
     font-size: x-large;
+    cursor: pointer;
 }
 .tab-commands {
     font-size: larger;
