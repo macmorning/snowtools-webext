@@ -61,11 +61,6 @@ div#container {
     margin: 5px;
     padding: 5px;
 }
-div#options-container {
-    overflow-y: auto;
-    min-height: 400px;
-    padding: 5px;
-}
 div.basicContext {
     border: 1px var(--main-color) solid;
     background-color: var(--main-bg-color);
@@ -191,7 +186,8 @@ button {
     font-size: larger;
     font-weight: bold;
 }
-button#save  {
+
+button.options  {
     padding: 0 10px;
 }
 button.thin {

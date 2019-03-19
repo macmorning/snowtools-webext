@@ -93,7 +93,7 @@ function tabUpdated (tabId, changeInfo, tab) {
  * @param {String} area Storage area (should be "sync")
  */
 function storageEvent (objChanged, area) {
-    console.log("*SNOW TOOL BELT Background* Storage update, reloading options from area", area);
+    console.log("*SNOW TOOL BELT Background* Storage update, reloading options");
     loadContext();
     // instanceOptions changed, send an update message to content scripts
     if (objChanged.instanceOptions !== undefined) {

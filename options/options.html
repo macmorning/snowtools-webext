@@ -8,18 +8,20 @@
   </head>
 
   <body>
-      <form>
-          <div id="options-container">
+      <form id="options-form">
             <label for="urlFilters" class="instance-label">URL Filters (separator ";")
                 <input type="text" id="urlFilters">
             </label>
             <hr/>
             <span id="knownInstances"><!-- known instances go here --></span>
-          </div>
-          <div id="messages">&nbsp;</div>
-          <button id="save" type="submit">Save</button>
-      </form>
-
+        </form>
+      <div id="messages">&nbsp;</div>
+      <button id="save" class="options" type="submit" form="options-form">Save</button>
+      <button id="export" class="options">Export</button>
+      <button id="import" class="options">Import</button>
+      <input type="file"
+        id="importFile" name="importFile"
+        accept="application/json">
 
     <div id="colorPicker" class="parentDisable">
         <div class="popin">
