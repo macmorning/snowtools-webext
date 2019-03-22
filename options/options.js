@@ -284,9 +284,17 @@ const importOptions = (evt) => {
     };
     reader.readAsText(file);
 };
+/**
+ * Opens the file selection window
+ * @param {object} evt the event that triggered the action
+ */
+const openFileSelect = (evt) => {
+    document.getElementById("importFile").click();
+};
+
 document.addEventListener("DOMContentLoaded", restoreOptions);
 document.querySelector("form").addEventListener("submit", saveOptions);
 document.getElementById("export").addEventListener("click", exportOptions);
-document.getElementById("import").addEventListener("click", () => { console.log(document.getElementById("importFile")); document.getElementById("importFile").click(); });
+document.getElementById("import").addEventListener("click", openFileSelect);
 document.getElementById("importFile").style.display = "none";
 document.getElementById("importFile").addEventListener("change", importOptions);

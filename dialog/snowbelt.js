@@ -457,7 +457,7 @@ const refreshList = () => {
 
     if (context.tabCount === 0) {
         let li1 = document.createElement("li");
-        li1.innerHTML += "<p class=\"text-muted\">No tab found :( Have you configured your URL filters in the options page?</p>";
+        li1.innerHTML += "<div class='tips' title='cool tip'><h1>&#128161;</h1>" + getTip() + "</p>";
         openTabs.appendChild(li1);
     } else {
         setActiveTab();

@@ -26,6 +26,11 @@ div.top-commands {
     cursor: pointer;
     color: var(--main-color);
 }
+div.tips {
+    width: 100%;
+    text-align:center;
+    line-height: 1.4em;
+}
 div#config {
     top: 10px; 
     right: 30px;
