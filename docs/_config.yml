@@ -1,3 +1,4 @@
 theme: jekyll-theme-slate
 title: Servicenow Tool Belt extension
 show_downloads: false
+markdown: kramdown

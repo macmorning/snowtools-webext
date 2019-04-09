@@ -18,7 +18,7 @@ ServiceNow Tool Belt is a set of tools for Firefox and Chrome designed to help t
 
 <img src="assets/tools2-128.png" align="right" alt="big icon"/>
 
-[[TOC]]
+{:toc}
 
 # Install the extension
 
