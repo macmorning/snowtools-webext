@@ -1,6 +1,8 @@
-# What is this about
+---
+---
+# Servicenow Tool Belt extension
 
-ServiceNow Tool Belt is a set of tools for Firefox and Chrome designed to help the ServiceNow administrator or developer in his every day tasks:
+Servicenow Tool Belt is a set of tools for Firefox and Chrome designed to help the ServiceNow administrator or developer in his every day tasks:
 * List open tabs grouped by instance
 * Automatically record visited instances 
 * Set friendly names for known instances
@@ -18,7 +20,10 @@ ServiceNow Tool Belt is a set of tools for Firefox and Chrome designed to help t
 
 <img src="assets/tools2-128.png" align="right" alt="big icon"/>
 
+
+<div id="inline_toc" markdown="1">
 {:toc}
+</div>
 
 # Install the extension
 
