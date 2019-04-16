@@ -697,6 +697,12 @@ const tabCreated = (tab) => {
         // if this is the first tab we find for this instance, create the container is the context.tab object
         if (!context.tabs.hasOwnProperty(tab.instance)) { context.tabs[tab.instance] = []; }
         context.tabs[tab.instance].push(tab);
+        let tabIndex = context.tabs[tab.instance].length - 1;
+        chrome.tabs.sendMessage(tab.id, {"command": "getTabInfo"}, (response) => {
+            context.tabs[tab.instance][tabIndex].type = response.type;
+            context.tabs[tab.instance][tabIndex].tabs = response.tabs;
+            console.log(context.tabs[tab.instance][tabIndex]);
+        });
         return true;
     }
     return false;
@@ -789,8 +795,6 @@ const bootStrap = () => {
             tabCreated(tab);
         });
         refreshList();
-        // saveKnownInstances();
-        // saveInstanceOptions();
         refreshKnownInstances();
     };
     chrome.tabs.query({}, getTabs);

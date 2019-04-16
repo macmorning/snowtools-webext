@@ -110,6 +110,24 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
                 *  change Favicon color
                 */
                 updateFavicon(request.color);
+            } else if (request.command === "getTabInfo") {
+                /**
+                 *  retrieve content informations
+                 */
+                let response = {
+                    "type": "other", // workspace / ...
+                    "tabs": []
+                };
+
+                // is this a workspace?
+                if (document.querySelector("sn-workspace-layout")) {
+                    response.type = "workspace";
+                    let root = document.querySelector("sn-workspace-tabs").shadowRoot.querySelector("chrome-tabs").shadowRoot.querySelectorAll("chrome-one-tab");
+                    root.forEach((elem) => {
+                        response.tabs.push(elem.shadowRoot.querySelector("li a span:nth-of-type(2)").innerText);
+                    });
+                }
+                sendResponse(response);
             } else if (request.command === "scanNodes") {
                 /**
                 *  scanNodes
