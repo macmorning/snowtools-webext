@@ -149,7 +149,8 @@ const selectColor = (evt) => {
             document.getElementById("colorPickerColor").value = "#000000";
         }
     }
-    document.getElementById("colorPicker").style.display = "block";
+    // document.getElementById("colorPicker").style.display = "block";
+    location.hash = "colorPicker";
 };
 
 /**
@@ -310,7 +311,8 @@ const saveInstanceOptions = () => {
 const saveColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    document.getElementById("colorPicker").style.display = "none";
+    // document.getElementById("colorPicker").style.display = "none";
+    location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
     }
@@ -326,7 +328,8 @@ const saveColor = (evt) => {
 const saveNoColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    document.getElementById("colorPicker").style.display = "none";
+    // document.getElementById("colorPicker").style.display = "none";
+    location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
     }

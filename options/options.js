@@ -7,9 +7,28 @@ const context = {
  * Displays a message for a short time.
  * @param {String} txt Message to display.
  */
-const displayMessage = (txt) => {
-    document.getElementById("messages").innerHTML = txt;
-    window.setTimeout(() => { document.getElementById("messages").innerHTML = "&nbsp;"; }, 3000);
+const displayMessage = (txt, details) => {
+    if (txt === undefined) { return false; }
+    if (details === undefined) { details = ""; }
+
+    let messages = document.getElementById("messages");
+    let messages_more = document.getElementById("messages_more");
+    let messages_details = document.getElementById("messages_details");
+
+    messages.innerHTML = "&nbsp;";
+    messages_details.innerText = "";
+    messages_more.style.display = "none";
+
+    window.setTimeout(() => {
+        messages.innerHTML = txt;
+        if(details) {
+            messages_more.style.display = "inline";
+            messages_more.style.cursor = "pointer";
+            messages_more.onclick = (evt) => {
+                messages_details.innerText = (messages_details.innerText == "" ? details : "");
+            }
+        }
+    }, 500);
 };
 
 /**
@@ -34,7 +53,8 @@ const selectColor = (evt) => {
             document.getElementById("colorPickerColor").value = "#000000";
         }
     }
-    document.getElementById("colorPicker").style.display = "block";
+    // document.getElementById("colorPicker").style.display = "block";
+    location.hash = "colorPicker";
 };
 
 /**
@@ -150,7 +170,8 @@ const sortProperties = (obj, isNumericSort) => {
 const saveColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    document.getElementById("colorPicker").style.display = "none";
+    // document.getElementById("colorPicker").style.display = "none";
+    location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
     }
@@ -165,7 +186,8 @@ const saveColor = (evt) => {
 const saveNoColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    document.getElementById("colorPicker").style.display = "none";
+    // document.getElementById("colorPicker").style.display = "none";
+    location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
     }
@@ -215,7 +237,6 @@ const saveOptions = (evt) => {
             }
             context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
         }
-        ;
 
         chrome.storage.sync.set({
             "knownInstances": JSON.stringify(context.knownInstances),
@@ -226,7 +247,7 @@ const saveOptions = (evt) => {
         });
     } catch (e) {
         console.log(e);
-        displayMessage("Options could not be saved. Is storage enabled?");
+        displayMessage("Options could not be saved. Please report this error with below details.", e);
     }
 };
 /**
@@ -245,6 +266,7 @@ const exportOptions = (evt) => {
                 url: URL.createObjectURL(blob)
             });
         } catch (e) {
+            displayMessage("Sorry, there was a browser error. Please report it with below details.", e);
             console.log(e);
         }
     });
@@ -257,8 +279,8 @@ const importOptions = (evt) => {
     let file = evt.target.files[0];
     let reader = new FileReader();
     reader.onerror = (event) => {
+        displayMessage("Sorry, there was an error importing your file. Please report it with below details.", JSON.stringify(event));
         reader.abort();
-        displayMessage("Sorry, there was an error importing your file.");
     };
     reader.onload = (event) => {
         try {
@@ -277,9 +299,9 @@ const importOptions = (evt) => {
                     restoreOptions();
                 });
             }
-        } catch (ex) {
-            console.log(ex);
-            displayMessage("Sorry, there was an error importing your file.");
+        } catch (e) {
+            console.log(e);
+            displayMessage("Sorry, there was an error importing your file. Please report it with below details.", e);
         }
     };
     reader.readAsText(file);

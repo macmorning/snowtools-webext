@@ -31,6 +31,10 @@ div.tips {
     text-align:center;
     line-height: 1.4em;
 }
+div.tips h1 {
+    width: 100%;
+    text-align:center;
+}
 div#config {
     top: 10px; 
     right: 30px;
@@ -40,9 +44,16 @@ div#help {
     right: 65px;
 }
 
-div#messages {
+#messages_container {
     text-align: center;
     font-weight: bold;
+}
+#messages_container #messages_more {
+    display:none;
+}
+#messages_details {
+    text-align: center;
+    font-size: smaller;
 }
 div#search {
     font-size: smaller;
@@ -250,26 +261,6 @@ p.text-muted {
     font-weight: normal;
     color: var(--disabled-color);
 }
-.parentDisable {
-	z-index:999;
-	width:100%;
-	height:100%;
-	display:none;
-	position:absolute;
-	top:0;
-	left:0;
-	background: rgba(0, 0, 0, 0.6);
-}
-div.popin {
-    padding: 15px 15px 15px 15px;
-	width: 250px;
-    margin: 0 auto;
-    margin-top: 10px;
-    border: 1px var(--main-color) solid;
-    background-color: var(--main-bg-color);
-    border-radius: 5px;
-    text-align: center;
-}
 input#colorPickerColor {
     margin-bottom: 15px;
     width: 50px;
@@ -329,4 +320,80 @@ input:checked + .slider:before {
 
 .slider.round:before {
     border-radius: 50%;
+}
+
+/* smart popin
+ * credits: https://codepen.io/alexandredees/pen/NNvmZp
+ */
+.smart-popin {
+    position: fixed;
+    left: 0; right: 0;
+    top: 0; bottom: 0;
+    overflow: auto; /* scrollbar will appear if the viewport is too tight to display all the popin content */
+    opacity: 0;
+    visibility: hidden;
+  
+    /* design */
+  
+    background-color: rgba(0,0,0,0.5);
+    -webkit-transition: all 0.4s ease;
+    -moz-transition: all 0.4s ease;
+    -ms-transition: all 0.4s ease;
+    -o-transition: all 0.4s ease;
+    transition: all 0.4s ease;
+}
+.smart-popin:target {
+    opacity: 1;
+    visibility: visible;
+}
+.smart-popin .sp-table {
+    display: table;
+    height: 100%;
+    width: 100%;
+}
+.smart-popin .sp-cell {
+    display: table-cell;
+    vertical-align: middle;
+    padding: 10px; /* this space is important to let the box-shadow exceed around the popin - so it has to be at least equal to the shadow radius */
+}
+.smart-popin .sp-body {
+    position: relative; /* to allow absolute positionning inside */
+    z-index: 5; /* to ensure the popin body will be over the .sp-back layer */
+    width: auto; /* by default the width of the wider element inside */
+    min-width: 300px;  /* standard width for xs smartphones (320px) minus 2*10px (.sp-cell margins) */
+    margin: 0 auto;
+  
+    /* design */
+    text-align: center;
+    border: 1px var(--main-color) solid;
+    background-color: var(--main-bg-color);
+    border-radius: 5px;
+    padding: 2em;
+    -webkit-box-shadow: 0 3px 5px 1px rgba(0,0,0,0.25);
+    box-shadow: 0 3px 5px 1px rgba(0,0,0,0.25);
+    width: 66.66%; /* 66.66 looks good :-) */;
+}
+.smart-popin .sp-body * {
+    max-width: 100%; /* this is a security to prevents wide elements such as img to stretch the popin beyond the viewport width */
+}
+.smart-popin .sp-back { /* only used to get clicks out of the popin body */
+    position: fixed;
+    left: 0; right: 0;
+    top: 0; bottom: 0;
+    display: block;
+}
+.smart-popin .sp-close {
+    position: absolute;
+    top: 0;
+    right: 0;
+
+    width: 36px;
+    height: 36px;
+
+    text-align: center;
+    line-height: 36px;
+    font-size: 1.6em;
+    color: #000000;
+    font-weight: 900;
+    text-decoration: none;
 }

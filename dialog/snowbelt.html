@@ -47,12 +47,21 @@
             </li>
         </template>
 
-        <div id="colorPicker" class="parentDisable">
-            <div class="popin">
-                <p>Select a color for <span name="instanceName"></span></p>
-                <input id="colorPickerColor" type="color"/>
-                <button class="thin" id="popin_color" title="save color">use this color</button>
-                <button class="thin btn-secondary" id="popin_no_color" title="no color">no color</button>
+        <div class="smart-popin" id="colorPicker">
+            <div class="sp-table">
+                <div class="sp-cell">
+        
+                    <div class="sp-body">
+                        <p>Select a color for <span name="instanceName"></span></p>
+                        <input id="colorPickerColor" type="color"/>
+                        <button class="thin" id="popin_color" title="save color">use this color</button>
+                        <button class="thin btn-secondary" id="popin_no_color" title="no color">no color</button>
+                        <a href="#" class="sp-close">×</a>
+                    </div>
+        
+                    <a href="#" class="sp-back"></a>
+        
+                </div>
             </div>
         </div>
     </body>
