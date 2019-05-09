@@ -26,7 +26,40 @@ function getNameFromStatsPage (text) {
 }
 
 /**
- * Updates favicon
+ * Gets informations about current tab
+ * @returns {Object} containing informations about current tab
+ */
+function getTabInfo () {
+    let response = {
+        "type": "other", // workspace / ...
+        "details": "", // app name / ...
+        "tabs": []
+    };
+
+    // is this a workspace?
+    if (document.querySelector("sn-workspace-layout")) {
+        response.type = "workspace";
+        try {
+            let root = document.querySelector("sn-workspace-tabs").shadowRoot.querySelector("chrome-tabs").shadowRoot.querySelectorAll("chrome-one-tab");
+            root.forEach((elem) => {
+                response.tabs.push(elem.shadowRoot.querySelector("li a span:nth-of-type(2)").innerText);
+            });
+        } catch (e) {
+            console.log("*SNOW TOOL BELT* unable to find workspace tabs: " + e);
+        }
+    } else if (document.querySelector("div.sp-page-root")) {
+        response.type = "portal";
+    } else if (document.querySelector("div.status-bar-main")) {
+        response.type = "app studio";
+        response.details = document.querySelector("div.app-info").innerText;
+    }
+
+    return response;
+}
+/**
+ * Paints the favicon with a specific color
+ * @param {string} color value
+ * @returns {boolean} true if work was done
  */
 function updateFavicon (color) {
     if (color === undefined || color === "") {
@@ -74,32 +107,6 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
             updateFavicon(response.favIconColor);
         }
 
-        // On older versions, tabs are all named "ServiceNow", which is confusing. This part might be trashed by the end of 2018.
-        // Deactivating this now. Sorry if you are still running Fuji or earlier versions.
-        /* if (document.title === "ServiceNow") {
-            document.getElementById("gsft_main").onload = function () {
-                console.log("*SNOW TOOL BELT* Changed tab title");
-                context.currentTitle = document.getElementById("gsft_main").contentDocument.title;
-                document.title = context.currentTitle;
-                context.loops = 0;
-            };
-
-            const handleTitleChange = function (mutationsList) {
-                for (var mutation of mutationsList) {
-                    if (context.loops > 100) {
-                        // we don't want to end in an endless loop; can happen on login screens, for example.
-                        return true;
-                    } else if (mutation.type === "childList" && mutation.target.text === "ServiceNow") {
-                        console.log("*SNOW TOOL BELT* Changed tab title back");
-                        document.title = context.currentTitle;
-                        context.loops++;
-                    }
-                }
-            };
-            const observer = new MutationObserver(handleTitleChange);
-            observer.observe(context.headNode, { attributes: true, childList: true });
-        } */
-
         // Defining how to react to messages coming from the background script or the browser action
         chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
             console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
@@ -114,19 +121,7 @@ chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.ho
                 /**
                  *  retrieve content informations
                  */
-                let response = {
-                    "type": "other", // workspace / ...
-                    "tabs": []
-                };
-
-                // is this a workspace?
-                if (document.querySelector("sn-workspace-layout")) {
-                    response.type = "workspace";
-                    let root = document.querySelector("sn-workspace-tabs").shadowRoot.querySelector("chrome-tabs").shadowRoot.querySelectorAll("chrome-one-tab");
-                    root.forEach((elem) => {
-                        response.tabs.push(elem.shadowRoot.querySelector("li a span:nth-of-type(2)").innerText);
-                    });
-                }
+                let response = getTabInfo();
                 sendResponse(response);
             } else if (request.command === "scanNodes") {
                 /**

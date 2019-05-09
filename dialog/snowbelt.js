@@ -336,7 +336,7 @@ const saveNoColor = (evt) => {
     try {
         delete context.instanceOptions[targetInstance]["color"];
     } catch (e) {
-        console.log(e);
+        console.error(e);
     }
     updateColor(targetInstance);
     saveInstanceOptions();
@@ -367,13 +367,13 @@ const getOptions = () => {
             context.knownInstances = JSON.parse(result.knownInstances);
         } catch (e) {
             context.knownInstances = {};
-            console.log(e);
+            console.error(e);
         }
         try {
             context.instanceOptions = JSON.parse(result.instanceOptions);
         } catch (e) {
             context.instanceOptions = {};
-            console.log(e);
+            console.error(e);
         }
 
         console.log("Loaded options");
@@ -448,10 +448,10 @@ const refreshList = () => {
         // get the html template structure for the tab row
         let templateLI = document.getElementById("tab-row");
         let tabList = "";
-        context.tabs[key].forEach((tab) => {
+        context.tabs[key].forEach((tab, index) => {
             context.tabCount++;
             // replace template placeholders with their actual values
-            tabList += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title);
+            tabList += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title).replace(/\{\{contextid\}\}/g, index);
         });
         instanceRow = instanceRow.replace(/\{\{linksToTabs\}\}/g, tabList);
 
@@ -476,6 +476,7 @@ const refreshList = () => {
         [].forEach.call(elements, (el) => {
             el.addEventListener("click", popIn);
         });
+
         // add the "other actions" menu
         /* removed for now
         elements = document.querySelectorAll("a[title=\"other commands\"]");
@@ -590,6 +591,12 @@ const refreshList = () => {
         // Save and close button
         document.getElementById("popin_color").addEventListener("click", saveColor);
         document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
+
+        for (var key2 in context.tabs) {
+            context.tabs[key2].forEach((tab, index) => {
+                updateTabInfo(key2, index);
+            });
+        }
     }
 };
 
@@ -665,16 +672,8 @@ const refreshNodes = (instance, selectNode) => {
  * @param {String} title Original title of the tab
  */
 const transformTitle = (title) => {
-    let splittedName = title.toString().split("|");
-    if (splittedName.length === 3) {
-        // this is a specific object
-        return splittedName[1].toString().trim() + " - " + splittedName[0].toString().trim();
-    } else if (splittedName.length === 2) {
-        // this is a list of objects
-        return splittedName[0].toString().trim();
-    } else {
-        return title;
-    }
+    // not doing anything here anymore, at this time; used to update the tab title on elder snow platform versions
+    return title;
 };
 
 /**
@@ -701,16 +700,64 @@ const tabCreated = (tab) => {
         if (!context.tabs.hasOwnProperty(tab.instance)) { context.tabs[tab.instance] = []; }
         context.tabs[tab.instance].push(tab);
         let tabIndex = context.tabs[tab.instance].length - 1;
-        chrome.tabs.sendMessage(tab.id, {"command": "getTabInfo"}, (response) => {
-            context.tabs[tab.instance][tabIndex].type = response.type;
-            context.tabs[tab.instance][tabIndex].tabs = response.tabs;
-            console.log(context.tabs[tab.instance][tabIndex]);
-        });
+        updateTabInfo(tab.instance, tabIndex);
         return true;
     }
     return false;
 };
+/**
+ * Updates tab informations: type, tabs, ...
+ * @param {*} instance
+ * @param {*} index
+ */
+const updateTabInfo = (instance, index) => {
+    chrome.tabs.sendMessage(context.tabs[instance][index].id, {"command": "getTabInfo"}, (response) => {
+        if (!response && chrome.runtime.lastError) {
+            console.warn("tab " + index + " > " + chrome.runtime.lastError.message);
+            context.tabs[instance][index].snt_type = "non responsive";
+        } else {
+            context.tabs[instance][index].snt_type = response.type;
+            context.tabs[instance][index].snt_details = response.details;
+            context.tabs[instance][index].snt_tabs = response.tabs;
+        }
 
+        // hide "reopen in frame"
+        if (context.tabs[instance][index].snt_type !== "other") {
+            document.querySelector("a[data-id=\"" + context.tabs[instance][index].id + "\"][title=\"reopen in a frame\"]").style.display = "none";
+        }
+        let typeEl = document.getElementById("tab" + context.tabs[instance][index].id + "_type");
+        if (typeEl) {
+            switch (context.tabs[instance][index].snt_type) {
+            case "non responsive":
+                typeEl.innerText = "😴"; // sleepy face
+                typeEl.title = "Content script is not available yet";
+                // retry in 2 seconds
+                window.setTimeout(() => {
+                    updateTabInfo(instance, index);
+                }, 3000);
+                break;
+            case "portal":
+                typeEl.innerText = "🚪"; // door
+                typeEl.title = "Service Portal";
+                break;
+            case "app studio":
+                typeEl.innerText = "🔨"; // hammer
+                typeEl.title = "App Studio: " + context.tabs[instance][index].snt_details;
+                break;
+            case "workspace":
+                typeEl.innerText = "💼"; // briefcase
+                typeEl.title = "Workspace: " + JSON.stringify(context.tabs[instance][index].snt_tabs);
+                break;
+            default:
+                typeEl.innerText = "";
+                typeEl.title = "";
+                break;
+            }
+        } else {
+            console.warn("tab type element " + "tab" + context.tabs[instance][index].id + "_type" + " is not available yet");
+        }
+    });
+};
 /**
  * Reflects changes that occur on tabs
  * @param {Integer} tabId the id of the updated tab

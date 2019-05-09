@@ -229,7 +229,12 @@ const saveInstanceOptions = () => {
 const saveOptions = (evt) => {
     evt.preventDefault();
     try {
-        context.urlFilters = document.getElementById("urlFilters").value;
+        // remove http:// and https:// from filter string
+        const regex = /http[s]{0,1}:\/\//gm;
+        const regex2 = /\/[^;]*/gm;
+        context.urlFilters = document.getElementById("urlFilters").value.replace(regex, "").replace(regex2, "");
+        document.getElementById("urlFilters").value = context.urlFilters;
+
         for (var key in context.knownInstances) {
             context.knownInstances[key] = document.getElementById(key).value;
             if (context.instanceOptions[key] === undefined) {

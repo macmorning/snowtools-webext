@@ -50,7 +50,10 @@ function loadContext () {
                 });
             }
         } else {
-            context.urlFilters = result.urlFilters;
+            // remove http:// and https:// from filter string
+            const regex = /http[s]{0,1}:\/\//gm;
+            const regex2 = /\/[^;]*/gm;
+            context.urlFilters = result.urlFilters.replace(regex, "").replace(regex2, "");
             context.knownInstances = result.knownInstances;
             context.instanceOptions = result.instanceOptions;
         }

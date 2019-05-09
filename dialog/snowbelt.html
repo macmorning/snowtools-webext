@@ -40,10 +40,11 @@
         </template>
         <template id="tab-row">
             <li id="tab{{tabid}}" class="link-to-tab" data-instance="{{instance}}">
+                <span id="tab{{tabid}}_type"></span>
                 <span>{{title}}</span>
-                <a data-id="{{tabid}}" class="button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
+                <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
                 <!-- a data-id="{{tabid}}" class="button-muted tab-commands" title="other commands">&#133;</a> --> <!-- … -->
-                <a data-id="{{tabid}}" class="button-muted tab-commands" title="reopen in a frame">&#8690;</a>
+                <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="button-muted tab-commands" title="reopen in a frame">&#8690;</a>
             </li>
         </template>
 
