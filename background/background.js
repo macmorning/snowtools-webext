@@ -1,8 +1,12 @@
 const context = {
+    tabCount: 0,
+    collapseThreshold: 5,
+    tabs: {}, // array of tabs
     urlFilters: "",
     urlFiltersArr: [],
-    instanceOptions: {},
-    knownInstances: {}
+    knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
+    instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
+    knownNodes: {}
 };
 
 /**
@@ -21,7 +25,7 @@ function saveContext () {
 /**
  * Retrieves saved options
  */
-function loadContext () {
+const getOptions = () => {
     chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
         if (Object.keys(result).length === 0) {
             if (localStorage.urlFilters !== undefined) {
@@ -34,7 +38,7 @@ function loadContext () {
                     "instanceOptions": context.instanceOptions,
                     "urlFilters": context.urlFilters
                 }, function () {
-                    console.log("Migrated data to storage.sync");
+                    console.warn("Migrated data to storage.sync");
                 });
             } else {
                 // Nothing is stored in localStorage nor in sync area
@@ -46,7 +50,7 @@ function loadContext () {
                     "instanceOptions": context.instanceOptions,
                     "urlFilters": context.urlFilters
                 }, function () {
-                    console.log("Initialized data structure in storage.sync");
+                    console.warn("Initialized data structure in storage.sync");
                 });
             }
         } else {
@@ -73,7 +77,7 @@ function loadContext () {
         }
         console.log(context);
     });
-}
+};
 
 /**
  * Reflects changes that occur on tabs
@@ -96,8 +100,8 @@ function tabUpdated (tabId, changeInfo, tab) {
  * @param {String} area Storage area (should be "sync")
  */
 function storageEvent (objChanged, area) {
-    console.log("*SNOW TOOL BELT Background* Storage update, reloading options");
-    loadContext();
+    console.log("*SNOW TOOL BELT* Storage update, reloading options");
+    getOptions();
     // instanceOptions changed, send an update message to content scripts
     if (objChanged.instanceOptions !== undefined) {
         let newInstanceOptions = JSON.parse(objChanged.instanceOptions.newValue);
@@ -110,7 +114,7 @@ function storageEvent (objChanged, area) {
                 console.log(newInstanceOptions[instance]);
                 if (instance && newInstanceOptions[instance] !== undefined && newInstanceOptions[instance]["color"] !== oldInstanceOptions[instance]["color"]) {
                     let message = {"command": "updateFavicon", "color": newInstanceOptions[instance]["color"] || ""};
-                    console.log("*SNOW TOOL BELT Background* Send update message > " + i + " > " + tabs[i].url + " > " + newInstanceOptions[instance]["color"]);
+                    console.log("*SNOW TOOL BELT* Send update message > " + i + " > " + tabs[i].url + " > " + newInstanceOptions[instance]["color"]);
                     chrome.tabs.sendMessage(tabs[i].id, message);
                 }
             }
@@ -118,9 +122,23 @@ function storageEvent (objChanged, area) {
     }
 }
 
-// Configure message listener
-var msgListener = function (message, sender, sendResponse) {
-    console.log("*SNOW TOOL BELT Background* received message from content script: " + JSON.stringify(message));
+/**
+ * Message listener
+ * @param {Object} message The object send with the message: {command, node}
+ * @param {Object} sender The sender tab or window
+ * @param {Function} sendResponse
+ */
+const msgListener = (message, sender, sendResponse) => {
+    console.log("*SNOW TOOL BELT* received message");
+    console.log(sender);
+    console.log(message);
+    let hostname;
+    try {
+        hostname = new URL(sender.url).hostname;
+    } catch (e) {
+        console.error("Unable to get sender hostname: " + e);
+    }
+
     if (message.command === "removeCookie" && message.instance) {
         let targetInstance = message.instance;
         chrome.cookies.getAll({"url": "https://" + targetInstance}, function (cookiesArray) {
@@ -132,23 +150,22 @@ var msgListener = function (message, sender, sendResponse) {
         });
         sendResponse(true);
         return true;
-    } else if (message.command === "isServiceNow" && message.url) {
-        console.log("*SNOW TOOL BELT Background* urlFilters: " + context.urlFilters);
+    } else if (message.command === "isServiceNow" && sender.url) {
         let matchFound = false;
         context.urlFiltersArr.forEach(function (filter) {
             if (matchFound || filter.trim() === "") return true;
-            if (message.url.toString().indexOf(filter.trim()) > -1) {
+            if (hostname.indexOf(filter.trim()) > -1) {
                 let color = "";
-                if (context.instanceOptions[message.url] !== undefined) {
-                    color = context.instanceOptions[message.url]["color"];
+                if (context.instanceOptions[hostname] !== undefined) {
+                    color = context.instanceOptions[hostname]["color"];
                 }
-                console.log("*SNOW TOOL BELT Background* matchFound: " + filter);
+                console.log("*SNOW TOOL BELT* matchFound: " + filter);
                 matchFound = true;
 
                 // This is an instance we did not know about, save it
-                if (context.knownInstances[message.url] === undefined) {
-                    context.knownInstances[message.url] = message.url;
-                    context.instanceOptions[message.url] = {};
+                if (context.knownInstances[hostname] === undefined) {
+                    context.knownInstances[hostname] = hostname;
+                    context.instanceOptions[hostname] = {};
                     console.log(context.knownInstances);
                     saveContext();
                 }
@@ -167,4 +184,4 @@ chrome.runtime.onMessage.addListener(msgListener);
 chrome.tabs.onUpdated.addListener(tabUpdated);
 chrome.storage.onChanged.addListener(storageEvent);
 
-loadContext();
+getOptions();
