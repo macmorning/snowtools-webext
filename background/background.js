@@ -1,12 +1,8 @@
 const context = {
-    tabCount: 0,
-    collapseThreshold: 5,
-    tabs: {}, // array of tabs
     urlFilters: "",
     urlFiltersArr: [],
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
-    instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
-    knownNodes: {}
+    instanceOptions: {} // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
 };
 
 /**
@@ -183,5 +179,4 @@ const msgListener = (message, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener(msgListener);
 chrome.tabs.onUpdated.addListener(tabUpdated);
 chrome.storage.onChanged.addListener(storageEvent);
-
 getOptions();
