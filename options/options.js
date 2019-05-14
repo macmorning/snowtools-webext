@@ -12,21 +12,21 @@ const displayMessage = (txt, details) => {
     if (details === undefined) { details = ""; }
 
     let messages = document.getElementById("messages");
-    let messages_more = document.getElementById("messages_more");
-    let messages_details = document.getElementById("messages_details");
+    let messagesMore = document.getElementById("messages_more");
+    let messagesDetails = document.getElementById("messages_details");
 
     messages.innerHTML = "&nbsp;";
-    messages_details.innerText = "";
-    messages_more.style.display = "none";
+    messagesDetails.innerText = "";
+    messagesMore.style.display = "none";
 
     window.setTimeout(() => {
         messages.innerHTML = txt;
-        if(details) {
-            messages_more.style.display = "inline";
-            messages_more.style.cursor = "pointer";
-            messages_more.onclick = (evt) => {
-                messages_details.innerText = (messages_details.innerText == "" ? details : "");
-            }
+        if (details) {
+            messagesMore.style.display = "inline";
+            messagesMore.style.cursor = "pointer";
+            messagesMore.onclick = (evt) => {
+                messagesDetails.innerText = (messagesDetails.innerText === "" ? details : "");
+            };
         }
     }, 500);
 };

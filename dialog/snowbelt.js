@@ -13,10 +13,16 @@ const context = {
 /**
  * Displays a message for a short time.
  * @param {String} txt Message to display.
+ * @param {boolean} autohide Automatically hide after n seconds
  */
-const displayMessage = (txt) => {
+const displayMessage = (txt, autohide) => {
+    if (autohide === undefined) autohide = true;
     document.getElementById("messages").innerHTML = txt.toString();
-    window.setTimeout(function () { document.getElementById("messages").innerHTML = "&nbsp;"; }, 3000);
+    document.getElementById("messages").classList.remove("fade");
+    window.setTimeout(function () {
+        document.getElementById("messages").classList.add("fade");
+        // document.getElementById("messages").innerHTML = "&nbsp;";
+    }, 3000);
 };
 
 /**
@@ -91,9 +97,10 @@ const popIn = (evt) => {
     }
     tabid = parseInt(tabid);
     chrome.tabs.get(tabid, (tab) => {
-        let urlArray = tab.url.split("/");
-        if (urlArray[3].indexOf("nav_to.do") === -1) {
-            let newUrl = "https://" + urlArray[2] + "/nav_to.do?uri=" + encodeURI(urlArray[3]);
+        let url = new URL(tab.url);
+        console.log(url);
+        if (url.pathname !== "/nav_to.do") {
+            let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
             chrome.tabs.update(tab.id, {url: newUrl});
         } else {
             displayMessage("Already in a frame");
@@ -185,9 +192,9 @@ const scanNodes = (evt) => {
         return false;
     }
 
-    document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
+    document.querySelector(".load-indicator[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
     chrome.tabs.sendMessage(id, {"command": "scanNodes"}, (response) => {
-        document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
+        document.querySelector(".load-indicator[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
         if (response !== undefined && response && response.status !== undefined && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
             let nodes = response.nodes;
             nodes.sort();
@@ -221,9 +228,9 @@ const switchNode = (evt) => {
     }
 
     console.log("switching " + targetInstance + " to " + targetNode);
-    document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
+    document.querySelector(".load-indicator[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
     chrome.tabs.sendMessage(id, {"command": "switchNode", "node": targetNode}, (response) => {
-        document.querySelector("li[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
+        document.querySelector(".load-indicator[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
         if (response && response.status === 200) {
             displayMessage("Node switched to " + response.current);
         } else if (response.status !== 200) {
@@ -494,17 +501,21 @@ const refreshList = () => {
                 if (!tabid) return false;
                 let items = [];
                 Object.keys(context.knownInstances).forEach((instance) => {
-                    items.push({
-                        title: context.knownInstances[instance],
-                        fn: () => {
-                            console.log(tabid);
-                            chrome.tabs.get(parseInt(tabid), (tab) => {
-                                let url = new URL(tab.url);
-                                let newURL = "https://" + instance + url.pathname + url.search;
-                                newTab(e, newURL);
-                            });
-                        }
-                    });
+                    if (context.instanceOptions !== undefined &&
+                        (context.instanceOptions[instance] === undefined ||
+                        context.instanceOptions[instance].hidden === undefined ||
+                        context.instanceOptions[instance].hidden === false)) {
+                        items.push({
+                            title: context.knownInstances[instance],
+                            fn: () => {
+                                chrome.tabs.get(parseInt(tabid), (tab) => {
+                                    let url = new URL(tab.url);
+                                    let newURL = "https://" + instance + url.pathname + url.search;
+                                    newTab(e, newURL);
+                                });
+                            }
+                        });
+                    }
                 });
                 basicContext.show(items, e);
             });
@@ -707,19 +718,19 @@ const transformTitle = (title) => {
  * @param {Tab} tab the Tab object itself
  */
 const tabCreated = (tab) => {
-    let splittedInstance = tab.url.toString().split("/");
-    tab.instance = splittedInstance[2];
+    let url = new URL(tab.url);
+    tab.instance = url.hostname;
     if (tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com" || tab.instance === "partnerportal.service-now.com") {
         // known non-instance subdomains of service-now.com
         return false;
     }
     let matchFound = false;
-    context.urlFiltersArr.forEach((filter) => {
-        if (matchFound || filter.trim() === "") return true;
-        if (tab.url.toString().indexOf(filter.trim()) > -1) {
+    for (let i = 0; i < context.urlFiltersArr.length && matchFound !== true; i++) {
+        let filter = context.urlFiltersArr[i].trim();
+        if (filter !== "" && tab.url.toString().indexOf(filter) > -1) {
             matchFound = true;
         }
-    });
+    }
     if (matchFound) {
         tab.title = transformTitle(tab.title);
         // if this is the first tab we find for this instance, create the container is the context.tab object
@@ -737,23 +748,26 @@ const tabCreated = (tab) => {
  * @param {*} index
  */
 const updateTabInfo = (instance, index) => {
-    chrome.tabs.sendMessage(context.tabs[instance][index].id, {"command": "getTabInfo"}, (response) => {
+    let tab = context.tabs[instance][index];
+    let url = new URL(tab.url);
+    chrome.tabs.sendMessage(tab.id, {"command": "getTabInfo"}, (response) => {
         if (!response && chrome.runtime.lastError) {
             console.warn("tab " + index + " > " + chrome.runtime.lastError.message);
-            context.tabs[instance][index].snt_type = "non responsive";
+            tab.snt_type = "non responsive";
         } else {
-            context.tabs[instance][index].snt_type = response.type;
-            context.tabs[instance][index].snt_details = response.details;
-            context.tabs[instance][index].snt_tabs = response.tabs;
+            tab.snt_type = response.type;
+            tab.snt_details = response.details;
+            tab.snt_tabs = response.tabs;
         }
 
         // hide "reopen in frame"
-        if (context.tabs[instance][index].snt_type !== "other") {
-            document.querySelector("a[data-id=\"" + context.tabs[instance][index].id + "\"][title=\"reopen in a frame\"]").style.display = "none";
+        console.log(url.pathname);
+        if (tab.snt_type !== "other" || url.pathname === "/nav_to.do" || url.pathname === "/navpage.do") {
+            document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "none";
         }
-        let typeEl = document.getElementById("tab" + context.tabs[instance][index].id + "_type");
+        let typeEl = document.getElementById("tab" + tab.id + "_type");
         if (typeEl) {
-            switch (context.tabs[instance][index].snt_type) {
+            switch (tab.snt_type) {
             case "non responsive":
                 typeEl.innerText = "😴"; // sleepy face
                 typeEl.title = "Content script is not available yet";
@@ -768,11 +782,11 @@ const updateTabInfo = (instance, index) => {
                 break;
             case "app studio":
                 typeEl.innerText = "🔨"; // hammer
-                typeEl.title = "App Studio: " + context.tabs[instance][index].snt_details;
+                typeEl.title = "App Studio: " + tab.snt_details;
                 break;
             case "workspace":
                 typeEl.innerText = "💼"; // briefcase
-                typeEl.title = "Workspace: " + JSON.stringify(context.tabs[instance][index].snt_tabs);
+                typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
                 break;
             default:
                 typeEl.innerText = "";
@@ -780,7 +794,7 @@ const updateTabInfo = (instance, index) => {
                 break;
             }
         } else {
-            console.warn("tab type element " + "tab" + context.tabs[instance][index].id + "_type" + " is not available yet");
+            console.warn("tab type element " + "tab" + tab.id + "_type" + " is not available yet");
         }
     });
 };

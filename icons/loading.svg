@@ -1,42 +1,30 @@
-<!-- By Sam Herbert (@sherb), for everyone. More @ http://goo.gl/7AJzbL -->
-<svg width="45" height="45" viewBox="0 0 45 45" xmlns="http://www.w3.org/2000/svg" stroke="#293E40">
-    <g fill="none" fill-rule="evenodd" transform="translate(1 1)" stroke-width="2">
-        <circle cx="22" cy="22" r="6" stroke-opacity="0">
-            <animate attributeName="r"
-                 begin="1.5s" dur="3s"
-                 values="6;22"
-                 calcMode="linear"
-                 repeatCount="indefinite" />
-            <animate attributeName="stroke-opacity"
-                 begin="1.5s" dur="3s"
-                 values="1;0" calcMode="linear"
-                 repeatCount="indefinite" />
-            <animate attributeName="stroke-width"
-                 begin="1.5s" dur="3s"
-                 values="2;0" calcMode="linear"
-                 repeatCount="indefinite" />
-        </circle>
-        <circle cx="22" cy="22" r="6" stroke-opacity="0">
-            <animate attributeName="r"
-                 begin="3s" dur="3s"
-                 values="6;22"
-                 calcMode="linear"
-                 repeatCount="indefinite" />
-            <animate attributeName="stroke-opacity"
-                 begin="3s" dur="3s"
-                 values="1;0" calcMode="linear"
-                 repeatCount="indefinite" />
-            <animate attributeName="stroke-width"
-                 begin="3s" dur="3s"
-                 values="2;0" calcMode="linear"
-                 repeatCount="indefinite" />
-        </circle>
-        <circle cx="22" cy="22" r="8">
-            <animate attributeName="r"
-                 begin="0s" dur="1.5s"
-                 values="6;1;2;3;4;5;6"
-                 calcMode="linear"
-                 repeatCount="indefinite" />
-        </circle>
-    </g>
+<svg version="1.1" id="L5" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+  viewBox="0 0 100 100" enable-background="new 0 0 0 0" xml:space="preserve">
+  <circle fill="#293E40" stroke="none" cx="6" cy="50" r="6">
+    <animateTransform 
+       attributeName="transform" 
+       dur="1s" 
+       type="translate" 
+       values="0 15 ; 0 -15; 0 15" 
+       repeatCount="indefinite" 
+       begin="0.1"/>
+  </circle>
+  <circle fill="#293E40" stroke="none" cx="30" cy="50" r="6">
+    <animateTransform 
+       attributeName="transform" 
+       dur="1s" 
+       type="translate" 
+       values="0 10 ; 0 -10; 0 10" 
+       repeatCount="indefinite" 
+       begin="0.2"/>
+  </circle>
+  <circle fill="#293E40" stroke="none" cx="54" cy="50" r="6">
+    <animateTransform 
+       attributeName="transform" 
+       dur="1s" 
+       type="translate" 
+       values="0 5 ; 0 -5; 0 5" 
+       repeatCount="indefinite" 
+       begin="0.3"/>
+  </circle>
 </svg>
