@@ -99,7 +99,7 @@ function updateFavicon (color) {
 }
 
 // ask background script if this tab must be considered as a ServiceNow instance, and get the favicon color
-chrome.runtime.sendMessage({"command": "isServiceNow", "url": window.location.hostname}, function (response) {
+chrome.runtime.sendMessage({"command": "isServiceNow"}, function (response) {
     if (response === undefined || response.isServiceNow === false) {
         console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
     } else {

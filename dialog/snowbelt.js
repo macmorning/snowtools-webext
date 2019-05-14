@@ -31,12 +31,20 @@ const switchTab = (evt) => {
 };
 
 /**
- * Creates a new tab and opens the url stored in the value of the event target
+ * Creates a new tab and opens the url stored in the value of the event target or the url parameter
  * @param {object} evt the event that triggered the action
+ * @param {string} url url that should be opened
  */
-const newTab = (evt) => {
-    let instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
-    let targetUrl = "https://" + instance + "/nav_to.do?uri=blank.do";
+const newTab = (evt, url) => {
+    let targetUrl;
+    let instance;
+    if (url) {
+        instance = new URL(url).hostname;
+        targetUrl = url;
+    } else {
+        instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
+        targetUrl = "https://" + instance + "/nav_to.do?uri=blank.do";
+    }
     // is there an open tab for this instance ? if yes, insert the new tab after the last one
     if (context.tabs[instance] !== undefined) {
         let lastTab = context.tabs[instance][context.tabs[instance].length - 1];
@@ -477,20 +485,30 @@ const refreshList = () => {
             el.addEventListener("click", popIn);
         });
 
-        // add the "other actions" menu
-        /* removed for now
-        elements = document.querySelectorAll("a[title=\"other commands\"]");
+        // add the "open on" menu
+        elements = document.querySelectorAll("a[title=\"open on\"]");
         [].forEach.call(elements, (el) => {
             el.addEventListener("click", function (e) {
                 context.clicked = e.target;
-                let items = [
-                    { title: "", fn: }
-                ];
-
+                let tabid = e.target.getAttribute("data-id");
+                if (!tabid) return false;
+                let items = [];
+                Object.keys(context.knownInstances).forEach((instance) => {
+                    items.push({
+                        title: context.knownInstances[instance],
+                        fn: () => {
+                            console.log(tabid);
+                            chrome.tabs.get(parseInt(tabid), (tab) => {
+                                let url = new URL(tab.url);
+                                let newURL = "https://" + instance + url.pathname + url.search;
+                                newTab(e, newURL);
+                            });
+                        }
+                    });
+                });
                 basicContext.show(items, e);
             });
         });
-        */
 
         // add switch tab actions
         elements = document.querySelectorAll("li.link-to-tab");
@@ -672,8 +690,16 @@ const refreshNodes = (instance, selectNode) => {
  * @param {String} title Original title of the tab
  */
 const transformTitle = (title) => {
-    // not doing anything here anymore, at this time; used to update the tab title on elder snow platform versions
-    return title;
+    let splittedName = title.toString().split("|");
+    if (splittedName.length === 3) {
+        // this is a specific object
+        return splittedName[1].toString().trim() + " - " + splittedName[0].toString().trim();
+    } else if (splittedName.length === 2) {
+        // this is a list of objects
+        return splittedName[0].toString().trim();
+    } else {
+        return title;
+    }
 };
 
 /**
