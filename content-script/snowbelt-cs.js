@@ -110,8 +110,9 @@ chrome.runtime.sendMessage({"command": "isServiceNow"}, function (response) {
         // Defining how to react to messages coming from the background script or the browser action
         chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
             console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
-            let instanceName = window.location.toString().split("/")[2];
-            let url = new Request("https://" + instanceName + "/stats.do");
+            let instanceName = window.location.hostname;
+            let host = window.location.host;
+            let url = new Request("https://" + host + "/stats.do");
             if (request.command === "updateFavicon") {
                 /**
                 *  change Favicon color
@@ -141,7 +142,7 @@ chrome.runtime.sendMessage({"command": "isServiceNow"}, function (response) {
                                 let current = getNameFromStatsPage(text);
                                 console.log("*SNOW TOOL BELT* current: " + current);
 
-                                let xmlStatsURL = new Request("https://" + instanceName + "/xmlstats.do");
+                                let xmlStatsURL = new Request("https://" + host + "/xmlstats.do");
                                 fetch(xmlStatsURL, {credentials: "same-origin"})
                                     .then(function (response) {
                                         if (response.ok && response.status === 200) {

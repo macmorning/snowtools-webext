@@ -43,7 +43,15 @@ div#help {
     top: 10px; 
     right: 65px;
 }
-
+#messages {
+    text-align: center;
+    font-weight: bold;
+    opacity: 1;
+    transition: opacity 0.4s; 
+}
+#messages.fade {
+    opacity: 0;
+}
 #messages_container {
     text-align: center;
     font-weight: bold;
@@ -148,10 +156,14 @@ ul.links-to-tabs > li {
 ul.links-to-tabs > li:hover {
     border-color: var(--main-color);
 }
-li.loading {
+.load-indicator {
+    display: inline-block;
+    width: 20px;
+}
+.loading {
     background-image: url("../icons/loading.svg");
     background-repeat: no-repeat;
-    background-position: 0 15px;
+    background-position: center;
 }
 li.selectedTab {
     color: var(--main-bg-color);
@@ -171,17 +183,14 @@ select.select-instance {
 }
 select.nodes-list {
     display: none;
-    outline: 0px;
-    border: none;
     width: auto;
-    margin: 0 10px;
     padding: 0 0;
     font-weight: normal;
-    /*-moz-appearance: none;
-    appearance: none;*/
     text-indent: 0.01px;
     text-overflow: '';
-    cursor: pointer;    
+    cursor: pointer;
+    background-color: var(--main-bg-color);
+    border: solid 1px var(--disabled-color);
 }
 form {
     width: 550px;

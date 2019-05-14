@@ -82,7 +82,7 @@ const getOptions = () => {
  * @param {Tab} tab the Tab object itself
  */
 function tabUpdated (tabId, changeInfo, tab) {
-    let instance = tab.url.split("/")[2];
+    let instance = new URL(tab.url).hostname;
     if (changeInfo.favIconUrl !== undefined) {
         if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
             chrome.tabs.sendMessage(tabId, {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"]});
@@ -104,7 +104,7 @@ function storageEvent (objChanged, area) {
         let oldInstanceOptions = JSON.parse(objChanged.instanceOptions.oldValue);
         chrome.tabs.query({}, function (tabs) {
             for (var i = 0; i < tabs.length; ++i) {
-                let instance = tabs[i].url.toString().split("/")[2];
+                let instance = new URL(tabs[i].url).hostname;
                 console.log(instance);
                 console.log(newInstanceOptions);
                 console.log(newInstanceOptions[instance]);

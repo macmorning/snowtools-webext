@@ -19,7 +19,7 @@
             <datalist id="words"></datalist>
             <select class="select-instance" id="new_tab">
             </select>
-            <div id="messages">&nbsp;</div>
+            <div id="messages" class="fade">&nbsp;</div>
             <ul class="firstLvlUL" id="opened_tabs"></ul>
         </div>
 
@@ -29,12 +29,13 @@
         <template id="instance-row">
             <li data-instance="{{instance}}">
                 <input id="{{instance}}" class="instance-checkbox" data-instance="{{instance}}" type="checkbox" {{checked}}></input>
-                <label for="{{instance}}" class="instance-label"><div data-instance="{{instance}}" contenteditable="false" class="instance-label">{{instanceName}}</div></label>
                 <span data-instance="{{instance}}" class="color-indicator" title="current color">&#9632;</span>
+                <label for="{{instance}}" class="instance-label">&nbsp;<div data-instance="{{instance}}" contenteditable="false" class="instance-label">{{instanceName}}</div></label>
+                <span data-instance="{{instance}}" class="load-indicator">&nbsp;</span>
+                <select class="nodes-list" data-instance="{{instance}}"></select>
                 <a data-instance="{{instance}}" class="button-muted instance-commands" title="other options">&#133;</a> <!-- … -->
                 <a data-instance="{{instance}}" class="button-muted instance-commands" title="close tabs">&#10006;</a> <!-- ✖ -->
                 <a data-instance="{{instance}}" class="button-muted instance-commands" title="open a new tab">&#10010;</a> <!-- ✚ -->
-                <select class="nodes-list" data-instance="{{instance}}"></select>
                 <ul class="links-to-tabs">{{linksToTabs}}</ul>
             </li>
         </template>
@@ -43,8 +44,8 @@
                 <span id="tab{{tabid}}_type"></span>
                 <span>{{title}}</span>
                 <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
+                <a data-id="{{tabid}}" class="button-muted tab-commands" title="open on">&#10010;</a> <!-- ✚ -->
                 <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="button-muted tab-commands" title="reopen in a frame">&#8690;</a>
-                <a data-id="{{tabid}}" class="button-muted tab-commands" title="open on">&#133;</a> <!-- … -->
             </li>
         </template>
 
