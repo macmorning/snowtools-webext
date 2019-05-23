@@ -9,8 +9,8 @@
         <script async src="autocomplete.js"></script>
     </head>
     <body>
-        <div id="config" class="top-commands">&#128295;</div>
-        <a href="https://macmorning.github.io/snowtools-webext/" target="_blank"><div id="help" class="top-commands">&#10067;</div></a>
+        <div id="config" class="top-commands" title="options">&#9881;</div>
+        <a href="https://macmorning.github.io/snowtools-webext/" title="about" target="_blank"><div id="help" class="top-commands">&#10067;</div></a>
         <div id="container">
             <div id="search">
                     <input placeholder="enter search terms" type="text" id="searchInput" list="words"/>
@@ -42,7 +42,7 @@
         <template id="tab-row">
             <li id="tab{{tabid}}" class="link-to-tab" data-instance="{{instance}}">
                 <span id="tab{{tabid}}_type"></span>
-                <span>{{title}}</span>
+                <span id="tab{{tabid}}_title">{{title}}</span>
                 <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
                 <a data-id="{{tabid}}" class="button-muted tab-commands" title="open on">&#10010;</a> <!-- ✚ -->
                 <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="button-muted tab-commands" title="reopen in a frame">&#8690;</a>

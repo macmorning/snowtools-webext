@@ -4,7 +4,7 @@ const mozURL = "https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/";
 const tips = [
     "You can hide automatically saved serice-now.com sub-domains such as \"partnerportal\", \"hi\" or \"signon\" by toggling their visibility in the options page.",
     "You can export your preferences and import them into " + (isChrome ? "Firefox" : "Chrome") + " from the options page.",
-    "You can note this extension by <a href=\"" + (isChrome ? chromeURL : mozURL) + "\" target=\"_blank\">clicking this link</a>.",
+    "You can rate this extension <a href=\"" + (isChrome ? chromeURL : mozURL) + "\" target=\"_blank\">here</a>.",
     "This extension is also available on <a target=\"_blank\" href=\"" + (isChrome ? mozURL : chromeURL) + "\">" + (isChrome ? "Firefox" : "Chrome") + "</a>.",
     "If you can't switch to a specific node of an instance, it may be because it is an admin/backoffice/backup node that is not available to users via this URL.",
     "When switching to a specific node, the extension will send requests to your instance until we are routed to this node or the maximum number of tries was reached. You can retry as many times as you want, though.",

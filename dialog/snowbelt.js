@@ -550,9 +550,9 @@ const refreshList = () => {
                 ];
                 // only add the select color option if we are on Chrome, because FF closes the popup when it displays the color picker
                 if (isChrome) {
-                    items.push({ title: "&#127912; Select color", fn: selectColor }); // -- 🎨
+                    items.push({ title: "&#128396; Select color", fn: selectColor });
                 } else {
-                    items.push({ title: "&#127912; Select color", fn: openOptions }); // -- 🎨
+                    items.push({ title: "&#128396; Select color", fn: openOptions });
                 }
                 basicContext.show(items, e);
             });
@@ -805,9 +805,14 @@ const updateTabInfo = (instance, index) => {
  * @param {Tab} tab the Tab object itself
  */
 const tabUpdated = (tabId, changeInfo, tab) => {
-    let tabLi = document.querySelector("#tab" + tabId + " > span");
+    console.log(">>>> tabUpdated!");
+    console.log(tabId);
+    console.log(changeInfo);
+    console.log(tab);
+    let tabLi = document.querySelector("#tab" + tabId + "_title");
     if (tabLi && changeInfo.title !== undefined) {
         tabLi.innerText = transformTitle(changeInfo.title);
+        console.log(">>>> tabUpdated! End");
     } else if (!tabLi) {
         if (tabCreated(tab)) {
             refreshList();
