@@ -1,3 +1,5 @@
+![Chrome Web Store](https://img.shields.io/chrome-web-store/users/jflcifhpkilfaomlnikfaaccmpidkmln.svg?label=chrome%20users&logo=google)
+![Mozilla Add-on](https://img.shields.io/amo/users/snow-tool-belt.svg?label=firefox%20users&logo=mozilla)
 # ServiceNow Tool belt
 
 This extension was built to help ServiceNow developpers with every day tasks, on Firefox and Chrome:
