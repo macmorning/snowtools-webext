@@ -2,6 +2,9 @@
 ---
 # Servicenow Tool Belt extension
 
+
+<img src="assets/tools2-128.png" align="right" alt="big icon"/>
+
 Servicenow Tool Belt is a set of tools for Firefox and Chrome designed to help the ServiceNow administrator or developer in his every day tasks:
 * List open tabs grouped by instance
 * Automatically record visited instances 
@@ -18,8 +21,6 @@ Servicenow Tool Belt is a set of tools for Firefox and Chrome designed to help t
 * Sync your instances & preferences across browser instances
 * Export & Import your instances into a json file
 
-<img src="assets/tools2-128.png" align="right" alt="big icon"/>
-
 
 <div id="inline_toc" markdown="1">
 {:toc}
@@ -29,8 +30,10 @@ Servicenow Tool Belt is a set of tools for Firefox and Chrome designed to help t
 
 You can download & install the extension for your browser from the store:
 * [addons.firefox.com](https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/)
-* [chrome.google.com](https://chrome.google.com/webstore/detail/servicenow-tool-belt/jflcifhpkilfaomlnikfaaccmpidkmln)
+* [chrome.google.com](https://chrome.google.com/webstore/detail/servicenow-tool-belt/jflcifhpkilfaomlnikfaaccmpidkmln) 
 
+![Mozilla Add-on](https://img.shields.io/amo/users/snow-tool-belt.svg?label=firefox%20users&logo=mozilla)
+![Chrome Web Store](https://img.shields.io/chrome-web-store/users/jflcifhpkilfaomlnikfaaccmpidkmln.svg?label=chrome%20users&logo=google)
 
 # Using the extension
 
