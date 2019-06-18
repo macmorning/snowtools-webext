@@ -247,7 +247,8 @@ button.btn-secondary:hover {
 }
 .button-muted {
     margin-left: 3px;
-    padding: 5px;
+    padding-left: 5px;
+    padding-right: 5px;
     color: var(--disabled-color);
     text-decoration: none;   
     font-weight: bold;

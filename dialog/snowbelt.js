@@ -771,15 +771,15 @@ const updateTabInfo = (instance, index) => {
                 }, 3000);
                 break;
             case "portal":
-                typeEl.innerText = "🚪"; // door
+                typeEl.innerText = "⎆";
                 typeEl.title = "Service Portal";
                 break;
             case "app studio":
-                typeEl.innerText = "🔨"; // hammer
+                typeEl.innerText = "✬";
                 typeEl.title = "App Studio: " + tab.snt_details;
                 break;
             case "workspace":
-                typeEl.innerText = "💼"; // briefcase
+                typeEl.innerText = "⚒"; // briefcase
                 typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
                 break;
             default:
