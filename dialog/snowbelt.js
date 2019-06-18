@@ -545,15 +545,9 @@ const refreshList = () => {
             el.addEventListener("click", (e) => {
                 context.clicked = e.target;
                 let items = [
-                    { title: "&#128270; Fetch nodes", fn: scanNodes },
+                    { title: "&#8681; Fetch nodes", fn: scanNodes },
                     { title: "&#10000; Rename", fn: renameInstance }
                 ];
-                // only add the select color option if we are on Chrome, because FF closes the popup when it displays the color picker
-                if (isChrome) {
-                    items.push({ title: "&#128396; Select color", fn: selectColor });
-                } else {
-                    items.push({ title: "&#128396; Select color", fn: openOptions });
-                }
                 basicContext.show(items, e);
             });
         });

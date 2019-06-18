@@ -93,8 +93,9 @@ const restoreOptions = () => {
                 let label = document.createElement("label");
                 label.className = "instance-label";
                 label.setAttribute("for", input.id);
-                label.innerHTML = key + " <span class='pull-right'><label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
-                    "<a class=\"button\" data-instance=\"" + key + "\" title=\"pick a color\" id=\"color#" + input.id + "\">&#128396;</a>" +
+                label.innerHTML = "<a class=\"button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key + 
+                    " <span class='pull-right'>" +
+                    "<label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
                     " <a class=\"button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
 
                 instancesDiv.appendChild(label);
@@ -111,6 +112,16 @@ const restoreOptions = () => {
             // add close tab actions
             elements = document.querySelectorAll("a[title=\"pick a color\"]");
             [].forEach.call(elements, (el) => {
+                let instance = el.getAttribute("data-instance");
+                let color = "";
+                if (instance) {
+                    color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "");
+                }
+                if (color) {
+                    el.style.color = color;
+                } else {
+                    el.style.color = "black";
+                }
                 el.addEventListener("click", (e) => {
                     context.clicked = e.target;
                     selectColor(e);
