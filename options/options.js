@@ -67,8 +67,9 @@ const restoreOptions = () => {
         instancesDiv.removeChild(instancesDiv.firstChild);
     };
     // load options from sync storage area
-    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
         document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
+        document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
         try {
             context.knownInstances = JSON.parse(result.knownInstances);
         } catch (e) {
@@ -244,6 +245,8 @@ const saveOptions = (evt) => {
         const regex = /http[s]{0,1}:\/\//gm;
         const regex2 = /\/[^;]*/gm;
         context.urlFilters = document.getElementById("urlFilters").value.replace(regex, "").replace(regex2, "");
+        context.autoFrame = document.getElementById("autoFrame").checked;
+
         document.getElementById("urlFilters").value = context.urlFilters;
 
         for (var key in context.knownInstances) {
@@ -257,7 +260,8 @@ const saveOptions = (evt) => {
         chrome.storage.sync.set({
             "knownInstances": JSON.stringify(context.knownInstances),
             "instanceOptions": JSON.stringify(context.instanceOptions),
-            "urlFilters": context.urlFilters
+            "urlFilters": context.urlFilters,
+            "autoFrame": context.autoFrame
         }, () => {
             displayMessage("Options saved!");
         });
@@ -309,7 +313,8 @@ const importOptions = (evt) => {
                 chrome.storage.sync.set({
                     "knownInstances": obj.knownInstances,
                     "instanceOptions": obj.instanceOptions,
-                    "urlFilters": obj.urlFilters
+                    "urlFilters": obj.urlFilters,
+                    "autoFrame": obj.autoFrame,
                 }, () => {
                     displayMessage("Options restored from file");
                     restoreOptions();

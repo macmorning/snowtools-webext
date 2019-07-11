@@ -12,9 +12,11 @@
             <label for="urlFilters" class="instance-label">URL Filters (separator ";")
                 <input type="text" id="urlFilters">
             </label>
+            <label class="instance-label" title="This feature may cause issues with old CMS pages or special designer pages, causing redirection loops.">Enable autoframe <i>experimental</i> ⓘ</label><br/>            
+            <label class="switch" for="autoFrame"><input name="autoFrame" type='checkbox' id="autoFrame"/><span class='slider round'></span></label>
             <hr/>
             <span id="knownInstances"><!-- known instances go here --></span>
-        </form>
+      </form>
       <div id="messages_container"><span id="messages">&nbsp;</span><span id="messages_more">&#9432;</span></div>
       <div id="messages_details"></div>
       <button id="save" class="options" type="submit" form="options-form">Save</button>

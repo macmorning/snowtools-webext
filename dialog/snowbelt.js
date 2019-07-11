@@ -755,7 +755,6 @@ const updateTabInfo = (instance, index) => {
         }
 
         // hide "reopen in frame"
-        console.log(url.pathname);
         if (tab.snt_type !== "other" || url.pathname === "/nav_to.do" || url.pathname === "/navpage.do") {
             document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "none";
         }
