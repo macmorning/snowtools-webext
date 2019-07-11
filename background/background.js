@@ -89,7 +89,7 @@ function tabUpdated (tabId, changeInfo, tab) {
         return false;
     }
 
-    let exceptions = ["/navpage.do", "/stats.do", "/nav_to.do", "/cache.do", "/login.do", "/workflow_ide.do"];
+    let exceptions = ["/navpage.do", "/stats.do", "/nav_to.do", "/cache.do", "/login.do", "/workflow_ide.do", "/hi_login.do", "/auth_redirect.do", "/ssologin.do", "/profile_update.do"];
     if (context.autoFrame && changeInfo.url !== undefined
          && url.pathname.substring(url.pathname.length - 3) === ".do"
          && exceptions.indexOf(url.pathname) === -1
