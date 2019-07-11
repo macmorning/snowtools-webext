@@ -22,7 +22,7 @@ function saveContext () {
  * Retrieves saved options
  */
 const getOptions = () => {
-    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
         if (Object.keys(result).length === 0) {
             if (localStorage.urlFilters !== undefined) {
                 // Nothing is stored inside storage.sync; but we have something in localStorage, migrate to sync
@@ -58,6 +58,7 @@ const getOptions = () => {
             context.instanceOptions = result.instanceOptions;
         }
 
+        context.autoFrame = (result.autoFrame === "true" || result.autoFrame === true);
         context.urlFiltersArr = context.urlFilters.split(";");
         try {
             context.knownInstances = JSON.parse(context.knownInstances);
@@ -82,8 +83,25 @@ const getOptions = () => {
  * @param {Tab} tab the Tab object itself
  */
 function tabUpdated (tabId, changeInfo, tab) {
-    let instance = new URL(tab.url).hostname;
+    let url = new URL(tab.url);
+    let instance = url.hostname;
+    if (context.instanceOptions[instance] === undefined) {
+        return false;
+    }
+
+    let exceptions = ["/navpage.do", "/stats.do", "/nav_to.do", "/cache.do", "/login.do", "/workflow_ide.do"];
+    if (context.autoFrame && changeInfo.url !== undefined
+         && url.pathname.substring(url.pathname.length - 3) === ".do"
+         && exceptions.indexOf(url.pathname) === -1
+         && url.pathname.substring(1,2) !== "$"
+         ) {
+        // url was changed, check if we should move it to the servicenow frame
+        // in this version we consider that any .do page other than one in the exceptions array is out of the iframe and is not a portal or workspace page
+        let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
+        chrome.tabs.update(tab.id, {url: newUrl});
+    }
     if (changeInfo.favIconUrl !== undefined) {
+        // favIcon was changed, check if we should replace it
         if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
             chrome.tabs.sendMessage(tabId, {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"]});
         }
