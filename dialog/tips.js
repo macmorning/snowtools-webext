@@ -8,6 +8,7 @@ const tips = [
     "You can rate this extension <a href=\"" + (isChrome ? chromeURL : mozURL) + "\" target=\"_blank\">here</a>.",
     "This extension is also available on <a target=\"_blank\" href=\"" + (isChrome ? mozURL : chromeURL) + "\">" + (isChrome ? "Firefox" : "Chrome") + "</a>.",
     "If you can't switch to a specific node of an instance, it may be because it is an admin/backoffice/backup node that is not available to users via this URL.",
+    "Nodes are retrieved from the xmlstats.do processor. The time it takes to fetch and parse the data depends on its size.",
     "When switching to a specific node, the extension will send requests to your instance until we are routed to this node or the maximum number of tries was reached. You can retry as many times as you want, though.",
     "You can post enhancement requests or defects on <a target=\"_blank\" href=\"https://github.com/macmorning/snowtools-webext/issues\">github</a>.",
     "Default shortcut to open this dialog is Alt+C but you can set your own shortcut in you browser preferences.",

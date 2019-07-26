@@ -6,6 +6,7 @@ console.log("*SNOW TOOL BELT* Content script loaded");
     headNode: document.getElementsByTagName("title")[0]
 }; */
 
+
 /**
  * Parses the stats page and extracts the node name
  * @param {string} text The text to extract the node name from
@@ -19,7 +20,7 @@ function getNameFromStatsPage (text) {
             instanceName = instanceName.split(":")[1];
         }
     } catch (e) {
-        console.log("*SNOW TOOL BELT* Couldn't analyse the text we got from the stats page");
+        console.log("*SNOW TOOL BELT* Couldn't analyze the text we got from the stats page");
         console.log(text);
     }
     return instanceName;
@@ -53,7 +54,6 @@ function getTabInfo () {
         response.type = "app studio";
         response.details = document.querySelector("div.app-info").innerText;
     }
-
     return response;
 }
 /**
@@ -113,6 +113,21 @@ chrome.runtime.sendMessage({"command": "isServiceNow"}, function (response) {
             let instanceName = window.location.hostname;
             let host = window.location.host;
             let url = new Request("https://" + host + "/stats.do");
+            let g_ck = "";
+            try {
+                if (window.g_ck) {
+                    // for SP and workspace
+                    g_ck = window.g_ck;
+                } else if (document.getElementById("sysparm_ck")) {
+                    // for backoffice form out of iframe
+                    g_ck = document.getElementById("sysparm_ck").value;
+                } else if (document.getElementsByTagName("iframe")[0] && document.getElementsByTagName("iframe")[0].contentWindow.document.getElementById("sysparm_ck")) {
+                    // for backoffice form inside of iframe
+                    g_ck = document.getElementsByTagName("iframe")[0].contentWindow.document.getElementById("sysparm_ck").value;
+                }
+            } catch(e) {
+                console.log("*SNOW TOOL BELT* could not find g_ck token");
+            }
             if (request.command === "updateFavicon") {
                 /**
                 *  change Favicon color
@@ -124,6 +139,41 @@ chrome.runtime.sendMessage({"command": "isServiceNow"}, function (response) {
                  */
                 let response = getTabInfo();
                 sendResponse(response);
+            } else if (request.command === "getUpdateSet") {
+                /**
+                *  getUpdateSet
+                */
+                if (!g_ck) {
+                    sendResponse({"updateSet": "", "current": "", "status": 200});
+                    return false;
+                }
+                console.log("*SNOW TOOL BELT* getting update set informations");
+                let concourseUrl = new Request("https://" + host + "/api/now/ui/concoursepicker/updateset");
+                let headers = new Headers();
+                headers.append('X-UserToken', g_ck);
+                headers.append('Content-Type', 'application/json');
+                headers.append('Accept', 'application/json');
+                headers.append('Cache-Control', 'no-cache');
+
+                fetch(concourseUrl, {headers: headers})
+                    .then(function(response) {
+                        if (response.ok && response.status === 200) {
+                            return response.text().then(function (txt) {
+                                    try {
+                                        let parsed = JSON.parse(txt).result;
+                                        sendResponse({"updateSet": parsed.updateSet, "current": parsed.current, "status": 200});
+                                    } catch(e) {
+                                        console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
+                                        sendResponse({"updateSet": "", "current": "", "status": 200});
+                                    }
+                            });
+                        } else {
+                            // there was an error while fetching xmlstats, stop here
+                            console.log("*SNOW TOOL BELT* there was an error while fetching concourse API, stopping now: " + response.status);
+                            sendResponse({"updateset": "", "current": "", "status": response.status});
+                        }
+                    });
+                return true;
             } else if (request.command === "scanNodes") {
                 /**
                 *  scanNodes
@@ -231,7 +281,7 @@ chrome.runtime.sendMessage({"command": "isServiceNow"}, function (response) {
                         let current = getNameFromStatsPage(text);
                         if (current === targetNode) {
                             console.log("*SNOW TOOL BELT* teeeheee we are already on target node");
-                            sendResponse({"status": 200});
+                            sendResponse({"status": 200, "current": current});
                         } else {
                             // send the removeCookie command to background script, then try again
                             chrome.runtime.sendMessage({"command": "removeCookie", "instance": instanceName}, tryAgain);

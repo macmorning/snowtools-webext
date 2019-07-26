@@ -7,6 +7,10 @@
     --btn-color: var(--main-color);
     --btn-hover-color:#81B5A1;
 }
+@keyframes rotation {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(359deg); }
+}
 body {
     font-family: 'Helvetica', sans-serif;
     color: var(--main-color);
@@ -14,6 +18,13 @@ body {
     overflow-x: hidden;
     overflow-y: auto;
     font-size: 10pt;
+}
+a {
+    color: var(--main-color);
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
 }
 span.pull-right {
     float:right;
@@ -80,6 +91,13 @@ div#search button {
     font-size: normal;
     font-weight: normal;
 }
+span.updateset {
+    display: inline-block;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 div#container {
     min-width: 650px;
     margin: 5px;
@@ -108,6 +126,9 @@ ul.firstLvlUL {
     -ms-user-select: none;
     padding-left: 10px;
     list-style-type: none;
+}
+ul#nodeList {
+    font-size: larger;
 }
 div.instance-label {
     margin-left: 5px;
@@ -163,9 +184,7 @@ ul.links-to-tabs > li:hover {
     width: 20px;
 }
 .loading {
-    background-image: url("../icons/loading.svg");
-    background-repeat: no-repeat;
-    background-position: center;
+    animation: rotation 3s infinite linear;
 }
 li.selectedTab {
     color: var(--main-bg-color);
@@ -182,17 +201,6 @@ input[type=text], select {
 }
 select.select-instance {
     margin-bottom: 15px;
-}
-select.nodes-list {
-    display: none;
-    width: auto;
-    padding: 0 0;
-    font-weight: normal;
-    text-indent: 0.01px;
-    text-overflow: '';
-    cursor: pointer;
-    background-color: var(--main-bg-color);
-    border: solid 1px var(--disabled-color);
 }
 form {
     width: 550px;
@@ -239,6 +247,7 @@ button.btn-secondary:hover {
     font-size: large;
 }
 .color-indicator {
+    display: inline-block;
     font-size: x-large;
     cursor: pointer;
 }

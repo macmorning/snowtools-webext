@@ -2,12 +2,13 @@ const isChrome = (typeof browser === "undefined");
 const context = {
     tabCount: 0,
     collapseThreshold: 5,
-    tabs: {}, // array of tabs
+    tabs: {}, // tabs splitted into instances objects
     urlFilters: "",
     urlFiltersArr: [],
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
     instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
-    knownNodes: {}
+    knownNodes: {},
+    tempInformations: {} // store temporary data per instance, such as nodes and updates
 };
 
 /**
@@ -98,7 +99,6 @@ const popIn = (evt) => {
     tabid = parseInt(tabid);
     chrome.tabs.get(tabid, (tab) => {
         let url = new URL(tab.url);
-        console.log(url);
         if (url.pathname !== "/nav_to.do") {
             let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
             chrome.tabs.update(tab.id, {url: newUrl});
@@ -192,29 +192,47 @@ const scanNodes = (evt) => {
         return false;
     }
 
-    document.querySelector(".load-indicator[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
-    chrome.tabs.sendMessage(id, {"command": "scanNodes"}, (response) => {
-        document.querySelector(".load-indicator[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
-        if (response !== undefined && response && response.status !== undefined && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
-            let nodes = response.nodes;
-            nodes.sort();
-            saveNodes(targetInstance, nodes);
-            refreshNodes(targetInstance, response.current);
-        } else if (response !== undefined && response.status !== undefined && response.status !== 200) {
-            displayMessage("Got http status " + response.status + "...");
-        } else if (response === undefined) {
-            displayMessage("Couldn't get an answer from tab; try refreshing it.");
-        }
-    });
+    if (context.tempInformations[targetInstance] === undefined || context.tempInformations[targetInstance].nodes === undefined || context.tempInformations[targetInstance].nodes.length === 0) {
+        showLoader(targetInstance, true);
+        chrome.tabs.sendMessage(id, {"command": "scanNodes"}, (response) => {
+            showLoader(targetInstance, false);
+            if (response !== undefined && response && response.status !== undefined && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
+                let nodes = response.nodes;
+                nodes.sort();
+                saveNodes(targetInstance, nodes, response.current);
+                refreshNodes(targetInstance, evt);
+            } else if (response !== undefined && response.status !== undefined && response.status !== 200) {
+                displayMessage("Got http status " + response.status + "...");
+            } else if (response === undefined) {
+                displayMessage("Couldn't get an answer from tab; try refreshing it.");
+            }
+        });
+    } else {
+        refreshNodes(targetInstance, evt);
+    }
 };
-
+/**
+ * @description Shows or hides the loader indicator for target instance
+ * @param {String} targetInstance 
+ * @param {boolean} enable 
+ */
+const showLoader = (targetInstance, enable) => {
+    if (enable) {
+        document.querySelector(".color-indicator[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
+    } else {
+        document.querySelector(".color-indicator[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
+    }
+}
 /**
  * Switch to instance node
- * @param {object} evt the event that triggered the action
+ * @param {String} targetInstance
+ * @param {String} targetNode
  */
-const switchNode = (evt) => {
-    let targetInstance = evt.target.getAttribute("data-instance");
-    let targetNode = evt.target.value;
+const switchNode = (targetInstance, targetNode) => {
+    location.hash = "";
+    if (targetInstance === undefined || !targetInstance || targetNode === undefined || !targetNode) {
+        console.log("*switchNode* Missing targetInstance (" + targetInstance + ") or targetNode (" + targetNode + ")");
+    }
     // try to find a non discarded tab for the instance to run the scan
     let id = -1;
     for (var i = 0; i < context.tabs[targetInstance].length; i++) {
@@ -227,17 +245,15 @@ const switchNode = (evt) => {
         return false;
     }
 
-    console.log("switching " + targetInstance + " to " + targetNode);
-    document.querySelector(".load-indicator[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
+    console.log("*switchNode* Switching " + targetInstance + " to " + targetNode);
+    showLoader(targetInstance,true);
     chrome.tabs.sendMessage(id, {"command": "switchNode", "node": targetNode}, (response) => {
-        document.querySelector(".load-indicator[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
+        showLoader(targetInstance, false);
         if (response && response.status === 200) {
+            context.tempInformations[targetInstance].currentNode = response.current;
             displayMessage("Node switched to " + response.current);
         } else if (response.status !== 200) {
             displayMessage("Error switching to " + targetNode + " (" + response.message + ")");
-            if (response.current) {
-                refreshNodes(targetInstance, response.current);
-            }
         }
     });
 };
@@ -246,16 +262,14 @@ const switchNode = (evt) => {
  * Saves nodes in local context
  * @param {String} instanceName fqdn of target instance
  * @param {Array} nodes array of nodes names
+ * @param {String} currentNode name of current node
  */
-const saveNodes = (instanceName, nodes) => {
-    if (context.knownNodes[instanceName] !== undefined && context.knownNodes[instanceName].length > 0) {
-        context.knownNodes[instanceName] = context.knownNodes[instanceName].concat(nodes.filter((item) => {
-            return context.knownNodes[instanceName].indexOf(item) < 0;
-        }));
-        context.knownNodes[instanceName].sort();
-    } else {
-        context.knownNodes[instanceName] = nodes;
+const saveNodes = (instanceName, nodes, currentNode) => {
+    if (context.tempInformations[instanceName] === undefined) {
+        context.tempInformations[instanceName] = {};
     }
+    context.tempInformations[instanceName].nodes = nodes;
+    context.tempInformations[instanceName].currentNode = currentNode;
 };
 
 /**
@@ -362,7 +376,7 @@ const saveNoColor = (evt) => {
  * @param {String} instance id of the instance color that needs an update
  */
 const updateColor = (instance) => {
-    el = document.querySelector("span.color-indicator[data-instance=\"" + instance + "\"");
+    el = document.querySelector("div.color-indicator[data-instance=\"" + instance + "\"");
     color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "black");
     el.style.color = color;
 };
@@ -545,7 +559,7 @@ const refreshList = () => {
             el.addEventListener("click", (e) => {
                 context.clicked = e.target;
                 let items = [
-                    { title: "&#8681; Fetch nodes", fn: scanNodes },
+                    { title: "&#8681; Nodes", fn: scanNodes },
                     { title: "&#10000; Rename", fn: renameInstance }
                 ];
                 basicContext.show(items, e);
@@ -553,7 +567,7 @@ const refreshList = () => {
         });
 
         // Display colors
-        elements = document.querySelectorAll("span.color-indicator");
+        elements = document.querySelectorAll("div.color-indicator");
         [].forEach.call(elements, (el) => {
             let instance = el.getAttribute("data-instance");
             let color = "";
@@ -620,9 +634,45 @@ const refreshList = () => {
                 updateTabInfo(key2, index);
             });
         }
+        // updateInstanceInfo();
     }
 };
 
+/**
+ * Updates instance informations, when possible
+ */
+const updateInstanceInfo = (targetInstance) => {
+    if(targetInstance === undefined) {
+        targetInstance = false;
+    }
+    if (!targetInstance) {
+        Object.keys(context.tabs).forEach((key) => {
+            if (context.tempInformations[key] === undefined) {
+                context.tempInformations[key] = {
+                    "currentUpdateSet": ""
+                };
+            }
+            if (context.tempInformations[key]["currentUpdateSet"] === undefined || context.tempInformations[key]["currentUpdateSet"] === "") {
+                let id = -1;
+                for (var i = 0; i < context.tabs[key].length; i++) {
+                    if (id < 0 && !context.tabs[key][i].discarded) {
+                        id = context.tabs[key][i].id;
+                    }
+                }
+                if (id > 0) {
+                    chrome.tabs.sendMessage(id, {"command": "getUpdateSet"}, (response) => {
+                        context.tempInformations[key]["currentUpdateSet"] = (response.current ? response.current.name : "");
+                        document.querySelector(".updateset[data-instance=\"" + key + "\"]").innerText = context.tempInformations[key]["currentUpdateSet"];
+                        document.querySelector(".updateset[data-instance=\"" + key + "\"]").title = context.tempInformations[key]["currentUpdateSet"];
+                    });
+                }    
+            } else {
+                document.querySelector(".updateset[data-instance=\"" + key + "\"]").innerText = context.tempInformations[key]["currentUpdateSet"];
+                document.querySelector(".updateset[data-instance=\"" + key + "\"]").title = context.tempInformations[key]["currentUpdateSet"];
+            }
+        });
+    }
+}
 /**
  * Generates the select list of known instances
  */
@@ -651,43 +701,39 @@ const refreshKnownInstances = () => {
  * @param {Object} elt parent node
  */
 const removeChildren = (elt) => {
-    while (elt.firstChild) {
-        elt.removeChild(elt.firstChild);
+    while (elt.lastChild) {
+        elt.removeChild(elt.lastChild);
     }
 };
 
 /**
  * Generates the list of links to the tabs
  * @param {String} instance optional - the instance for which we want to refresh the nodes list
- * @param {String} selectNode optional - the current node for this instance
+ * @param {Event} evt optional - the original event, used to hook the popup
  */
-const refreshNodes = (instance, selectNode) => {
-    if (context.knownNodes === undefined) { return false; }
-    var addNodes = (key, elt, selectNode) => {
-        context.knownNodes[key].forEach((item) => {
-            let option = document.createElement("option");
-            option.value = item;
-            option.innerText = item;
-            if (selectNode !== undefined && item === selectNode) {
-                option.setAttribute("selected", "selected");
-            }
-            elt.appendChild(option);
-        });
+const refreshNodes = (instance, evt) => {
+    basicContext.close();
+    if (context.tempInformations[instance].nodes === undefined) { return false; }
+    let items = [];
+    const selectNode = (evt) => {
+        switchNode(instance, evt.target.innerText);
     };
-    if (instance !== undefined) {
-        let select = document.querySelector("select[data-instance=\"" + instance + "\"]");
-        removeChildren(select);
-        addNodes(instance, select, selectNode);
-        select.style.display = "inline-block";
-    } else {
-        Object.keys(context.knownNodes).forEach((key) => {
-            let select = document.querySelector("select[data-instance=\"" + key + "\"]");
-            if (select) {
-                removeChildren(select);
-                addNodes(key, select);
-            }
-        });
-    }
+    let currentNode = context.tempInformations[instance].currentNode;
+    let listEl = document.getElementById("nodeList");
+    removeChildren(listEl);
+    
+    context.tempInformations[instance].nodes.forEach((item) => {
+        let liEl = document.createElement("li");
+        if (item == currentNode) {
+            liEl.innerText = "⮞ " + item + " ⮜";
+        } else {
+            liEl.innerHTML = "<a href='#'>" + item + "</a>";
+            liEl.addEventListener("click", selectNode);
+        }
+        listEl.appendChild(liEl);
+    });
+    // basicContext.show(items, evt);
+    location.hash = "nodePicker";
 };
 
 /**
@@ -731,7 +777,7 @@ const tabCreated = (tab) => {
         if (!context.tabs.hasOwnProperty(tab.instance)) { context.tabs[tab.instance] = []; }
         context.tabs[tab.instance].push(tab);
         let tabIndex = context.tabs[tab.instance].length - 1;
-        updateTabInfo(tab.instance, tabIndex);
+        //updateTabInfo(tab.instance, tabIndex);
         return true;
     }
     return false;
@@ -798,14 +844,9 @@ const updateTabInfo = (instance, index) => {
  * @param {Tab} tab the Tab object itself
  */
 const tabUpdated = (tabId, changeInfo, tab) => {
-    console.log(">>>> tabUpdated!");
-    console.log(tabId);
-    console.log(changeInfo);
-    console.log(tab);
     let tabLi = document.querySelector("#tab" + tabId + "_title");
     if (tabLi && changeInfo.title !== undefined) {
         tabLi.innerText = transformTitle(changeInfo.title);
-        console.log(">>>> tabUpdated! End");
     } else if (!tabLi) {
         if (tabCreated(tab)) {
             refreshList();
