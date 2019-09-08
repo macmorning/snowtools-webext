@@ -130,7 +130,7 @@ const renameInstance = (evt) => {
     } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
         targetInstance = context.clicked.getAttribute("data-instance");
     }
-    let instanceLabel = document.querySelector("div[data-instance='" + targetInstance + "']");
+    let instanceLabel = document.querySelector("div.instance-label[data-instance='" + targetInstance + "']");
     instanceLabel.setAttribute("contenteditable", "true");
     instanceLabel.focus();
     var range = document.createRange();
