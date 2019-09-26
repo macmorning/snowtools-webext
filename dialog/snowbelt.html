@@ -27,7 +27,7 @@
         <script src="tips.js"></script>
 
         <template id="instance-row">
-            <li data-instance="{{instance}}">
+            <li data-instance="{{instance}}" data-window-id="{{windowId}}">
                 <input id="{{instance}}" class="instance-checkbox" data-instance="{{instance}}" type="checkbox" {{checked}}></input>
                 <div data-instance="{{instance}}" class="color-indicator" title="current color">&#9632;</div>
                 <label for="{{instance}}" class="instance-label">&nbsp;<div data-instance="{{instance}}" contenteditable="false" class="instance-label">{{instanceName}}</div></label>

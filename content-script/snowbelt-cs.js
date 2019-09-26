@@ -62,39 +62,35 @@ function getTabInfo () {
  * @returns {boolean} true if work was done
  */
 function updateFavicon (color) {
+    console.log("*SNOW TOOL BELT* update favicon color to: " + color);
     if (color === undefined || color === "") {
         return true;
     }
     let link = document.querySelector("link[rel~='icon']");
+
     if (!link) {
         link = document.createElement("link");
         link.setAttribute("rel", "shortcut icon");
         document.head.appendChild(link);
     }
     let faviconUrl = link.href || window.location.origin + "/favicon.ico";
-    function onImageLoaded (imgNotFound) {
-        let canvas = document.createElement("canvas");
-        canvas.width = 16;
-        canvas.height = 16;
-        let context = canvas.getContext("2d");
-        if (imgNotFound === undefined || !imgNotFound) {
-            context.drawImage(img, 0, 0);
-            context.globalCompositeOperation = "source-in";
-        }
+
+    let canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    let context = canvas.getContext("2d");
+
+    let img = document.createElement("img");
+    img.onload = function (ev) {
+        context.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+        context.globalCompositeOperation = "source-in";
+
         context.fillStyle = color;
-        context.fillRect(0, 0, 16, 16);
-        if (isChrome) {
-            context.fill();
-        }
+        context.fillRect(0, 0, 256, 256);
+
         link.href = canvas.toDataURL();
         link.type = "image/x-icon";
     };
-    function onImageError () {
-        onImageLoaded(true);
-    };
-    let img = document.createElement("img");
-    img.addEventListener("load", onImageLoaded);
-    img.addEventListener("error", onImageError);
     img.src = faviconUrl;
 }
 
