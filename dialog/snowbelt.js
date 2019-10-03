@@ -45,21 +45,23 @@ const switchTab = (evt) => {
 const newTab = (evt, url) => {
     let targetUrl;
     let instance;
+    let windowId;
     if (url) {
         instance = new URL(url).hostname;
+        windowId = 1;
         targetUrl = url;
     } else {
         instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
+        windowId = (evt.target.getAttribute("data-window-id") ? parseInt(evt.target.getAttribute("data-window-id")) : 1);
         targetUrl = "https://" + instance + "/nav_to.do?uri=blank.do";
     }
     // is there an open tab for this instance ? if yes, insert the new tab after the last one
     if (context.tabs[instance] !== undefined) {
-        let lastTab = context.tabs[instance][context.tabs[instance].length - 1];
+        let lastTab = context.tabs[instance][windowId][context.tabs[instance][windowId].length - 1];
         let index = lastTab.index + 1;
-        let windowId = lastTab.windowId;
         chrome.tabs.create({ index: index, windowId: windowId, url: targetUrl });
     } else {
-        chrome.tabs.create({ url: targetUrl });
+        chrome.tabs.create({ url: targetUrl, windowId: windowId });
     }
 };
 
@@ -114,7 +116,8 @@ const popIn = (evt) => {
  */
 const closeTabs = (evt) => {
     let instance = evt.target.getAttribute("data-instance");
-    context.tabs[instance].forEach((tab) => {
+    let windowId = evt.target.getAttribute("data-window-id");
+    context.tabs[instance][windowId].forEach((tab) => {
         chrome.tabs.remove(parseInt(tab.id));
     });
 };
@@ -182,9 +185,13 @@ const scanNodes = (evt) => {
 
     // try to find a non discarded tab for the instance to run the scan
     let id = -1;
-    for (var i = 0; i < context.tabs[targetInstance].length; i++) {
-        if (id < 0 && !context.tabs[targetInstance][i].discarded) {
-            id = context.tabs[targetInstance][i].id;
+    let windowId = 1;
+    for (var winkey in context.tabs[targetInstance]) {
+        for (var i = 0; i < context.tabs[targetInstance][winkey].length; i++) {
+            if (id < 0 && !context.tabs[targetInstance][winkey][i].discarded) {
+                id = context.tabs[targetInstance][winkey][i].id;
+                windowId = context.tabs[targetInstance][winkey][i].windowId;
+            }
         }
     }
     if (id < 0) {
@@ -193,9 +200,9 @@ const scanNodes = (evt) => {
     }
 
     if (context.tempInformations[targetInstance] === undefined || context.tempInformations[targetInstance].nodes === undefined || context.tempInformations[targetInstance].nodes.length === 0) {
-        showLoader(targetInstance, true);
+        showLoader(targetInstance, windowId, true);
         chrome.tabs.sendMessage(id, {"command": "scanNodes"}, (response) => {
-            showLoader(targetInstance, false);
+            showLoader(targetInstance, windowId, false);
             if (response !== undefined && response && response.status !== undefined && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
                 let nodes = response.nodes;
                 nodes.sort();
@@ -214,13 +221,14 @@ const scanNodes = (evt) => {
 /**
  * @description Shows or hides the loader indicator for target instance
  * @param {String} targetInstance 
+ * @param {Integer} windowId
  * @param {boolean} enable 
  */
-const showLoader = (targetInstance, enable) => {
+const showLoader = (targetInstance, windowId, enable) => {
     if (enable) {
-        document.querySelector(".color-indicator[data-instance=\"" + targetInstance + "\"]").classList.add("loading");
+        document.querySelector(".color-indicator[data-instance=\"" + targetInstance + "\"][data-window-id=\"" + windowId + "\"]").classList.add("loading");
     } else {
-        document.querySelector(".color-indicator[data-instance=\"" + targetInstance + "\"]").classList.remove("loading");
+        document.querySelector(".color-indicator[data-instance=\"" + targetInstance + "\"][data-window-id=\"" + windowId + "\"]").classList.remove("loading");
     }
 }
 /**
@@ -235,20 +243,25 @@ const switchNode = (targetInstance, targetNode) => {
     }
     // try to find a non discarded tab for the instance to run the scan
     let id = -1;
-    for (var i = 0; i < context.tabs[targetInstance].length; i++) {
-        if (id < 0 && !context.tabs[targetInstance][i].discarded) {
-            id = context.tabs[targetInstance][i].id;
+    let windowId = 1;
+    for (var winkey in context.tabs[targetInstance]) {
+        for (var i = 0; i < context.tabs[targetInstance][winkey].length; i++) {
+            if (id < 0 && !context.tabs[targetInstance][winkey][i].discarded) {
+                id = context.tabs[targetInstance][winkey][i].id;
+                windowId = context.tabs[targetInstance][winkey][i].windowId;
+            }
         }
     }
+
     if (id < 0) {
-        displayMessage("No tab is available for node scan.");
+        displayMessage("No tab is available for node switch.");
         return false;
     }
 
     console.log("*switchNode* Switching " + targetInstance + " to " + targetNode);
-    showLoader(targetInstance,true);
+    showLoader(targetInstance, windowId, true);
     chrome.tabs.sendMessage(id, {"command": "switchNode", "node": targetNode}, (response) => {
-        showLoader(targetInstance, false);
+        showLoader(targetInstance, windowId, false);
         if (response && response.status === 200) {
             context.tempInformations[targetInstance].currentNode = response.current;
             displayMessage("Node switched to " + response.current);
@@ -462,29 +475,30 @@ const refreshList = () => {
             context.knownInstances[key] = key;
             context.instanceOptions[key] = {};
         }
-
-        // get the html template structure for the instance row
-        let templateInstance = document.getElementById("instance-row");
-        // replace template placeholders with their actual values
-        let checked = "";
-        if (context.instanceOptions[key] !== undefined && context.instanceOptions[key]["checkState"] !== undefined) {
-            checked = (context.instanceOptions[key]["checkState"] ? "checked" : "");
-        } else {
-            checked = (context.tabs[key].length <= context.collapseThreshold ? "checked" : "");
-        }
-        let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
-
-        // get the html template structure for the tab row
-        let templateLI = document.getElementById("tab-row");
-        let tabList = "";
-        context.tabs[key].forEach((tab, index) => {
-            context.tabCount++;
+        for (var winkey in context.tabs[key]) {
+            // get the html template structure for the instance row
+            let templateInstance = document.getElementById("instance-row");
             // replace template placeholders with their actual values
-            tabList += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title).replace(/\{\{contextid\}\}/g, index);
-        });
-        instanceRow = instanceRow.replace(/\{\{linksToTabs\}\}/g, tabList);
+            let checked = "";
+            if (context.instanceOptions[key] !== undefined && context.instanceOptions[key]["checkState"] !== undefined) {
+                checked = (context.instanceOptions[key]["checkState"] ? "checked" : "");
+            } else {
+                checked = (context.tabs[key].length <= context.collapseThreshold ? "checked" : "");
+            }
+            let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{windowId\}\}/g, winkey).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
 
-        openTabs.innerHTML += instanceRow;
+            // get the html template structure for the tab row
+            let templateLI = document.getElementById("tab-row");
+            let tabList = "";
+
+            context.tabs[key][winkey].forEach((tab, index) => {
+                context.tabCount++;
+                // replace template placeholders with their actual values
+                tabList += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{windowId\}\}/g, tab.windowId).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title).replace(/\{\{contextid\}\}/g, index);
+            });
+            instanceRow = instanceRow.replace(/\{\{linksToTabs\}\}/g, tabList);
+            openTabs.innerHTML += instanceRow;
+        }
     }
 
     if (context.tabCount === 0) {
@@ -629,50 +643,16 @@ const refreshList = () => {
         document.getElementById("popin_color").addEventListener("click", saveColor);
         document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
 
-        for (var key2 in context.tabs) {
-            context.tabs[key2].forEach((tab, index) => {
-                updateTabInfo(key2, index);
-            });
+        for (let key2 in context.tabs) {
+            for (let key3 in context.tabs[key2]) {
+                context.tabs[key2][key3].forEach((tab, index) => {
+                    updateTabInfo(key2, key3, index);
+                });
+            }
         }
-        // updateInstanceInfo();
     }
 };
 
-/**
- * Updates instance informations, when possible
- */
-const updateInstanceInfo = (targetInstance) => {
-    if(targetInstance === undefined) {
-        targetInstance = false;
-    }
-    if (!targetInstance) {
-        Object.keys(context.tabs).forEach((key) => {
-            if (context.tempInformations[key] === undefined) {
-                context.tempInformations[key] = {
-                    "currentUpdateSet": ""
-                };
-            }
-            if (context.tempInformations[key]["currentUpdateSet"] === undefined || context.tempInformations[key]["currentUpdateSet"] === "") {
-                let id = -1;
-                for (var i = 0; i < context.tabs[key].length; i++) {
-                    if (id < 0 && !context.tabs[key][i].discarded) {
-                        id = context.tabs[key][i].id;
-                    }
-                }
-                if (id > 0) {
-                    chrome.tabs.sendMessage(id, {"command": "getUpdateSet"}, (response) => {
-                        context.tempInformations[key]["currentUpdateSet"] = (response.current ? response.current.name : "");
-                        document.querySelector(".updateset[data-instance=\"" + key + "\"]").innerText = context.tempInformations[key]["currentUpdateSet"];
-                        document.querySelector(".updateset[data-instance=\"" + key + "\"]").title = context.tempInformations[key]["currentUpdateSet"];
-                    });
-                }    
-            } else {
-                document.querySelector(".updateset[data-instance=\"" + key + "\"]").innerText = context.tempInformations[key]["currentUpdateSet"];
-                document.querySelector(".updateset[data-instance=\"" + key + "\"]").title = context.tempInformations[key]["currentUpdateSet"];
-            }
-        });
-    }
-}
 /**
  * Generates the select list of known instances
  */
@@ -773,11 +753,16 @@ const tabCreated = (tab) => {
     }
     if (matchFound) {
         tab.title = transformTitle(tab.title);
-        // if this is the first tab we find for this instance, create the container is the context.tab object
-        if (!context.tabs.hasOwnProperty(tab.instance)) { context.tabs[tab.instance] = []; }
-        context.tabs[tab.instance].push(tab);
-        let tabIndex = context.tabs[tab.instance].length - 1;
-        //updateTabInfo(tab.instance, tabIndex);
+        // if this is the first tab we find for this instance, create the container in the context.tabs object
+        if (!context.tabs.hasOwnProperty(tab.instance)) {
+            context.tabs[tab.instance] = {};
+        }
+        // if this is the first tab we find for this instance and window, create the container in the context.tabs[tab.instance] object
+        if (!context.tabs[tab.instance].hasOwnProperty(tab.windowId)) {
+            context.tabs[tab.instance][tab.windowId] = [];
+        }
+
+        context.tabs[tab.instance][tab.windowId].push(tab);
         return true;
     }
     return false;
@@ -785,10 +770,11 @@ const tabCreated = (tab) => {
 /**
  * Updates tab informations: type, tabs, ...
  * @param {*} instance
+ * @param {*} windowId
  * @param {*} index
  */
-const updateTabInfo = (instance, index) => {
-    let tab = context.tabs[instance][index];
+const updateTabInfo = (instance, windowId, index) => {
+    let tab = context.tabs[instance][windowId][index];
     let url = new URL(tab.url);
     chrome.tabs.sendMessage(tab.id, {"command": "getTabInfo"}, (response) => {
         if (!response && chrome.runtime.lastError) {
@@ -812,7 +798,7 @@ const updateTabInfo = (instance, index) => {
                 typeEl.title = "Content script is not available yet";
                 // retry in 2 seconds
                 window.setTimeout(() => {
-                    updateTabInfo(instance, index);
+                    updateTabInfo(instance, windowId, index);
                 }, 3000);
                 break;
             case "portal":
