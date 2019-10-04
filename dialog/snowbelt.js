@@ -41,22 +41,24 @@ const switchTab = (evt) => {
  * Creates a new tab and opens the url stored in the value of the event target or the url parameter
  * @param {object} evt the event that triggered the action
  * @param {string} url url that should be opened
+ * @param {Integer} windowId Id of the window in which the new tab should be opened
  */
-const newTab = (evt, url) => {
+const newTab = (evt, url, windowId) => {
     let targetUrl;
     let instance;
-    let windowId;
+    if (windowId === undefined) { 
+        windowId = (evt.target.getAttribute("data-window-id") ? parseInt(evt.target.getAttribute("data-window-id")) : 1);
+    }
+
     if (url) {
         instance = new URL(url).hostname;
-        windowId = 1;
         targetUrl = url;
     } else {
         instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
-        windowId = (evt.target.getAttribute("data-window-id") ? parseInt(evt.target.getAttribute("data-window-id")) : 1);
         targetUrl = "https://" + instance + "/nav_to.do?uri=blank.do";
     }
     // is there an open tab for this instance ? if yes, insert the new tab after the last one
-    if (context.tabs[instance] !== undefined) {
+    if (context.tabs[instance] !== undefined && context.tabs[instance][windowId] !== undefined) {
         let lastTab = context.tabs[instance][windowId][context.tabs[instance][windowId].length - 1];
         let index = lastTab.index + 1;
         chrome.tabs.create({ index: index, windowId: windowId, url: targetUrl });
@@ -128,12 +130,18 @@ const closeTabs = (evt) => {
  */
 const renameInstance = (evt) => {
     let targetInstance = "";
+    let windowId = 1;
     if (evt.target.getAttribute("data-instance")) {
         targetInstance = evt.target.getAttribute("data-instance");
+        windowId = evt.target.getAttribute("data-window-id");
     } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
         targetInstance = context.clicked.getAttribute("data-instance");
+        windowId = context.clicked.getAttribute("data-window-id");
     }
-    let instanceLabel = document.querySelector("div.instance-label[data-instance='" + targetInstance + "']");
+    console.log("*** " + windowId);
+    let instanceLabel = document.querySelector("div.instance-label[data-instance='" + targetInstance + "'][data-window-id='" + windowId + "']");
+    console.log(instanceLabel);
+    if (!instanceLabel) { return false; }
     instanceLabel.setAttribute("contenteditable", "true");
     instanceLabel.focus();
     var range = document.createRange();
@@ -177,20 +185,21 @@ const selectColor = (evt) => {
  */
 const scanNodes = (evt) => {
     let targetInstance = "";
+    let windowId = 1;
     if (evt.target.getAttribute("data-instance")) {
         targetInstance = evt.target.getAttribute("data-instance");
+        windowId = evt.target.getAttribute("data-window-id");
     } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
         targetInstance = context.clicked.getAttribute("data-instance");
+        windowId = context.clicked.getAttribute("data-window-id");
     }
 
     // try to find a non discarded tab for the instance to run the scan
     let id = -1;
-    let windowId = 1;
     for (var winkey in context.tabs[targetInstance]) {
         for (var i = 0; i < context.tabs[targetInstance][winkey].length; i++) {
             if (id < 0 && !context.tabs[targetInstance][winkey][i].discarded) {
                 id = context.tabs[targetInstance][winkey][i].id;
-                windowId = context.tabs[targetInstance][winkey][i].windowId;
             }
         }
     }
@@ -389,9 +398,11 @@ const saveNoColor = (evt) => {
  * @param {String} instance id of the instance color that needs an update
  */
 const updateColor = (instance) => {
-    el = document.querySelector("div.color-indicator[data-instance=\"" + instance + "\"");
     color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "black");
-    el.style.color = color;
+    elements = document.querySelectorAll("div.color-indicator[data-instance=\"" + instance + "\"");
+    [].forEach.call(elements, (el) => {
+        el.style.color = color;
+    });
 };
 
 /**
@@ -485,7 +496,7 @@ const refreshList = () => {
             } else {
                 checked = (context.tabs[key].length <= context.collapseThreshold ? "checked" : "");
             }
-            let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{windowId\}\}/g, winkey).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
+            let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{windowId\}\}/g, winkey).replace(/\{\{windowIdLabel\}\}/g, (winkey != 1 ? " ["+winkey+"]":"")).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
 
             // get the html template structure for the tab row
             let templateLI = document.getElementById("tab-row");
@@ -539,7 +550,7 @@ const refreshList = () => {
                                 chrome.tabs.get(parseInt(tabid), (tab) => {
                                     let url = new URL(tab.url);
                                     let newURL = "https://" + instance + url.pathname + url.search;
-                                    newTab(e, newURL);
+                                    newTab(e, newURL, tab.windowId);
                                 });
                             }
                         });
@@ -608,7 +619,7 @@ const refreshList = () => {
         });
 
         // Instance name edition
-        elements = document.querySelectorAll("div[data-instance]");
+        elements = document.querySelectorAll("div.instance-label[data-instance]");
         [].forEach.call(elements, (el) => {
             el.addEventListener("keydown", (e) => {
                 if (e.keyCode === 13) {
@@ -622,6 +633,10 @@ const refreshList = () => {
                 e.target.innerText = newText;
                 context.knownInstances[e.target.getAttribute("data-instance")] = newText;
                 e.target.setAttribute("contenteditable", "false");
+                let instanceElArray = document.querySelectorAll("div.instance-label[data-instance='" + el.getAttribute("data-instance") + "']");
+                [].forEach.call(instanceElArray, (instanceEl) => {
+                    instanceEl.innerText = newText;
+                });                
                 saveKnownInstances();
                 refreshKnownInstances();
             });
