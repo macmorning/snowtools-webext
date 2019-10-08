@@ -50,6 +50,10 @@ div#config {
     top: 10px; 
     right: 30px;
 }
+div#open_in_panel {
+    top: 10px; 
+    right: 100px;
+}
 div#help {
     top: 10px; 
     right: 65px;

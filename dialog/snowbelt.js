@@ -1,5 +1,6 @@
 const isChrome = (typeof browser === "undefined");
 const context = {
+    windowId: 1,
     tabCount: 0,
     collapseThreshold: 5,
     tabs: {}, // tabs splitted into instances objects
@@ -47,7 +48,7 @@ const newTab = (evt, url, windowId) => {
     let targetUrl;
     let instance;
     if (windowId === undefined) { 
-        windowId = (evt.target.getAttribute("data-window-id") ? parseInt(evt.target.getAttribute("data-window-id")) : 1);
+        windowId = (evt.target.getAttribute("data-window-id") ? parseInt(evt.target.getAttribute("data-window-id")) : context.windowId);
     }
 
     if (url) {
@@ -130,7 +131,7 @@ const closeTabs = (evt) => {
  */
 const renameInstance = (evt) => {
     let targetInstance = "";
-    let windowId = 1;
+    let windowId = context.windowId;
     if (evt.target.getAttribute("data-instance")) {
         targetInstance = evt.target.getAttribute("data-instance");
         windowId = evt.target.getAttribute("data-window-id");
@@ -138,9 +139,8 @@ const renameInstance = (evt) => {
         targetInstance = context.clicked.getAttribute("data-instance");
         windowId = context.clicked.getAttribute("data-window-id");
     }
-    console.log("*** " + windowId);
+
     let instanceLabel = document.querySelector("div.instance-label[data-instance='" + targetInstance + "'][data-window-id='" + windowId + "']");
-    console.log(instanceLabel);
     if (!instanceLabel) { return false; }
     instanceLabel.setAttribute("contenteditable", "true");
     instanceLabel.focus();
@@ -185,7 +185,7 @@ const selectColor = (evt) => {
  */
 const scanNodes = (evt) => {
     let targetInstance = "";
-    let windowId = 1;
+    let windowId = context.windowId;
     if (evt.target.getAttribute("data-instance")) {
         targetInstance = evt.target.getAttribute("data-instance");
         windowId = evt.target.getAttribute("data-window-id");
@@ -252,7 +252,7 @@ const switchNode = (targetInstance, targetNode) => {
     }
     // try to find a non discarded tab for the instance to run the scan
     let id = -1;
-    let windowId = 1;
+    let windowId = context.windowId;
     for (var winkey in context.tabs[targetInstance]) {
         for (var i = 0; i < context.tabs[targetInstance][winkey].length; i++) {
             if (id < 0 && !context.tabs[targetInstance][winkey][i].discarded) {
@@ -432,7 +432,9 @@ const getOptions = () => {
         console.log("Loaded options");
         console.log(context);
         bootStrap();
+
         document.getElementById("config").addEventListener("click", openOptions);
+        document.getElementById("open_in_panel").addEventListener("click", openInPanel);
         document.getElementById("new_tab").addEventListener("change", newTab);
         document.getElementById("search_custom").addEventListener("click", searchNow);
         document.getElementById("search_doc").addEventListener("click", searchNow);
@@ -909,17 +911,39 @@ const setActiveTab = () => {
     });
 };
 
+const openInPanel = () => {
+        var createData = {
+            type: "panel",
+            url: "snowbelt.html",
+            width: 700,
+            height: 1000
+        };
+        var creating = chrome.windows.create(createData);
+}
+
 const openOptions = () => {
     if (chrome.runtime.openOptionsPage) {
         chrome.runtime.openOptionsPage();
     } else {
         window.open(chrome.runtime.getURL("options.html"));
     }
+ 
 };
 /**
  * Initial function that gets the saved preferences and the list of open tabs
  */
 const bootStrap = () => {
+    chrome.windows.getCurrent((wi) => {
+        context.windowType = wi.type;
+        if (isChrome || context.windowType == "popup") {
+            document.getElementById("open_in_panel").style.display = "none";
+        }
+        if (wi.type == "popup") {
+            context.windowId = 1;
+        } else {
+            context.windowId = (wi.id !== undefined ? wi.id : 1);
+        }
+    });
     var getTabs = (tabs) => {
         tabs.forEach((tab) => {
             tabCreated(tab);
