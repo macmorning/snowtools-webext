@@ -102,6 +102,9 @@ span.updateset {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+span.incognito {
+    display:none;
+}
 div#container {
     min-width: 650px;
     margin: 5px;

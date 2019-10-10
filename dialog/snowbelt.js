@@ -872,8 +872,7 @@ const tabUpdated = (tabId, changeInfo, tab) => {
         }
     } else if (!tabLi) {
         if (tabCreated(tab)) {
-            refreshList();
-            refreshKnownInstances();
+            bootStrap();
         }
     }
 };
@@ -929,8 +928,8 @@ const setActiveTab = () => {
 
 const openInPanel = () => {
         let createData = {
-            type: "panel",
-            url: "snowbelt.html",
+            type: "popup",
+            url: (isChrome ? "dialog/snowbelt.html" : "snowbelt.html"),
             width: 700,
             height: 1000
         };
@@ -952,7 +951,7 @@ const bootStrap = () => {
     console.warn("** bootstrapin' **");
     chrome.windows.getCurrent((wi) => {
         context.windowType = wi.type;
-        if (isChrome || context.windowType == "popup") {
+        if (context.windowType == "popup") {
             document.getElementById("open_in_panel").style.display = "none";
         }
         if (wi.type == "popup") {
@@ -961,8 +960,14 @@ const bootStrap = () => {
             context.windowId = (wi.id !== undefined ? wi.id : 1);
         }
     });
-
-    var getTabs = (tabs) => {
+    let getWindows = (windows) => {
+        windows.forEach((window) => {
+            if (window.incognito) {
+                document.querySelector("span[data-window-id='" + window.id + "'].incognito").style.display = "inline";
+            }
+        });
+    }; 
+    let getTabs = (tabs) => {
         if (document.getElementById("opened_tabs")) {
             removeChildren(document.getElementById("opened_tabs"));
             context.tabs = [];
@@ -972,6 +977,7 @@ const bootStrap = () => {
         });
         refreshList();
         refreshKnownInstances();
+        chrome.windows.getAll({windowTypes: ["normal"]}, getWindows);
     };
     chrome.tabs.query({}, getTabs);
 };
