@@ -898,7 +898,7 @@ const tabAttached = (tabId, attachInfo) => {
 const tabRemoved = (tabId, removeInfo) => {
     if (document.getElementById("tab" + tabId)) {
         // frack it, just redraw everything
-        bootStrap();
+        window.setTimeout(bootStrap, 200);
     }
 };
 
