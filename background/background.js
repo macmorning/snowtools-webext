@@ -101,6 +101,7 @@ function tabUpdated (tabId, changeInfo, tab) {
         chrome.tabs.update(tab.id, {url: newUrl});
     }
     if (changeInfo.favIconUrl !== undefined) {
+        console.log(changeInfo);
         // favIcon was changed, check if we should replace it
         if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
             chrome.tabs.sendMessage(tabId, {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"]});
@@ -123,9 +124,6 @@ function storageEvent (objChanged, area) {
         chrome.tabs.query({}, function (tabs) {
             for (var i = 0; i < tabs.length; ++i) {
                 let instance = new URL(tabs[i].url).hostname;
-                console.log(instance);
-                console.log(newInstanceOptions);
-                console.log(newInstanceOptions[instance]);
                 if (instance && newInstanceOptions[instance] !== undefined && newInstanceOptions[instance]["color"] !== oldInstanceOptions[instance]["color"]) {
                     let message = {"command": "updateFavicon", "color": newInstanceOptions[instance]["color"] || ""};
                     console.log("*SNOW TOOL BELT* Send update message > " + i + " > " + tabs[i].url + " > " + newInstanceOptions[instance]["color"]);

@@ -67,7 +67,7 @@ function updateFavicon (color) {
         return true;
     }
     let link = document.querySelector("link[rel~='icon']");
-
+    // console.log(link);
     if (!link) {
         link = document.createElement("link");
         link.setAttribute("rel", "shortcut icon");

@@ -248,7 +248,7 @@ const showLoader = (targetInstance, windowId, enable) => {
 const switchNode = (targetInstance, targetNode) => {
     location.hash = "";
     if (targetInstance === undefined || !targetInstance || targetNode === undefined || !targetNode) {
-        console.log("*switchNode* Missing targetInstance (" + targetInstance + ") or targetNode (" + targetNode + ")");
+        console.warn("*switchNode* Missing targetInstance (" + targetInstance + ") or targetNode (" + targetNode + ")");
     }
     // try to find a non discarded tab for the instance to run the scan
     let id = -1;
@@ -449,6 +449,7 @@ const getOptions = () => {
         // listen to tabs events
         chrome.tabs.onUpdated.addListener(tabUpdated);
         chrome.tabs.onRemoved.addListener(tabRemoved);
+        chrome.tabs.onAttached.addListener(tabAttached);
         chrome.tabs.onActivated.addListener(tabActivated);
     });
 };
@@ -784,6 +785,7 @@ const tabCreated = (tab) => {
     }
     return false;
 };
+
 /**
  * Updates tab informations: type, tabs, ...
  * @param {*} instance
@@ -806,6 +808,8 @@ const updateTabInfo = (instance, windowId, index) => {
         // hide "reopen in frame"
         if (tab.snt_type !== "other" || url.pathname === "/nav_to.do" || url.pathname === "/navpage.do") {
             document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "none";
+        } else {
+            document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "inline";
         }
         let typeEl = document.getElementById("tab" + tab.id + "_type");
         if (typeEl) {
@@ -840,6 +844,7 @@ const updateTabInfo = (instance, windowId, index) => {
         }
     });
 };
+
 /**
  * Reflects changes that occur on tabs
  * @param {Integer} tabId the id of the updated tab
@@ -848,8 +853,23 @@ const updateTabInfo = (instance, windowId, index) => {
  */
 const tabUpdated = (tabId, changeInfo, tab) => {
     let tabLi = document.querySelector("#tab" + tabId + "_title");
+
     if (tabLi && changeInfo.title !== undefined) {
-        tabLi.innerText = transformTitle(changeInfo.title);
+        let instance = tabLi.parentElement.getAttribute("data-instance");
+        tab.instance = new URL(tab.url).hostname;
+        if (tab.instance !== instance) {
+            // frack it, just redraw everything
+            bootStrap();
+        } else {
+            tabLi.innerText = transformTitle(changeInfo.title);
+            for (let tabSearch in context.tabs[instance][tab.windowId]) {
+                if (context.tabs[instance][tab.windowId][tabSearch].id == tab.id) {
+                    context.tabs[instance][tab.windowId][tabSearch].url = tab.url;
+                    updateTabInfo(instance,tab.windowId,tabSearch);
+                    break;
+                }
+            }
+        }
     } else if (!tabLi) {
         if (tabCreated(tab)) {
             refreshList();
@@ -859,30 +879,26 @@ const tabUpdated = (tabId, changeInfo, tab) => {
 };
 
 /**
+ * Reflects changes made when a tab is attached to a new or existing window
+ * @param {Integer} tabId the id of the updated tab
+ * @param {Object} attachInfo contains the informations that changed
+ */
+const tabAttached = (tabId, attachInfo) => {
+    if (document.getElementById("tab" + tabId)) {
+        // frack it, just redraw everything
+        bootStrap();
+    }
+}
+
+/**
  * Reflects changes that occur when a tab is removed
  * @param {Integer} tabId the id of the updated tab
  * @param {Object} removeInfo contains the informations about the remove event
  */
 const tabRemoved = (tabId, removeInfo) => {
-    let tabLi = document.getElementById("tab" + tabId);
-    if (tabLi) {
-        // remove the tab from context.tabs
-        let instance = tabLi.getAttribute("data-instance");
-        if (instance && context.tabs.hasOwnProperty(instance)) {
-            for (var i = 0; i < context.tabs[instance].length; i++) {
-                if (context.tabs[instance][i].id === tabId) {
-                    context.tabs[instance].splice(i, 1);
-                }
-            }
-        }
-        // then remove the node
-        let parent = tabLi.parentNode;
-        parent.removeChild(tabLi);
-        // if there is no tab left for the instance, remove the instance list item
-        if (context.tabs[instance].length === 0) {
-            delete context.tabs[instance];
-            document.getElementById("opened_tabs").removeChild(document.querySelector("li[data-instance=\"" + instance + "\""));
-        }
+    if (document.getElementById("tab" + tabId)) {
+        // frack it, just redraw everything
+        bootStrap();
     }
 };
 
@@ -898,7 +914,7 @@ const tabActivated = (activeInfo) => {
  * Shows the current active tabs
  */
 const setActiveTab = () => {
-    chrome.tabs.query({active: true}, (tabs) => {
+    chrome.tabs.query({highlighted: true}, (tabs) => {
         let elems = document.querySelectorAll("li.selectedTab");
         [].forEach.call(elems, (el) => {
             el.classList.remove("selectedTab");
@@ -912,13 +928,13 @@ const setActiveTab = () => {
 };
 
 const openInPanel = () => {
-        var createData = {
+        let createData = {
             type: "panel",
             url: "snowbelt.html",
             width: 700,
             height: 1000
         };
-        var creating = chrome.windows.create(createData);
+        let creating = chrome.windows.create(createData);
 }
 
 const openOptions = () => {
@@ -933,6 +949,7 @@ const openOptions = () => {
  * Initial function that gets the saved preferences and the list of open tabs
  */
 const bootStrap = () => {
+    console.warn("** bootstrapin' **");
     chrome.windows.getCurrent((wi) => {
         context.windowType = wi.type;
         if (isChrome || context.windowType == "popup") {
@@ -944,7 +961,12 @@ const bootStrap = () => {
             context.windowId = (wi.id !== undefined ? wi.id : 1);
         }
     });
+
     var getTabs = (tabs) => {
+        if (document.getElementById("opened_tabs")) {
+            removeChildren(document.getElementById("opened_tabs"));
+            context.tabs = [];
+        }
         tabs.forEach((tab) => {
             tabCreated(tab);
         });
