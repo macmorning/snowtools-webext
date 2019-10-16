@@ -931,7 +931,7 @@ const openInPanel = () => {
             type: "popup",
             url: (isChrome ? "dialog/snowbelt.html" : "snowbelt.html"),
             width: 700,
-            height: 1000
+            height: 500
         };
         let creating = chrome.windows.create(createData);
 }
