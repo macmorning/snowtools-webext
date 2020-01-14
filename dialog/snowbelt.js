@@ -517,7 +517,7 @@ const refreshList = () => {
 
     if (context.tabCount === 0) {
         let li1 = document.createElement("li");
-        li1.innerHTML += "<div class='tips' title='cool tip'><h1>&#128161;</h1>" + getTip() + "</p>";
+        li1.innerHTML += "<div class='tips' title='cool tip'><img src='../icons/bulb.png'/><br/>" + getTip() + "</p>";
         openTabs.appendChild(li1);
     } else {
         setActiveTab();

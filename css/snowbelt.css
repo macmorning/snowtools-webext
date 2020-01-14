@@ -19,6 +19,11 @@ body {
     overflow-y: auto;
     font-size: 10pt;
 }
+form#options-form {
+    margin: auto;
+    width: 95%;
+    min-width: 550px;
+}
 a {
     color: var(--main-color);
     text-decoration: none;
@@ -29,34 +34,30 @@ a:hover {
 span.pull-right {
     float:right;
 }
-div.top-commands {
+img.top-commands {
     position: absolute;
-    font-size: 25px;
-    height: 15px;
-    width: 15px;
+    width: 25px;
     cursor: pointer;
-    color: var(--main-color);
+    top: 15px; 
 }
 div.tips {
     width: 100%;
     text-align:center;
     line-height: 1.4em;
 }
-div.tips h1 {
-    width: 100%;
-    text-align:center;
+div.tips img {
+    display: inline-block;
+    width: 30px;
+    margin: auto;
 }
-div#config {
-    top: 10px; 
+img#config {
     right: 30px;
 }
-div#open_in_panel {
-    top: 10px; 
-    right: 100px;
+img#help {
+    right: 70px;
 }
-div#help {
-    top: 10px; 
-    right: 65px;
+img#open_in_panel {
+    right: 110px;
 }
 #messages {
     text-align: center;
@@ -208,9 +209,6 @@ input[type=text], select {
 }
 select.select-instance {
     margin-bottom: 15px;
-}
-form {
-    width: 550px;
 }
 label {
     color: var(--secondary-color);
