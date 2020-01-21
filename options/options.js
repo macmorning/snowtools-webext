@@ -94,10 +94,10 @@ const restoreOptions = () => {
                 let label = document.createElement("label");
                 label.className = "instance-label";
                 label.setAttribute("for", input.id);
-                label.innerHTML = "<a class=\"button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key + 
+                label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key + 
                     " <span class='pull-right'>" +
                     "<label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
-                    " <a class=\"button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
+                    " <a class=\"no_underline button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
 
                 instancesDiv.appendChild(label);
                 instancesDiv.appendChild(input);

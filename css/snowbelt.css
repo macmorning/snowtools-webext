@@ -21,15 +21,20 @@ body {
 }
 form#options-form {
     margin: auto;
-    width: 95%;
+    width: 98%;
     min-width: 550px;
+    max-height: 400px;
+    overflow-y: auto;
 }
 a {
     color: var(--main-color);
-    text-decoration: none;
+    text-decoration: underline;
 }
 a:hover {
     text-decoration: underline;
+}
+.no_underline, .no_underline:hover {
+    text-decoration: none;
 }
 span.pull-right {
     float:right;
@@ -69,6 +74,7 @@ img#open_in_panel {
     opacity: 0;
 }
 #messages_container {
+    padding: 10px;
     text-align: center;
     font-weight: bold;
 }
@@ -215,23 +221,20 @@ label {
 }
 button {
     width: 100%;
+    margin: auto;
     height: 29px;
     background-color: var(--btn-color);
     color: var(--main-bg-color);
-    padding: 14px 20px;
-    margin: 6px 0;
+    margin-bottom: 6px;
     border: 1px var(--main-color) solid;
     border-radius: 4px;
     cursor: pointer;
     font-size: larger;
     font-weight: bold;
 }
-
-button.options  {
-    padding: 0 10px;
-}
-button.thin {
-    padding: 7px 10px;
+button.options {
+    width: 80%;
+    display: block;
 }
 button.btn-secondary {
     background-color: var(--main-bg-color);
@@ -290,8 +293,8 @@ p.text-muted {
     color: var(--disabled-color);
 }
 input#colorPickerColor {
+    margin: .4rem;
     margin-bottom: 15px;
-    width: 50px;
 }
 /* Sliders */
 .switch {
