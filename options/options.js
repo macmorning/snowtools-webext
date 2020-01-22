@@ -1,6 +1,7 @@
 const context = {
     knownInstances: {},
-    instanceOptions: {}
+    instanceOptions: {},
+    useSync: false
 };
 
 /**
@@ -66,73 +67,79 @@ const restoreOptions = () => {
     while (instancesDiv.firstChild) {
         instancesDiv.removeChild(instancesDiv.firstChild);
     };
-    // load options from sync storage area
-    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
-        document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
-        document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
-        try {
-            context.knownInstances = JSON.parse(result.knownInstances);
-        } catch (e) {
-            context.knownInstances = {};
-            console.log(e);
-        }
-        try {
-            context.instanceOptions = JSON.parse(result.instanceOptions);
-        } catch (e) {
-            context.instanceOptions = {};
-            console.log(e);
-        }
-        if (context.knownInstances !== {}) {
-            // if knownInstances is not empty, build the input fields
-            sortInstances(sortProperties(context.knownInstances, false));
-            for (var key in context.knownInstances) {
-                let input = document.createElement("input");
-                input.setAttribute("type", "text");
-                input.setAttribute("id", key);
-                input.value = context.knownInstances[key];
-                var hidden = (context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
-                let label = document.createElement("label");
-                label.className = "instance-label";
-                label.setAttribute("for", input.id);
-                label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key + 
-                    " <span class='pull-right'>" +
-                    "<label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
-                    " <a class=\"no_underline button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
-
-                instancesDiv.appendChild(label);
-                instancesDiv.appendChild(input);
+    context.useSync = chrome.storage.local.get("useSync", (result1) => {
+        document.getElementById("useSync").checked = (result1.useSync === "true" || result1.useSync === true);
+        // load options from storage area
+        let storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+        storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
+            document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
+            document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
+            try {
+                if (result.knownInstances !== undefined) { context.knownInstances = JSON.parse(result.knownInstances); }
+                else { context.knownInstances = {}; }
+            } catch (e) {
+                context.knownInstances = {};
+                console.log(e);
             }
+            try {
+                if (result.instanceOptions !== undefined) { context.instanceOptions = JSON.parse(result.instanceOptions); }
+                else { context.instanceOptions = {}; }
+            } catch (e) {
+                context.instanceOptions = {};
+                console.log(e);
+            }
+            if (context.knownInstances !== {}) {
+                // if knownInstances is not empty, build the input fields
+                sortInstances(sortProperties(context.knownInstances, false));
+                for (var key in context.knownInstances) {
+                    let input = document.createElement("input");
+                    input.setAttribute("type", "text");
+                    input.setAttribute("id", key);
+                    input.value = context.knownInstances[key];
+                    var hidden = (context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
+                    let label = document.createElement("label");
+                    label.className = "instance-label";
+                    label.setAttribute("for", input.id);
+                    label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key + 
+                        " <span class='pull-right'>" +
+                        "<label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
+                        " <a class=\"no_underline button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
 
-            // add remove instance
-            let elements = {};
-            elements = document.querySelectorAll("a[title=\"forget this instance\"]");
-            [].forEach.call(elements, (el) => {
-                el.addEventListener("click", deleteInstance);
-            });
+                    instancesDiv.appendChild(label);
+                    instancesDiv.appendChild(input);
+                }
 
-            // add close tab actions
-            elements = document.querySelectorAll("a[title=\"pick a color\"]");
-            [].forEach.call(elements, (el) => {
-                let instance = el.getAttribute("data-instance");
-                let color = "";
-                if (instance) {
-                    color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "");
-                }
-                if (color) {
-                    el.style.color = color;
-                } else {
-                    el.style.color = "black";
-                }
-                el.addEventListener("click", (e) => {
-                    context.clicked = e.target;
-                    selectColor(e);
+                // add remove instance
+                let elements = {};
+                elements = document.querySelectorAll("a[title=\"forget this instance\"]");
+                [].forEach.call(elements, (el) => {
+                    el.addEventListener("click", deleteInstance);
                 });
-            });
 
-            // Save and close button
-            document.getElementById("popin_color").addEventListener("click", saveColor);
-            document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
-        }
+                // add close tab actions
+                elements = document.querySelectorAll("a[title=\"pick a color\"]");
+                [].forEach.call(elements, (el) => {
+                    let instance = el.getAttribute("data-instance");
+                    let color = "";
+                    if (instance) {
+                        color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "");
+                    }
+                    if (color) {
+                        el.style.color = color;
+                    } else {
+                        el.style.color = "black";
+                    }
+                    el.addEventListener("click", (e) => {
+                        context.clicked = e.target;
+                        selectColor(e);
+                    });
+                });
+
+                // Save and close button
+                document.getElementById("popin_color").addEventListener("click", saveColor);
+                document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
+            }
+        });
     });
 };
 
@@ -246,7 +253,7 @@ const saveOptions = (evt) => {
         const regex2 = /\/[^;]*/gm;
         context.urlFilters = document.getElementById("urlFilters").value.replace(regex, "").replace(regex2, "");
         context.autoFrame = document.getElementById("autoFrame").checked;
-
+        context.useSync = document.getElementById("useSync").checked;
         document.getElementById("urlFilters").value = context.urlFilters;
 
         for (var key in context.knownInstances) {
@@ -256,8 +263,11 @@ const saveOptions = (evt) => {
             }
             context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
         }
-
-        chrome.storage.sync.set({
+        chrome.storage.local.set({
+            "useSync" : context.useSync
+        });
+        let storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+        storageArea.set({
             "knownInstances": JSON.stringify(context.knownInstances),
             "instanceOptions": JSON.stringify(context.instanceOptions),
             "urlFilters": context.urlFilters,
@@ -276,6 +286,7 @@ const saveOptions = (evt) => {
  */
 const exportOptions = (evt) => {
     evt.preventDefault();
+
     chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
         // let string = encodeURIComponent(JSON.stringify(result));
         var blob = new Blob([JSON.stringify(result)], {type: "application/json;charset=utf-8"});
@@ -298,6 +309,10 @@ const exportOptions = (evt) => {
 const importOptions = (evt) => {
     let file = evt.target.files[0];
     let reader = new FileReader();
+    context.useSync = document.getElementById("useSync").checked;
+    chrome.storage.local.set({
+            "useSync" : context.useSync
+    });
     reader.onerror = (event) => {
         displayMessage("Sorry, there was an error importing your file. Please report it with below details.", JSON.stringify(event));
         reader.abort();
@@ -309,8 +324,8 @@ const importOptions = (evt) => {
                 // verify json integrity
                 JSON.parse(obj.knownInstances);
                 JSON.parse(obj.instanceOptions);
-
-                chrome.storage.sync.set({
+                let storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+                storageArea.set({
                     "knownInstances": obj.knownInstances,
                     "instanceOptions": obj.instanceOptions,
                     "urlFilters": obj.urlFilters,

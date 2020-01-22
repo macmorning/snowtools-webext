@@ -9,7 +9,8 @@ const context = {
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
     instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
     knownNodes: {},
-    tempInformations: {} // store temporary data per instance, such as nodes and updates
+    tempInformations: {}, // store temporary data per instance, such as nodes and updates
+    useSync: false
 };
 
 /**
@@ -337,10 +338,10 @@ const sortProperties = (obj, isNumericSort) => {
  * Saves the known instances; called after the open tabs have been parsed
  */
 const saveKnownInstances = () => {
-    chrome.storage.sync.set({
+    context.storageArea.set({
         "knownInstances": JSON.stringify(context.knownInstances)
     }, function () {
-        console.log("Saved instances to storage.sync");
+        console.log("Saved instances to storage");
     });
 };
 
@@ -348,10 +349,10 @@ const saveKnownInstances = () => {
  * Saves the instances checked states
  */
 const saveInstanceOptions = () => {
-    chrome.storage.sync.set({
+    context.storageArea.set({
         "instanceOptions": JSON.stringify(context.instanceOptions)
     }, () => {
-        console.log("Saved instance options to storage.sync");
+        console.log("Saved instance options to storage");
     });
 };
 
@@ -413,44 +414,48 @@ const getOptions = () => {
     context.urlFiltersArr = ["service-now.com"];
     context.knownInstances = {};
     context.instanceOptions = {};
-    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
-        context.urlFilters = result.urlFilters || "service-now.com";
-        context.urlFiltersArr = context.urlFilters.split(";");
-        try {
-            context.knownInstances = JSON.parse(result.knownInstances);
-        } catch (e) {
-            context.knownInstances = {};
-            console.error(e);
-        }
-        try {
-            context.instanceOptions = JSON.parse(result.instanceOptions);
-        } catch (e) {
-            context.instanceOptions = {};
-            console.error(e);
-        }
-
-        console.log("Loaded options");
-        console.log(context);
-        bootStrap();
-
-        document.getElementById("config").addEventListener("click", openOptions);
-        document.getElementById("open_in_panel").addEventListener("click", openInPanel);
-        document.getElementById("new_tab").addEventListener("change", newTab);
-        document.getElementById("search_custom").addEventListener("click", searchNow);
-        document.getElementById("search_doc").addEventListener("click", searchNow);
-        document.getElementById("search_api").addEventListener("click", searchNow);
-        document.getElementById("searchInput").addEventListener("keyup", function (event) {
-            event.preventDefault();
-            if (event.keyCode === 13) {
-                document.getElementById("search_custom").click();
+    chrome.storage.local.get("useSync",(result1) => {
+        context.useSync = result1.useSync;
+        context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+            context.urlFilters = result.urlFilters || "service-now.com";
+            context.urlFiltersArr = context.urlFilters.split(";");
+            try {
+                context.knownInstances = JSON.parse(result.knownInstances);
+            } catch (e) {
+                context.knownInstances = {};
+                console.error(e);
             }
-        });
-        document.getElementById("searchInput").focus();
-        // listen to tabs events
-        chrome.tabs.onUpdated.addListener(tabUpdated);
-        chrome.tabs.onRemoved.addListener(tabRemoved);
-        chrome.tabs.onAttached.addListener(tabAttached);
-        chrome.tabs.onActivated.addListener(tabActivated);
+            try {
+                context.instanceOptions = JSON.parse(result.instanceOptions);
+            } catch (e) {
+                context.instanceOptions = {};
+                console.error(e);
+            }
+
+            console.log("Loaded options");
+            console.log(context);
+            bootStrap();
+
+            document.getElementById("config").addEventListener("click", openOptions);
+            document.getElementById("open_in_panel").addEventListener("click", openInPanel);
+            document.getElementById("new_tab").addEventListener("change", newTab);
+            document.getElementById("search_custom").addEventListener("click", searchNow);
+            document.getElementById("search_doc").addEventListener("click", searchNow);
+            document.getElementById("search_api").addEventListener("click", searchNow);
+            document.getElementById("searchInput").addEventListener("keyup", function (event) {
+                event.preventDefault();
+                if (event.keyCode === 13) {
+                    document.getElementById("search_custom").click();
+                }
+            });
+            document.getElementById("searchInput").focus();
+            // listen to tabs events
+            chrome.tabs.onUpdated.addListener(tabUpdated);
+            chrome.tabs.onRemoved.addListener(tabRemoved);
+            chrome.tabs.onAttached.addListener(tabAttached);
+            chrome.tabs.onActivated.addListener(tabActivated);
+        });        
     });
 };
 /**
@@ -723,7 +728,7 @@ const refreshNodes = (instance, evt) => {
     context.tempInformations[instance].nodes.forEach((item) => {
         let liEl = document.createElement("li");
         if (item == currentNode) {
-            liEl.innerText = "⮞ " + item + " ⮜";
+            liEl.innerText = item + " (current)";
         } else {
             liEl.innerHTML = "<a href='#'>" + item + "</a>";
             liEl.addEventListener("click", selectNode);
