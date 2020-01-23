@@ -1,7 +1,8 @@
 const context = {
     knownInstances: {},
     instanceOptions: {},
-    useSync: false
+    useSync: false,
+    storageArea: {}
 };
 
 /**
@@ -17,16 +18,16 @@ const displayMessage = (txt, details) => {
     let messagesDetails = document.getElementById("messages_details");
 
     messages.innerHTML = "&nbsp;";
-    messagesDetails.innerText = "";
-    messagesMore.style.display = "none";
+    messagesDetails.innerHTML = "&nbsp;";
+    messagesMore.style.visibility = "hidden";
 
     window.setTimeout(() => {
         messages.innerHTML = txt;
         if (details) {
-            messagesMore.style.display = "inline";
+            messagesMore.style.visibility = "visible";
             messagesMore.style.cursor = "pointer";
             messagesMore.onclick = (evt) => {
-                messagesDetails.innerText = (messagesDetails.innerText === "" ? details : "");
+                messagesDetails.innerHTML = details;
             };
         }
     }, 500);
@@ -59,7 +60,7 @@ const selectColor = (evt) => {
 };
 
 /**
- * Restores the options saved into local storage
+ * Restores the options saved into storage area
  */
 const restoreOptions = () => {
     // clearOptions first
@@ -67,11 +68,12 @@ const restoreOptions = () => {
     while (instancesDiv.firstChild) {
         instancesDiv.removeChild(instancesDiv.firstChild);
     };
-    context.useSync = chrome.storage.local.get("useSync", (result1) => {
-        document.getElementById("useSync").checked = (result1.useSync === "true" || result1.useSync === true);
-        // load options from storage area
-        let storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
+    chrome.storage.local.get("useSync", (result1) => {
+        context.useSync = (result1.useSync === "true" || result1.useSync === true);
+        document.getElementById("useSync").checked = context.useSync;
+        // load options from storage area depending on the useSync setting
+        context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
             document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
             document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
             try {
@@ -234,7 +236,7 @@ const deleteInstance = (evt) => {
  * Saves the instances checked states
  */
 const saveInstanceOptions = () => {
-    chrome.storage.sync.set({
+    context.storageArea.set({
         "instanceOptions": JSON.stringify(context.instanceOptions)
     }, () => {
         console.log("Saved instance options to storage.sync");
@@ -263,11 +265,8 @@ const saveOptions = (evt) => {
             }
             context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
         }
-        chrome.storage.local.set({
-            "useSync" : context.useSync
-        });
-        let storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        storageArea.set({
+
+        context.storageArea.set({
             "knownInstances": JSON.stringify(context.knownInstances),
             "instanceOptions": JSON.stringify(context.instanceOptions),
             "urlFilters": context.urlFilters,
@@ -287,7 +286,7 @@ const saveOptions = (evt) => {
 const exportOptions = (evt) => {
     evt.preventDefault();
 
-    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+    context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
         // let string = encodeURIComponent(JSON.stringify(result));
         var blob = new Blob([JSON.stringify(result)], {type: "application/json;charset=utf-8"});
         try {
@@ -309,10 +308,6 @@ const exportOptions = (evt) => {
 const importOptions = (evt) => {
     let file = evt.target.files[0];
     let reader = new FileReader();
-    context.useSync = document.getElementById("useSync").checked;
-    chrome.storage.local.set({
-            "useSync" : context.useSync
-    });
     reader.onerror = (event) => {
         displayMessage("Sorry, there was an error importing your file. Please report it with below details.", JSON.stringify(event));
         reader.abort();
@@ -324,8 +319,7 @@ const importOptions = (evt) => {
                 // verify json integrity
                 JSON.parse(obj.knownInstances);
                 JSON.parse(obj.instanceOptions);
-                let storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-                storageArea.set({
+                context.storageArea.set({
                     "knownInstances": obj.knownInstances,
                     "instanceOptions": obj.instanceOptions,
                     "urlFilters": obj.urlFilters,
@@ -344,14 +338,37 @@ const importOptions = (evt) => {
 };
 /**
  * Opens the file selection window
- * @param {object} evt the event that triggered the action
+ * @param {Event} evt the event that triggered the action
  */
 const openFileSelect = (evt) => {
     document.getElementById("importFile").click();
 };
 
+/**
+ * Triggered when user changes the "useSync" toggle
+ * @param {Event} evt the event that triggered the action
+ */
+const toggleSync = (evt) => {
+    context.useSync = evt.target.checked;
+    context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+    try {
+        context.storageArea.getBytesInUse((bytes) => {
+            console.log(bytes);
+        });
+        chrome.storage.local.set({
+            "useSync" : context.useSync
+        });
+        restoreOptions();
+    } catch(e) {
+        console.error(e);
+        displayMessage("There was an error accessing the desired storage area.", e);
+        evt.target.checked = !context.useSync;
+    }
+}
+
 document.addEventListener("DOMContentLoaded", restoreOptions);
 document.querySelector("form").addEventListener("submit", saveOptions);
+document.getElementById("useSync").addEventListener("change", toggleSync);
 document.getElementById("export").addEventListener("click", exportOptions);
 document.getElementById("import").addEventListener("click", openFileSelect);
 document.getElementById("importFile").style.display = "none";

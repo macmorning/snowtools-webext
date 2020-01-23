@@ -10,7 +10,8 @@ const context = {
     instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
     knownNodes: {},
     tempInformations: {}, // store temporary data per instance, such as nodes and updates
-    useSync: false
+    useSync: false,
+    storageArea: {}
 };
 
 /**
@@ -519,7 +520,9 @@ const refreshList = () => {
             openTabs.innerHTML += instanceRow;
         }
     }
-
+    saveKnownInstances();
+    saveInstanceOptions();
+    
     if (context.tabCount === 0) {
         let li1 = document.createElement("li");
         li1.innerHTML += "<div class='tips' title='cool tip'><img src='../icons/bulb.png'/><br/>" + getTip() + "</p>";
@@ -763,7 +766,7 @@ const transformTitle = (title) => {
 const tabCreated = (tab) => {
     let url = new URL(tab.url);
     tab.instance = url.hostname;
-    if (tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com" || tab.instance === "partnerportal.service-now.com") {
+    if (tab.instance === "nowlearning.service-now.com" || tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com" || tab.instance === "partnerportal.service-now.com") {
         // known non-instance subdomains of service-now.com
         return false;
     }

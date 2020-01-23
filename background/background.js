@@ -2,14 +2,17 @@ const context = {
     urlFilters: "",
     urlFiltersArr: [],
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
-    instanceOptions: {} // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
+    instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
+    autoFrame: false,
+    useSync: false,
+    storageArea: {}
 };
 
 /**
  * Saves context into storage sync area
  */
 function saveContext () {
-    chrome.storage.sync.set({
+    context.storageArea.set({
         "knownInstances": JSON.stringify(context.knownInstances),
         "instanceOptions": JSON.stringify(context.instanceOptions),
         "urlFilters": context.urlFilters
@@ -22,57 +25,40 @@ function saveContext () {
  * Retrieves saved options
  */
 const getOptions = () => {
-    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
-        if (Object.keys(result).length === 0) {
-            if (localStorage.urlFilters !== undefined) {
-                // Nothing is stored inside storage.sync; but we have something in localStorage, migrate to sync
-                context.urlFilters = localStorage.urlFilters;
-                context.knownInstances = localStorage.knownInstances;
-                context.instanceOptions = localStorage.instanceOptions;
-                chrome.storage.sync.set({
-                    "knownInstances": context.knownInstances,
-                    "instanceOptions": context.instanceOptions,
-                    "urlFilters": context.urlFilters
-                }, function () {
-                    console.warn("Migrated data to storage.sync");
-                });
-            } else {
+    chrome.storage.local.get("useSync",(result1) => {
+        context.useSync = result1.useSync;
+        context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
+            if (Object.keys(result).length === 0) {
                 // Nothing is stored in localStorage nor in sync area
-                context.urlFilters = "service-now.com";
+                context.urlFilters = "service-now.com;";
                 context.knownInstances = "{}";
                 context.instanceOptions = "{}";
-                chrome.storage.sync.set({
-                    "knownInstances": context.knownInstances,
-                    "instanceOptions": context.instanceOptions,
-                    "urlFilters": context.urlFilters
-                }, function () {
-                    console.warn("Initialized data structure in storage.sync");
-                });
+            } else {
+                // remove http:// and https:// from filter string
+                const regex = /http[s]{0,1}:\/\//gm;
+                const regex2 = /\/[^;]*/gm;
+                context.urlFilters = result.urlFilters.replace(regex, "").replace(regex2, "");
+                context.knownInstances = result.knownInstances;
+                context.instanceOptions = result.instanceOptions;
             }
-        } else {
-            // remove http:// and https:// from filter string
-            const regex = /http[s]{0,1}:\/\//gm;
-            const regex2 = /\/[^;]*/gm;
-            context.urlFilters = result.urlFilters.replace(regex, "").replace(regex2, "");
-            context.knownInstances = result.knownInstances;
-            context.instanceOptions = result.instanceOptions;
-        }
 
-        context.autoFrame = (result.autoFrame === "true" || result.autoFrame === true);
-        context.urlFiltersArr = context.urlFilters.split(";");
-        try {
-            context.knownInstances = JSON.parse(context.knownInstances);
-        } catch (e) {
-            console.log(e);
-            context.knownInstances = {};
-        }
-        try {
-            context.instanceOptions = JSON.parse(context.instanceOptions);
-        } catch (e) {
-            console.log(e);
-            context.instanceOptions = {};
-        }
-        console.log(context);
+            context.autoFrame = (result.autoFrame === "true" || result.autoFrame === true);
+            context.urlFiltersArr = context.urlFilters.split(";");
+            try {
+                context.knownInstances = JSON.parse(context.knownInstances);
+            } catch (e) {
+                console.log(e);
+                context.knownInstances = {};
+            }
+            try {
+                context.instanceOptions = JSON.parse(context.instanceOptions);
+            } catch (e) {
+                console.log(e);
+                context.instanceOptions = {};
+            }
+            console.log(context);
+        });
     });
 };
 

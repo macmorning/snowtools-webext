@@ -2,6 +2,8 @@ const chromeURL = "https://chrome.google.com/webstore/detail/servicenow-tool-bel
 const mozURL = "https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/";
 
 const tips = [
+    "Lost your settings? Go to the options pages and make sure you are using the storage area where they were saved.",
+    "Since version 4, you must manually enable the use of your browser's sync feature if you wish to save your settings in " + (isChrome ? "Google's" : "Mozilla's") + " cloud.",
     "You can now enable autoframing for platform pages in the options page.",
     "You can hide automatically saved serice-now.com sub-domains such as \"partnerportal\", \"hi\" or \"signon\" by toggling their visibility in the options page.",
     "You can export your preferences and import them into " + (isChrome ? "Firefox" : "Chrome") + " from the options page.",
