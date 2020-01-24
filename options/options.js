@@ -191,7 +191,7 @@ const sortProperties = (obj, isNumericSort) => {
 const saveColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    // document.getElementById("colorPicker").style.display = "none";
+    context.clicked.style.color = document.getElementById("colorPickerColor").value;
     location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
@@ -207,7 +207,7 @@ const saveColor = (evt) => {
 const saveNoColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    // document.getElementById("colorPicker").style.display = "none";
+    context.clicked.style.color = "#000000";
     location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
@@ -236,15 +236,21 @@ const deleteInstance = (evt) => {
  * Saves the instances checked states
  */
 const saveInstanceOptions = () => {
-    context.storageArea.set({
-        "instanceOptions": JSON.stringify(context.instanceOptions)
-    }, () => {
-        console.log("Saved instance options to storage.sync");
-    });
+    try {
+        context.storageArea.set({
+            "instanceOptions": JSON.stringify(context.instanceOptions)
+        }, () => {
+            displayMessage("Options saved!");
+            console.log("Saved instance options");
+        });
+    } catch (e) {
+        console.log(e);
+        displayMessage("Options could not be saved. Please report this error with below details.", e);
+    }
 };
 
 /**
- * Saves the options into sync storage
+ * Saves the options into storage
  * @param {object} evt the event that triggered the action
  */
 const saveOptions = (evt) => {
@@ -280,7 +286,7 @@ const saveOptions = (evt) => {
     }
 };
 /**
- * Exports the options into sync storage
+ * Exports the options into storage
  * @param {object} evt the event that triggered the action
  */
 const exportOptions = (evt) => {
@@ -302,7 +308,7 @@ const exportOptions = (evt) => {
     });
 };
 /**
- * Imports the options into sync storage
+ * Imports the options into storage
  * @param {object} evt the event that triggered the action
  */
 const importOptions = (evt) => {

@@ -57,6 +57,15 @@ const getOptions = () => {
                 console.log(e);
                 context.instanceOptions = {};
             }
+            chrome.tabs.query({}, (tabs) => {
+                for (var i = 0; i < tabs.length; ++i) {
+                    let instance = new URL(tabs[i].url).hostname;
+                    if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
+                        chrome.tabs.sendMessage(tabs[i].id, {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"]});
+                    }
+                }
+            });
+
             console.log(context);
         });
     });
@@ -103,21 +112,6 @@ function tabUpdated (tabId, changeInfo, tab) {
 function storageEvent (objChanged, area) {
     console.log("*SNOW TOOL BELT* Storage update, reloading options");
     getOptions();
-    // instanceOptions changed, send an update message to content scripts
-    if (objChanged.instanceOptions !== undefined) {
-        let newInstanceOptions = JSON.parse(objChanged.instanceOptions.newValue);
-        let oldInstanceOptions = JSON.parse(objChanged.instanceOptions.oldValue);
-        chrome.tabs.query({}, function (tabs) {
-            for (var i = 0; i < tabs.length; ++i) {
-                let instance = new URL(tabs[i].url).hostname;
-                if (instance && newInstanceOptions[instance] !== undefined && newInstanceOptions[instance]["color"] !== oldInstanceOptions[instance]["color"]) {
-                    let message = {"command": "updateFavicon", "color": newInstanceOptions[instance]["color"] || ""};
-                    console.log("*SNOW TOOL BELT* Send update message > " + i + " > " + tabs[i].url + " > " + newInstanceOptions[instance]["color"]);
-                    chrome.tabs.sendMessage(tabs[i].id, message);
-                }
-            }
-        });
-    }
 }
 
 /**

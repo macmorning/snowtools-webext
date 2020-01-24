@@ -543,7 +543,7 @@ const refreshList = () => {
         });
 
         // add the "open on" menu
-        elements = document.querySelectorAll("a[title=\"open on\"]");
+        elements = document.querySelectorAll("a[title=\"open on...\"]");
         [].forEach.call(elements, (el) => {
             el.addEventListener("click", function (e) {
                 context.clicked = e.target;
