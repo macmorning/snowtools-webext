@@ -1,6 +1,8 @@
 const context = {
     knownInstances: {},
-    instanceOptions: {}
+    instanceOptions: {},
+    useSync: false,
+    storageArea: {}
 };
 
 /**
@@ -16,16 +18,16 @@ const displayMessage = (txt, details) => {
     let messagesDetails = document.getElementById("messages_details");
 
     messages.innerHTML = "&nbsp;";
-    messagesDetails.innerText = "";
-    messagesMore.style.display = "none";
+    messagesDetails.innerHTML = "&nbsp;";
+    messagesMore.style.visibility = "hidden";
 
     window.setTimeout(() => {
         messages.innerHTML = txt;
         if (details) {
-            messagesMore.style.display = "inline";
+            messagesMore.style.visibility = "visible";
             messagesMore.style.cursor = "pointer";
             messagesMore.onclick = (evt) => {
-                messagesDetails.innerText = (messagesDetails.innerText === "" ? details : "");
+                messagesDetails.innerHTML = details;
             };
         }
     }, 500);
@@ -58,7 +60,7 @@ const selectColor = (evt) => {
 };
 
 /**
- * Restores the options saved into local storage
+ * Restores the options saved into storage area
  */
 const restoreOptions = () => {
     // clearOptions first
@@ -66,73 +68,80 @@ const restoreOptions = () => {
     while (instancesDiv.firstChild) {
         instancesDiv.removeChild(instancesDiv.firstChild);
     };
-    // load options from sync storage area
-    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
-        document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
-        document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
-        try {
-            context.knownInstances = JSON.parse(result.knownInstances);
-        } catch (e) {
-            context.knownInstances = {};
-            console.log(e);
-        }
-        try {
-            context.instanceOptions = JSON.parse(result.instanceOptions);
-        } catch (e) {
-            context.instanceOptions = {};
-            console.log(e);
-        }
-        if (context.knownInstances !== {}) {
-            // if knownInstances is not empty, build the input fields
-            sortInstances(sortProperties(context.knownInstances, false));
-            for (var key in context.knownInstances) {
-                let input = document.createElement("input");
-                input.setAttribute("type", "text");
-                input.setAttribute("id", key);
-                input.value = context.knownInstances[key];
-                var hidden = (context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
-                let label = document.createElement("label");
-                label.className = "instance-label";
-                label.setAttribute("for", input.id);
-                label.innerHTML = "<a class=\"button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key + 
-                    " <span class='pull-right'>" +
-                    "<label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
-                    " <a class=\"button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
-
-                instancesDiv.appendChild(label);
-                instancesDiv.appendChild(input);
+    chrome.storage.local.get("useSync", (result1) => {
+        context.useSync = (result1.useSync === "true" || result1.useSync === true);
+        document.getElementById("useSync").checked = context.useSync;
+        // load options from storage area depending on the useSync setting
+        context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
+            document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
+            document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
+            try {
+                if (result.knownInstances !== undefined) { context.knownInstances = JSON.parse(result.knownInstances); }
+                else { context.knownInstances = {}; }
+            } catch (e) {
+                context.knownInstances = {};
+                console.log(e);
             }
+            try {
+                if (result.instanceOptions !== undefined) { context.instanceOptions = JSON.parse(result.instanceOptions); }
+                else { context.instanceOptions = {}; }
+            } catch (e) {
+                context.instanceOptions = {};
+                console.log(e);
+            }
+            if (context.knownInstances !== {}) {
+                // if knownInstances is not empty, build the input fields
+                sortInstances(sortProperties(context.knownInstances, false));
+                for (var key in context.knownInstances) {
+                    let input = document.createElement("input");
+                    input.setAttribute("type", "text");
+                    input.setAttribute("id", key);
+                    input.value = context.knownInstances[key];
+                    var hidden = (context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
+                    let label = document.createElement("label");
+                    label.className = "instance-label";
+                    label.setAttribute("for", input.id);
+                    label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key + 
+                        " <span class='pull-right'>" +
+                        "<label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
+                        " <a class=\"no_underline button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
 
-            // add remove instance
-            let elements = {};
-            elements = document.querySelectorAll("a[title=\"forget this instance\"]");
-            [].forEach.call(elements, (el) => {
-                el.addEventListener("click", deleteInstance);
-            });
+                    instancesDiv.appendChild(label);
+                    instancesDiv.appendChild(input);
+                }
 
-            // add close tab actions
-            elements = document.querySelectorAll("a[title=\"pick a color\"]");
-            [].forEach.call(elements, (el) => {
-                let instance = el.getAttribute("data-instance");
-                let color = "";
-                if (instance) {
-                    color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "");
-                }
-                if (color) {
-                    el.style.color = color;
-                } else {
-                    el.style.color = "black";
-                }
-                el.addEventListener("click", (e) => {
-                    context.clicked = e.target;
-                    selectColor(e);
+                // add remove instance
+                let elements = {};
+                elements = document.querySelectorAll("a[title=\"forget this instance\"]");
+                [].forEach.call(elements, (el) => {
+                    el.addEventListener("click", deleteInstance);
                 });
-            });
 
-            // Save and close button
-            document.getElementById("popin_color").addEventListener("click", saveColor);
-            document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
-        }
+                // add close tab actions
+                elements = document.querySelectorAll("a[title=\"pick a color\"]");
+                [].forEach.call(elements, (el) => {
+                    let instance = el.getAttribute("data-instance");
+                    let color = "";
+                    if (instance) {
+                        color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "");
+                    }
+                    if (color) {
+                        el.style.color = color;
+                    } else {
+                        el.style.color = "black";
+                    }
+                    el.addEventListener("click", (e) => {
+                        context.clicked = e.target;
+                        selectColor(e);
+                    });
+                });
+
+                // Save and close button
+                document.getElementById("popin_color").addEventListener("click", saveColor);
+                document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
+            }
+        });
     });
 };
 
@@ -182,7 +191,7 @@ const sortProperties = (obj, isNumericSort) => {
 const saveColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    // document.getElementById("colorPicker").style.display = "none";
+    context.clicked.style.color = document.getElementById("colorPickerColor").value;
     location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
@@ -198,7 +207,7 @@ const saveColor = (evt) => {
 const saveNoColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    // document.getElementById("colorPicker").style.display = "none";
+    context.clicked.style.color = "#000000";
     location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
@@ -227,15 +236,21 @@ const deleteInstance = (evt) => {
  * Saves the instances checked states
  */
 const saveInstanceOptions = () => {
-    chrome.storage.sync.set({
-        "instanceOptions": JSON.stringify(context.instanceOptions)
-    }, () => {
-        console.log("Saved instance options to storage.sync");
-    });
+    try {
+        context.storageArea.set({
+            "instanceOptions": JSON.stringify(context.instanceOptions)
+        }, () => {
+            displayMessage("Options saved!");
+            console.log("Saved instance options");
+        });
+    } catch (e) {
+        console.log(e);
+        displayMessage("Options could not be saved. Please report this error with below details.", e);
+    }
 };
 
 /**
- * Saves the options into sync storage
+ * Saves the options into storage
  * @param {object} evt the event that triggered the action
  */
 const saveOptions = (evt) => {
@@ -246,7 +261,7 @@ const saveOptions = (evt) => {
         const regex2 = /\/[^;]*/gm;
         context.urlFilters = document.getElementById("urlFilters").value.replace(regex, "").replace(regex2, "");
         context.autoFrame = document.getElementById("autoFrame").checked;
-
+        context.useSync = document.getElementById("useSync").checked;
         document.getElementById("urlFilters").value = context.urlFilters;
 
         for (var key in context.knownInstances) {
@@ -257,7 +272,7 @@ const saveOptions = (evt) => {
             context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
         }
 
-        chrome.storage.sync.set({
+        context.storageArea.set({
             "knownInstances": JSON.stringify(context.knownInstances),
             "instanceOptions": JSON.stringify(context.instanceOptions),
             "urlFilters": context.urlFilters,
@@ -271,12 +286,13 @@ const saveOptions = (evt) => {
     }
 };
 /**
- * Exports the options into sync storage
+ * Exports the options into storage
  * @param {object} evt the event that triggered the action
  */
 const exportOptions = (evt) => {
     evt.preventDefault();
-    chrome.storage.sync.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+
+    context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
         // let string = encodeURIComponent(JSON.stringify(result));
         var blob = new Blob([JSON.stringify(result)], {type: "application/json;charset=utf-8"});
         try {
@@ -292,7 +308,7 @@ const exportOptions = (evt) => {
     });
 };
 /**
- * Imports the options into sync storage
+ * Imports the options into storage
  * @param {object} evt the event that triggered the action
  */
 const importOptions = (evt) => {
@@ -309,8 +325,7 @@ const importOptions = (evt) => {
                 // verify json integrity
                 JSON.parse(obj.knownInstances);
                 JSON.parse(obj.instanceOptions);
-
-                chrome.storage.sync.set({
+                context.storageArea.set({
                     "knownInstances": obj.knownInstances,
                     "instanceOptions": obj.instanceOptions,
                     "urlFilters": obj.urlFilters,
@@ -329,14 +344,36 @@ const importOptions = (evt) => {
 };
 /**
  * Opens the file selection window
- * @param {object} evt the event that triggered the action
+ * @param {Event} evt the event that triggered the action
  */
 const openFileSelect = (evt) => {
     document.getElementById("importFile").click();
 };
 
+/**
+ * Triggered when user changes the "useSync" toggle
+ * @param {Event} evt the event that triggered the action
+ */
+const toggleSync = (evt) => {
+    context.useSync = evt.target.checked;
+    context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+    try {
+        context.storageArea.get(["urlFilters"],(result) => {
+            chrome.storage.local.set({
+                "useSync" : context.useSync
+            });
+            restoreOptions();
+        });
+    } catch(e) {
+        console.error(e);
+        displayMessage("There was an error accessing the desired storage area.", e);
+        evt.target.checked = !context.useSync;
+    }
+}
+
 document.addEventListener("DOMContentLoaded", restoreOptions);
 document.querySelector("form").addEventListener("submit", saveOptions);
+document.getElementById("useSync").addEventListener("change", toggleSync);
 document.getElementById("export").addEventListener("click", exportOptions);
 document.getElementById("import").addEventListener("click", openFileSelect);
 document.getElementById("importFile").style.display = "none";

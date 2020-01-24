@@ -9,9 +9,9 @@
         <script async src="autocomplete.js"></script>
     </head>
     <body>
-        <div id="config" class="top-commands" title="options">&#128295;</div>
-        <div id="open_in_panel" class="top-commands" title="open in a panel">&#128307;</div>
-        <a href="https://macmorning.github.io/snowtools-webext/" title="about" target="_blank"><div id="help" class="top-commands">&#10067;</div></a>
+        <img src="../icons/options.png" id="config" class="top-commands" title="options"/>
+        <img src="../icons/external.png" id="open_in_panel" class="top-commands" title="open in a panel"/>
+        <a href="https://macmorning.github.io/snowtools-webext/" title="about" target="_blank"><img id="help" src="../icons/question.png" class="top-commands"/></a>
         <div id="container">
             <div id="search">
                     <input placeholder="enter search terms" type="text" id="searchInput" list="words"/>
@@ -30,15 +30,15 @@
         <template id="instance-row">
             <li data-instance="{{instance}}" data-window-id="{{windowId}}">
                 <input id="{{instance}}{{windowId}}" class="instance-checkbox" data-instance="{{instance}}" data-window-id="{{windowId}}" type="checkbox" {{checked}}></input>
-                <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="color-indicator" title="current color">&#9632;</div>
+                <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline color-indicator" title="current color">&#9632;</div>
                 <label for="{{instance}}{{windowId}}" class="instance-label">&nbsp;
                     <div data-instance="{{instance}}" data-window-id="{{windowId}}" contenteditable="false" class="instance-label">{{instanceName}}</div>
                     <span>{{windowIdLabel}}</span>
                     <span title="incognito window" data-window-id="{{windowId}}" class="incognito"> &#128526;</span>
                 </label>
-                <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="button-muted instance-commands" title="other options">&#133;</a> <!-- … -->
-                <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="button-muted instance-commands" title="close tabs">&#10006;</a> <!-- ✖ -->
-                <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="button-muted instance-commands" title="open a new tab">&#10010;</a> <!-- ✚ -->
+                <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline button-muted instance-commands" title="other options">&#133;</a> <!-- … -->
+                <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline button-muted instance-commands" title="close tabs">&#10006;</a> <!-- ✖ -->
+                <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline button-muted instance-commands" title="open a new tab">&#10010;</a> <!-- ✚ -->
                 <ul class="links-to-tabs">{{linksToTabs}}</ul>
             </li>
         </template>
@@ -46,9 +46,9 @@
             <li id="tab{{tabid}}" class="link-to-tab" data-instance="{{instance}}" data-window-id="{{windowId}}">
                 <span id="tab{{tabid}}_type"></span>
                 <span id="tab{{tabid}}_title">{{title}}</span>
-                <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
-                <a data-id="{{tabid}}" class="button-muted tab-commands" title="open on">&#10010;</a> <!-- ✚ -->
-                <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="button-muted tab-commands" title="reopen in a frame">&#8690;</a>
+                <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="no_underline button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
+                <a data-id="{{tabid}}" class="no_underline button-muted tab-commands" title="open on">&#10010;</a> <!-- ✚ -->
+                <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="no_underline button-muted tab-commands" title="reopen in a frame">&#8690;</a>
             </li>
         </template>
 
@@ -81,5 +81,21 @@
                 </div>
             </div>
         </div>
+        <div class="smart-popin" id="whatsnewPopup">
+            <div class="sp-table">
+                <div class="sp-cell">
+                    <div class="sp-body">
+                        <img class='whatsnew' title="What's new?" src='../icons/newspaper.png'/>
+                        <div class='whatsnew'>
+                            <span id="whatsnewText"></span> 
+                        </div>
+                        <button id="whatsnewRemember" class="thin btn-secondary">Ok, do not display again</button>
+                        <a href="#" class="sp-close">×</a>
+                    </div>
+                    <a href="#" class="sp-back"></a>
+                </div>
+            </div>
+        </div>
+        <div class='tips' id='tipsContainer' title='cool tip'><img src='../icons/bulb.png'/><br/><span id='tip'></span></p>
     </body>
 </html>       

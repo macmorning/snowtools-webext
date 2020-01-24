@@ -18,45 +18,82 @@ body {
     overflow-x: hidden;
     overflow-y: auto;
     font-size: 10pt;
+    min-height: 400px;
+}
+form#options-form {
+    margin: auto;
+    margin-top: 3px;
+    width: 98%;
+    min-width: 550px;
+    height: 400px;
+    max-height: 400px;
+}
+div#knownInstances {
+    padding: 3px;
+    border: 2px solid var(--disabled-color);
+    height: 260px;
+    max-height: 260px;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 a {
     color: var(--main-color);
-    text-decoration: none;
+    text-decoration: underline;
 }
 a:hover {
     text-decoration: underline;
 }
+.no_underline, .no_underline:hover {
+    text-decoration: none;
+}
 span.pull-right {
     float:right;
 }
-div.top-commands {
+img.top-commands {
     position: absolute;
-    font-size: 25px;
-    height: 15px;
-    width: 15px;
+    width: 25px;
     cursor: pointer;
-    color: var(--main-color);
+    top: 15px; 
+}
+div.whatsnew {
+    width: 100%;
+    line-height: 1.4em;
+    text-align: initial;
+    max-height: 200px;
+    overflow-y: auto;
+    
+}
+img.whatsnew {
+    display: block;
+    position: absolute;
+    top: 5px;
+    left: 48%;
+    width: 25px;
+}
+button#whatsnewRemember {
+    margin-top: 10px;
 }
 div.tips {
-    width: 100%;
+    width: 95%;
+    max-width: 400px;
+    margin: auto;
     text-align:center;
     line-height: 1.4em;
+    display: none;
 }
-div.tips h1 {
-    width: 100%;
-    text-align:center;
+div.tips img {
+    display: inline-block;
+    width: 30px;
+    margin: auto;
 }
-div#config {
-    top: 10px; 
+img#config {
     right: 30px;
 }
-div#open_in_panel {
-    top: 10px; 
-    right: 100px;
+img#help {
+    right: 70px;
 }
-div#help {
-    top: 10px; 
-    right: 65px;
+img#open_in_panel {
+    right: 110px;
 }
 #messages {
     text-align: center;
@@ -68,11 +105,12 @@ div#help {
     opacity: 0;
 }
 #messages_container {
+    padding: 5px;
     text-align: center;
     font-weight: bold;
 }
 #messages_container #messages_more {
-    display:none;
+    visibility:hidden;
 }
 #messages_details {
     text-align: center;
@@ -209,31 +247,26 @@ input[type=text], select {
 select.select-instance {
     margin-bottom: 15px;
 }
-form {
-    width: 550px;
-}
 label {
     color: var(--secondary-color);
 }
 button {
     width: 100%;
+    margin: auto;
     height: 29px;
     background-color: var(--btn-color);
     color: var(--main-bg-color);
-    padding: 14px 20px;
-    margin: 6px 0;
+    margin-bottom: 6px;
     border: 1px var(--main-color) solid;
     border-radius: 4px;
     cursor: pointer;
     font-size: larger;
     font-weight: bold;
 }
-
-button.options  {
-    padding: 0 10px;
-}
-button.thin {
-    padding: 7px 10px;
+button.options {
+    display: inline-block;
+    width: 100%;
+    margin: 2px 5px;
 }
 button.btn-secondary {
     background-color: var(--main-bg-color);
@@ -292,8 +325,8 @@ p.text-muted {
     color: var(--disabled-color);
 }
 input#colorPickerColor {
+    margin: .4rem;
     margin-bottom: 15px;
-    width: 50px;
 }
 /* Sliders */
 .switch {
