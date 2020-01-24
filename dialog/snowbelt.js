@@ -524,10 +524,10 @@ const refreshList = () => {
     saveInstanceOptions();
     
     if (context.tabCount === 0) {
-        let li1 = document.createElement("li");
-        li1.innerHTML += "<div class='tips' title='cool tip'><img src='../icons/bulb.png'/><br/>" + getTip() + "</p>";
-        openTabs.appendChild(li1);
+        document.getElementById("tip").innerHTML = getTip();
+        document.getElementById("tipsContainer").style.display = "block";
     } else {
+        document.getElementById("tipsContainer").style.display = "none";
         setActiveTab();
 
         // add close tab actions
@@ -952,6 +952,21 @@ const openOptions = () => {
     }
  
 };
+
+/**
+ * Displays news
+ */
+const displayWhatsNew = () => {
+    chrome.storage.local.get("whatsnew", (result) => {
+        let whatsNew = getWhatsNew(result.whatsnew);
+        if (whatsNew) {
+            document.getElementById("whatsnewText").innerHTML = whatsNew;
+            document.getElementById("whatsnewRemember").addEventListener("click", rememberWhatsNew);
+            location.hash = "whatsnewPopup";
+        }
+    });
+}
+
 /**
  * Initial function that gets the saved preferences and the list of open tabs
  */
@@ -992,4 +1007,5 @@ const bootStrap = () => {
 
 document.addEventListener("DOMContentLoaded", () => {
     getOptions();
+    displayWhatsNew();
 });

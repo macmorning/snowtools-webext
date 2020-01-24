@@ -30,7 +30,7 @@ const getOptions = () => {
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
         context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
             if (Object.keys(result).length === 0) {
-                // Nothing is stored in localStorage nor in sync area
+                // Nothing is stored yet
                 context.urlFilters = "service-now.com;";
                 context.knownInstances = "{}";
                 context.instanceOptions = "{}";

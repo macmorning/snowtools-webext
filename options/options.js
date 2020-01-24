@@ -358,13 +358,12 @@ const toggleSync = (evt) => {
     context.useSync = evt.target.checked;
     context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
     try {
-        context.storageArea.getBytesInUse((bytes) => {
-            console.log(bytes);
+        context.storageArea.get(["urlFilters"],(result) => {
+            chrome.storage.local.set({
+                "useSync" : context.useSync
+            });
+            restoreOptions();
         });
-        chrome.storage.local.set({
-            "useSync" : context.useSync
-        });
-        restoreOptions();
     } catch(e) {
         console.error(e);
         displayMessage("There was an error accessing the desired storage area.", e);
