@@ -175,4 +175,8 @@ const msgListener = (message, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener(msgListener);
 chrome.tabs.onUpdated.addListener(tabUpdated);
 chrome.storage.onChanged.addListener(storageEvent);
+chrome.commands.onCommand.addListener(function(command) {
+    console.log('Command:', command);
+    chrome.commands.getAll((result) => { console.log(result);});
+});
 getOptions();
