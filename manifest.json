@@ -12,7 +12,8 @@
     "_execute_browser_action": {
       "suggested_key": {
         "default": "Alt+C"
-      }
+      },
+      "description": "Open the tools popup"
     },
     "execute-save": {
       "suggested_key": {

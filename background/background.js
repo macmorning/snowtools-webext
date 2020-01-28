@@ -113,7 +113,16 @@ function storageEvent (objChanged, area) {
     console.log("*SNOW TOOL BELT* Storage update, reloading options");
     getOptions();
 }
-
+/**
+ * Command listener
+ * @param {String} command Id of the command that was issued
+ */
+const cmdListener = (command) => {
+    console.log("*SNOW TOOL BELT* received command " + command);
+    chrome.tabs.query({currentWindow: true, active: true}, (tabs) => {
+        console.log(tabs);
+    })
+}
 /**
  * Message listener
  * @param {Object} message The object send with the message: {command, node}
@@ -175,8 +184,5 @@ const msgListener = (message, sender, sendResponse) => {
 chrome.runtime.onMessage.addListener(msgListener);
 chrome.tabs.onUpdated.addListener(tabUpdated);
 chrome.storage.onChanged.addListener(storageEvent);
-chrome.commands.onCommand.addListener(function(command) {
-    console.log('Command:', command);
-    chrome.commands.getAll((result) => { console.log(result);});
-});
+chrome.commands.onCommand.addListener(cmdListener);
 getOptions();

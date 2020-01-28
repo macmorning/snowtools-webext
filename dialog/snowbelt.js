@@ -11,7 +11,8 @@ const context = {
     knownNodes: {},
     tempInformations: {}, // store temporary data per instance, such as nodes and updates
     useSync: false,
-    storageArea: {}
+    storageArea: {},
+    commands: {}
 };
 
 /**
@@ -411,6 +412,10 @@ const updateColor = (instance) => {
  * Retrieves saved options
  */
 const getOptions = () => {
+
+    chrome.commands.getAll((result) => { 
+        context.commands = result;
+    });
     context.urlFilters = "service-now.com";
     context.urlFiltersArr = ["service-now.com"];
     context.knownInstances = {};
@@ -524,8 +529,11 @@ const refreshList = () => {
     saveInstanceOptions();
     
     if (context.tabCount === 0) {
-        document.getElementById("tip").innerHTML = getTip();
-        document.getElementById("tipsContainer").style.display = "block";
+        window.setTimeout(function () {
+            getTip();
+            // add next tip action
+            document.getElementById("nextTip").addEventListener("click", getTip);
+        }, 300);
     } else {
         document.getElementById("tipsContainer").style.display = "none";
         setActiveTab();
