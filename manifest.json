@@ -15,11 +15,11 @@
       },
       "description": "Open the tools popup"
     },
-    "execute-save": {
+    "execute-reframe": {
       "suggested_key": {
-        "default": "Ctrl+Shift+S"
+        "default": "Alt+F"
       },
-      "description": "Save current record"
+      "description": "Reopen current url into navpage"
     }
   },
   "background": {

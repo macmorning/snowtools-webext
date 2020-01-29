@@ -84,11 +84,12 @@ img#open_in_panel {
 }
 p#tip {
     opacity: 1;
-    transition: opacity 0.4s; 
+    transition: opacity 0.3s; 
+    text-align:center;
+    height: 150px;
 }
 div.tips {
     opacity: 1;
-    transition: opacity 0.4s; 
 }
 div#tipsContainer {
     width: 95%;

@@ -96,13 +96,29 @@ function tabUpdated (tabId, changeInfo, tab) {
         chrome.tabs.update(tab.id, {url: newUrl});
     }
     if (changeInfo.favIconUrl !== undefined) {
-        console.log(changeInfo);
         // favIcon was changed, check if we should replace it
         if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
             chrome.tabs.sendMessage(tabId, {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"]});
         }
     }
 }
+
+/**
+ * Moves tab into a navigation frame
+ * @param {String} tab The tab that needs to be poped in
+ */
+const popIn = (tabid) => {
+    tabid = parseInt(tabid);
+    chrome.tabs.get(tabid, (tab) => {
+        let url = new URL(tab.url);
+        if (url.pathname !== "/nav_to.do") {
+            let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
+            chrome.tabs.update(tab.id, {url: newUrl});
+        } else {
+            displayMessage("Already in a frame");
+        }
+    });
+};
 
 /**
  * Handles a change event coming from storage
@@ -119,9 +135,14 @@ function storageEvent (objChanged, area) {
  */
 const cmdListener = (command) => {
     console.log("*SNOW TOOL BELT* received command " + command);
+    let currentTab = {};
+    // What is the current tab when the user pressed the keyboard combination?
     chrome.tabs.query({currentWindow: true, active: true}, (tabs) => {
-        console.log(tabs);
-    })
+        currentTab = tabs[0];
+        if (command === "execute-reframe") {
+            popIn(currentTab.id);
+        }
+    });
 }
 /**
  * Message listener
@@ -139,7 +160,11 @@ const msgListener = (message, sender, sendResponse) => {
     } catch (e) {
         console.error("Unable to get sender hostname: " + e);
     }
-
+    if (message.command === "execute-reframe" && message.tabid) {
+        popIn(message.tabid);
+        sendResponse(true);
+        return true;
+    }
     if (message.command === "removeCookie" && message.instance) {
         let targetInstance = message.instance;
         chrome.cookies.getAll({"url": "https://" + targetInstance}, function (cookiesArray) {

@@ -1,8 +1,17 @@
 const chromeURL = "https://chrome.google.com/webstore/detail/servicenow-tool-belt/jflcifhpkilfaomlnikfaaccmpidkmln";
 const mozURL = "https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/";
 const gitURL = "https://github.com/macmorning/snowtools-webext";
+const chromeShortcutsURL = "chrome://extensions/shortcuts";
+const firefoxShortcutsURL = "about:addons";
+let tips;
+context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.1.0',
+        msg: "Most notable new features:<br/>" +
+            "<ul><li>You can now define shortcuts for two basic actions: open this browser popup and reopen in navpage frame.</li>" +
+            "<li>Enhanced the 'tips' displayed when no instance tabs were found, you can now display more cool tips!</li></ul>"
+    },{ 
         version: '4.0.0',
         msg: "Most notable new features:<br/>" +
             "<ul><li>this WhatsNew feature</li>" +
@@ -59,11 +68,25 @@ const getCommands = () => {
             result += '<li>' + (command.name === '_execute_browser_action' ? 'Open tools popup' : command.description) + ': <e>' + command.shortcut + '</e></li>';
     });
     result += "</ul>";
+    result += "See " + (isChrome ? chromeShortcutsURL : firefoxShortcutsURL) + " for configuration";
     return result;
 }
 
+const nextTip = () => {
+    let number;
+    number = context.lastTipNumber + 1;
+    if (number >= tips.length) { number = 0; }
+    context.lastTipNumber = number;
+    document.getElementById("tip").classList.add("fade");
+    window.setTimeout(() => {
+        document.getElementById("tip").innerHTML = tips[number];
+        document.getElementById("tip").classList.remove("fade");
+        document.getElementById("tipsContainer").classList.remove("fade");
+    }, 300);
+    return true;
+}
 const getTip = () => {
-    let tips = [
+    tips = [
         "Lost your settings?<br/>Go to the options pages and make sure you are using the storage area where you saved them.",
         "You can hide automatically saved serice-now.com sub-domains such as \"partnerportal\", \"hi\" or \"signon\" by toggling their visibility in the options page.",
         "You can export your preferences and import them into " + (isChrome ? "Firefox" : "Chrome") + " from the options page.",
@@ -79,15 +102,9 @@ const getTip = () => {
     ];
 
     let number;
-    do {
-        number = Math.floor((Math.random() * tips.length));
-    } while (number === context.lastTipNumber)
+    number = Math.floor((Math.random() * tips.length));
+
     context.lastTipNumber = number;
-    document.getElementById("tip").classList.add("fade");
-    window.setTimeout(() => {
-        document.getElementById("tip").innerHTML = tips[number];
-        document.getElementById("tip").classList.remove("fade");
-        document.getElementById("tipsContainer").classList.remove("fade");
-    }, 300);
-    return tips[number];
+    document.getElementById("tip").innerHTML = tips[number];
+    return true;
 };

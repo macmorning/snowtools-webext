@@ -108,8 +108,7 @@ const popIn = (evt) => {
     chrome.tabs.get(tabid, (tab) => {
         let url = new URL(tab.url);
         if (url.pathname !== "/nav_to.do") {
-            let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
-            chrome.tabs.update(tab.id, {url: newUrl});
+            chrome.runtime.sendMessage({command: "execute-reframe", tabid: tabid});
         } else {
             displayMessage("Already in a frame");
         }
@@ -532,7 +531,7 @@ const refreshList = () => {
         window.setTimeout(function () {
             getTip();
             // add next tip action
-            document.getElementById("nextTip").addEventListener("click", getTip);
+            document.getElementById("nextTip").addEventListener("click", nextTip);
         }, 300);
     } else {
         document.getElementById("tipsContainer").style.display = "none";
