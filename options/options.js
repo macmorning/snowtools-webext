@@ -317,6 +317,7 @@ const importOptions = (evt) => {
     reader.onerror = (event) => {
         displayMessage("Sorry, there was an error importing your file. Please report it with below details.", JSON.stringify(event));
         reader.abort();
+        evt.target.value = "";
     };
     reader.onload = (event) => {
         try {
@@ -325,6 +326,7 @@ const importOptions = (evt) => {
                 // verify json integrity
                 JSON.parse(obj.knownInstances);
                 JSON.parse(obj.instanceOptions);
+                
                 context.storageArea.set({
                     "knownInstances": obj.knownInstances,
                     "instanceOptions": obj.instanceOptions,
@@ -338,6 +340,8 @@ const importOptions = (evt) => {
         } catch (e) {
             console.log(e);
             displayMessage("Sorry, there was an error importing your file. Please report it with below details.", e);
+        } finally {
+            evt.target.value = "";
         }
     };
     reader.readAsText(file);

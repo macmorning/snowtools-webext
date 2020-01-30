@@ -11,7 +11,8 @@ const context = {
     knownNodes: {},
     tempInformations: {}, // store temporary data per instance, such as nodes and updates
     useSync: false,
-    storageArea: {}
+    storageArea: {},
+    commands: {}
 };
 
 /**
@@ -107,8 +108,7 @@ const popIn = (evt) => {
     chrome.tabs.get(tabid, (tab) => {
         let url = new URL(tab.url);
         if (url.pathname !== "/nav_to.do") {
-            let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
-            chrome.tabs.update(tab.id, {url: newUrl});
+            chrome.runtime.sendMessage({command: "execute-reframe", tabid: tabid});
         } else {
             displayMessage("Already in a frame");
         }
@@ -411,6 +411,10 @@ const updateColor = (instance) => {
  * Retrieves saved options
  */
 const getOptions = () => {
+
+    chrome.commands.getAll((result) => { 
+        context.commands = result;
+    });
     context.urlFilters = "service-now.com";
     context.urlFiltersArr = ["service-now.com"];
     context.knownInstances = {};
@@ -524,8 +528,11 @@ const refreshList = () => {
     saveInstanceOptions();
     
     if (context.tabCount === 0) {
-        document.getElementById("tip").innerHTML = getTip();
-        document.getElementById("tipsContainer").style.display = "block";
+        window.setTimeout(function () {
+            getTip();
+            // add next tip action
+            document.getElementById("nextTip").addEventListener("click", nextTip);
+        }, 300);
     } else {
         document.getElementById("tipsContainer").style.display = "none";
         setActiveTab();
@@ -764,7 +771,13 @@ const transformTitle = (title) => {
  * @param {Tab} tab the Tab object itself
  */
 const tabCreated = (tab) => {
-    let url = new URL(tab.url);
+    let url;
+    try {
+        url = new URL(tab.url);
+    } catch(e) {
+        displayMessage("Error accessing tab definition. Do we have the tabs permission?");
+        return false;
+    }
     tab.instance = url.hostname;
     if (tab.instance === "nowlearning.service-now.com" || tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com" || tab.instance === "partnerportal.service-now.com") {
         // known non-instance subdomains of service-now.com
