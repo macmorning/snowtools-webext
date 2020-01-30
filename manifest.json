@@ -47,7 +47,6 @@
     "tabs", 
     "storage", 
     "cookies",
-    "<all_urls>",
     "downloads"
   ],
   "content_security_policy": "default-src 'self'",

@@ -9,8 +9,10 @@ const whatsnew = [
     { 
         version: '4.1.0',
         msg: "Most notable new features:<br/>" +
-            "<ul><li>You can now define shortcuts for two basic actions: open this browser popup and reopen in navpage frame.</li>" +
-            "<li>Enhanced the 'tips' displayed when no instance tabs were found, you can now display more cool tips!</li></ul>"
+            "<ul><li>Dropped the 'all_urls' permission requirement.</li>" +
+            "<li>You can now define shortcuts for two basic actions: open this browser popup and reopen in navpage frame.</li>" +
+            "<li>Enhanced the 'tips' displayed when no instance tabs were found, you can now display more cool tips!</li></ul>" +
+            "If you encounter any issue with this version, please do post them on <a href='" + gitURL + "'>github</a>."
     },{ 
         version: '4.0.0',
         msg: "Most notable new features:<br/>" +

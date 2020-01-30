@@ -771,7 +771,13 @@ const transformTitle = (title) => {
  * @param {Tab} tab the Tab object itself
  */
 const tabCreated = (tab) => {
-    let url = new URL(tab.url);
+    let url;
+    try {
+        url = new URL(tab.url);
+    } catch(e) {
+        displayMessage("Error accessing tab definition. Do we have the tabs permission?");
+        return false;
+    }
     tab.instance = url.hostname;
     if (tab.instance === "nowlearning.service-now.com" || tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com" || tab.instance === "partnerportal.service-now.com") {
         // known non-instance subdomains of service-now.com
