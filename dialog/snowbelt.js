@@ -10,8 +10,11 @@ const context = {
     instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
     knownNodes: {},
     tempInformations: {}, // store temporary data per instance, such as nodes and updates
+    showUpdatesets: false,
     useSync: false,
-    storageArea: {}
+    storageArea: {},
+    commands: {},
+    updateSets: {} // one value per window and instance
 };
 
 /**
@@ -107,8 +110,7 @@ const popIn = (evt) => {
     chrome.tabs.get(tabid, (tab) => {
         let url = new URL(tab.url);
         if (url.pathname !== "/nav_to.do") {
-            let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
-            chrome.tabs.update(tab.id, {url: newUrl});
+            chrome.runtime.sendMessage({command: "execute-reframe", tabid: tabid});
         } else {
             displayMessage("Already in a frame");
         }
@@ -411,6 +413,10 @@ const updateColor = (instance) => {
  * Retrieves saved options
  */
 const getOptions = () => {
+
+    chrome.commands.getAll((result) => { 
+        context.commands = result;
+    });
     context.urlFilters = "service-now.com";
     context.urlFiltersArr = ["service-now.com"];
     context.knownInstances = {};
@@ -418,9 +424,10 @@ const getOptions = () => {
     chrome.storage.local.get("useSync",(result1) => {
         context.useSync = result1.useSync;
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions","showUpdatesets"], (result) => {
             context.urlFilters = result.urlFilters || "service-now.com";
             context.urlFiltersArr = context.urlFilters.split(";");
+            context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true);
             try {
                 context.knownInstances = JSON.parse(result.knownInstances);
             } catch (e) {
@@ -524,8 +531,11 @@ const refreshList = () => {
     saveInstanceOptions();
     
     if (context.tabCount === 0) {
-        document.getElementById("tip").innerHTML = getTip();
-        document.getElementById("tipsContainer").style.display = "block";
+        window.setTimeout(function () {
+            getTip();
+            // add next tip action
+            document.getElementById("nextTip").addEventListener("click", nextTip);
+        }, 300);
     } else {
         document.getElementById("tipsContainer").style.display = "none";
         setActiveTab();
@@ -764,7 +774,13 @@ const transformTitle = (title) => {
  * @param {Tab} tab the Tab object itself
  */
 const tabCreated = (tab) => {
-    let url = new URL(tab.url);
+    let url;
+    try {
+        url = new URL(tab.url);
+    } catch(e) {
+        displayMessage("Error accessing tab definition. Do we have the tabs permission?");
+        return false;
+    }
     tab.instance = url.hostname;
     if (tab.instance === "nowlearning.service-now.com" || tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com" || tab.instance === "partnerportal.service-now.com") {
         // known non-instance subdomains of service-now.com
@@ -811,6 +827,19 @@ const updateTabInfo = (instance, windowId, index) => {
             tab.snt_type = response.type;
             tab.snt_details = response.details;
             tab.snt_tabs = response.tabs;
+            
+            if (isChrome && context.showUpdatesets && (context.updateSets[windowId] === undefined || context.updateSets[windowId][instance] === undefined)) {
+                if (context.updateSets[windowId] === undefined) { context.updateSets[windowId] = {}; }
+                if (context.updateSets[windowId][instance] === undefined) { context.updateSets[windowId][instance] = {}; }
+                // if content script is active in this tab and we didn't get current update set yet, retrieve it
+                chrome.tabs.sendMessage(tab.id, {"command": "getUpdateSet"}, (response) => {
+                    console.log(response);
+                    if (response.current && response.current.name) {
+                        context.updateSets[windowId][instance] = response;
+                        document.querySelector("span.update-set[data-instance='" + instance + "'][data-window-id='" + windowId + "']").innerText = response.current.name;
+                    }
+                });
+            }
         }
 
         // hide "reopen in frame"

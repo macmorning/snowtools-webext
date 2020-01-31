@@ -9,6 +9,8 @@ This extension was built to help ServiceNow developpers with every day tasks, on
 * scan instance for nodes and show current node
 * switch to a specific instance node
 * search for keywords on docs & api sites of servicenow.com with autocomplete for classes and methods
+* open an existing tab on another known instance to compare objects
+* save your settings in your browser's cloud storage, if you want to
 
 To do:
 * ... who knows? Post an enhancement request! 

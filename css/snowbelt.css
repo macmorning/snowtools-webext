@@ -25,8 +25,7 @@ form#options-form {
     margin-top: 3px;
     width: 98%;
     min-width: 550px;
-    height: 400px;
-    max-height: 400px;
+    max-height: 450px;
 }
 div#knownInstances {
     padding: 3px;
@@ -73,19 +72,6 @@ img.whatsnew {
 button#whatsnewRemember {
     margin-top: 10px;
 }
-div.tips {
-    width: 95%;
-    max-width: 400px;
-    margin: auto;
-    text-align:center;
-    line-height: 1.4em;
-    display: none;
-}
-div.tips img {
-    display: inline-block;
-    width: 30px;
-    margin: auto;
-}
 img#config {
     right: 30px;
 }
@@ -95,26 +81,58 @@ img#help {
 img#open_in_panel {
     right: 110px;
 }
+p#tip {
+    opacity: 1;
+    transition: opacity 0.3s; 
+    text-align:center;
+    height: 150px;
+}
+div.tips {
+    opacity: 1;
+}
+div#tipsContainer {
+    width: 95%;
+    max-width: 450px;
+    margin: auto;
+    text-align:center;
+    line-height: 1.4em;
+    display: block;
+}
+div.tips ul {
+    text-align:left;
+}
+div.tips img {
+    display: inline-block;
+    width: 30px;
+    margin: auto;
+}
+div.tips #nextTip {
+    display: block;
+    position: absolute;
+    right: 60px;
+    top: 210px;
+    width: 25px;
+    cursor: pointer;
+}
 #messages {
     text-align: center;
     font-weight: bold;
     opacity: 1;
     transition: opacity 0.4s; 
 }
-#messages.fade {
-    opacity: 0;
-}
 #messages_container {
     padding: 5px;
     text-align: center;
     font-weight: bold;
 }
-#messages_container #messages_more {
-    visibility:hidden;
-}
 #messages_details {
-    text-align: center;
+    text-align: left;
     font-size: smaller;
+    visibility: hidden;
+    resize: none;
+}
+.fade {
+    opacity: 0 !important;
 }
 div#search {
     font-size: smaller;
