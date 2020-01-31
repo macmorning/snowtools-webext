@@ -7,6 +7,11 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.2.0',
+        msg: "Most notable new features:<br/>" +
+            "<ul><li>New shortcut: switch between technical names and labels in lists and forms (UI16). Make sure you configure your shortcuts in " + (isChrome ? chromeShortcutsURL : firefoxShortcutsURL) + "</li>"+
+            "<li>[Chrome only] Display the actual current update set for each window/instance pair. This feature must be enabled in the options page.</li></ul>"
+    },{ 
         version: '4.1.0',
         msg: "Most notable new features:<br/>" +
             "<ul><li>Dropped the 'all_urls' permission requirement.</li>" +

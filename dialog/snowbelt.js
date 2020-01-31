@@ -10,9 +10,11 @@ const context = {
     instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
     knownNodes: {},
     tempInformations: {}, // store temporary data per instance, such as nodes and updates
+    showUpdatesets: false,
     useSync: false,
     storageArea: {},
-    commands: {}
+    commands: {},
+    updateSets: {} // one value per window and instance
 };
 
 /**
@@ -422,9 +424,10 @@ const getOptions = () => {
     chrome.storage.local.get("useSync",(result1) => {
         context.useSync = result1.useSync;
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions","showUpdatesets"], (result) => {
             context.urlFilters = result.urlFilters || "service-now.com";
             context.urlFiltersArr = context.urlFilters.split(";");
+            context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true);
             try {
                 context.knownInstances = JSON.parse(result.knownInstances);
             } catch (e) {
@@ -824,6 +827,19 @@ const updateTabInfo = (instance, windowId, index) => {
             tab.snt_type = response.type;
             tab.snt_details = response.details;
             tab.snt_tabs = response.tabs;
+            
+            if (isChrome && context.showUpdatesets && (context.updateSets[windowId] === undefined || context.updateSets[windowId][instance] === undefined)) {
+                if (context.updateSets[windowId] === undefined) { context.updateSets[windowId] = {}; }
+                if (context.updateSets[windowId][instance] === undefined) { context.updateSets[windowId][instance] = {}; }
+                // if content script is active in this tab and we didn't get current update set yet, retrieve it
+                chrome.tabs.sendMessage(tab.id, {"command": "getUpdateSet"}, (response) => {
+                    console.log(response);
+                    if (response.current && response.current.name) {
+                        context.updateSets[windowId][instance] = response;
+                        document.querySelector("span.update-set[data-instance='" + instance + "'][data-window-id='" + windowId + "']").innerText = response.current.name;
+                    }
+                });
+            }
         }
 
         // hide "reopen in frame"

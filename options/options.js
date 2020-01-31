@@ -14,23 +14,20 @@ const displayMessage = (txt, details) => {
     if (details === undefined) { details = ""; }
 
     let messages = document.getElementById("messages");
-    let messagesMore = document.getElementById("messages_more");
     let messagesDetails = document.getElementById("messages_details");
 
     messages.innerHTML = "&nbsp;";
-    messagesDetails.innerHTML = "&nbsp;";
-    messagesMore.style.visibility = "hidden";
+    messagesDetails.innerText = "&nbsp;";
+    messagesDetails.style.visibility = "hidden";
 
     window.setTimeout(() => {
         messages.innerHTML = txt;
+        location.hash = "messagePopin";
         if (details) {
-            messagesMore.style.visibility = "visible";
-            messagesMore.style.cursor = "pointer";
-            messagesMore.onclick = (evt) => {
-                messagesDetails.innerHTML = details;
-            };
+            messagesDetails.innerText = details;
+            messagesDetails.style.visibility = "visible";
         }
-    }, 500);
+    }, 100);
 };
 
 /**
@@ -73,9 +70,10 @@ const restoreOptions = () => {
         document.getElementById("useSync").checked = context.useSync;
         // load options from storage area depending on the useSync setting
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
+        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
             document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
             document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
+            document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true);
             try {
                 if (result.knownInstances !== undefined) { context.knownInstances = JSON.parse(result.knownInstances); }
                 else { context.knownInstances = {}; }
@@ -240,7 +238,7 @@ const saveInstanceOptions = () => {
         context.storageArea.set({
             "instanceOptions": JSON.stringify(context.instanceOptions)
         }, () => {
-            displayMessage("Options saved!");
+            displayMessage("Options saved");
             console.log("Saved instance options");
         });
     } catch (e) {
@@ -262,6 +260,7 @@ const saveOptions = (evt) => {
         context.urlFilters = document.getElementById("urlFilters").value.replace(regex, "").replace(regex2, "");
         context.autoFrame = document.getElementById("autoFrame").checked;
         context.useSync = document.getElementById("useSync").checked;
+        context.showUpdatesets = document.getElementById("showUpdatesets").checked;
         document.getElementById("urlFilters").value = context.urlFilters;
 
         for (var key in context.knownInstances) {
@@ -276,7 +275,8 @@ const saveOptions = (evt) => {
             "knownInstances": JSON.stringify(context.knownInstances),
             "instanceOptions": JSON.stringify(context.instanceOptions),
             "urlFilters": context.urlFilters,
-            "autoFrame": context.autoFrame
+            "autoFrame": context.autoFrame,
+            "showUpdatesets" : context.showUpdatesets
         }, () => {
             displayMessage("Options saved!");
         });
@@ -292,7 +292,7 @@ const saveOptions = (evt) => {
 const exportOptions = (evt) => {
     evt.preventDefault();
 
-    context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions"], (result) => {
+    context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
         // let string = encodeURIComponent(JSON.stringify(result));
         var blob = new Blob([JSON.stringify(result)], {type: "application/json;charset=utf-8"});
         try {
@@ -332,6 +332,7 @@ const importOptions = (evt) => {
                     "instanceOptions": obj.instanceOptions,
                     "urlFilters": obj.urlFilters,
                     "autoFrame": obj.autoFrame,
+                    "showUpdatesets": obj.showUpdatesets
                 }, () => {
                     displayMessage("Options restored from file");
                     restoreOptions();

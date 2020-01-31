@@ -1,5 +1,32 @@
 const isChrome = (typeof browser === "undefined");
 
+
+/**
+ * Changes field labels to technical names and the other way round
+ */
+function switchFieldNames() {
+    // this is *very* DOM dependent and could break anyday if ServiceNow changes the structure of their pages
+    let doc = (document.getElementsByTagName("iframe")[0] ? document.getElementsByTagName("iframe")[0].contentWindow.document : document);
+    // for [related] lists
+    let fields = doc.querySelectorAll("[glide_field]");
+    [].forEach.call(fields, (el) => {
+        childEl = el.querySelector("span a");
+        childEl.innerText = (childEl.innerText === el.getAttribute("glide_field")) ? el.getAttribute("glide_label") : el.getAttribute("glide_field");
+    });
+    // for forms
+    fields = doc.querySelectorAll("label[for].control-label");
+    [].forEach.call(fields, (el) => {
+        childEl = el.querySelector("span.label-text");
+        if (el.getAttribute("data-sntb-name") && el.getAttribute("data-sntb-name") !== childEl.innerText) {
+            childEl.innerText = el.getAttribute("data-sntb-name");
+        } else {
+            el.setAttribute("data-sntb-name", childEl.innerText);   // save original name into a custom attribute
+            childEl.innerText = el.getAttribute("for").replace("sys_display.","").replace("select_0","");
+        }
+    });
+    // for workspace?
+    // much harder because of shadow-roots; would it be useful anyway? Admins can just use classic UI form and display workspace view.
+}
 /**
  * Parses the stats page and extracts the node name
  * @param {string} text The text to extract the node name from
@@ -105,7 +132,8 @@ function updateFavicon (color) {
                 console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
                 let instanceName = window.location.hostname;
                 let host = window.location.host;
-                let url = new Request("https://" + host + "/stats.do");
+                let statsUrl = new Request("https://" + host + "/stats.do");
+                /* No need to search for g_ck for now
                 let g_ck = "";
                 try {
                     if (window.g_ck) {
@@ -119,8 +147,8 @@ function updateFavicon (color) {
                         g_ck = document.getElementsByTagName("iframe")[0].contentWindow.document.getElementById("sysparm_ck").value;
                     }
                 } catch(e) {
-                    console.log("*SNOW TOOL BELT* could not find g_ck token");
-                }
+                    // we could not find a g_ck token, no REST call can be made from this instance of the content script
+                }*/
                 if (request.command === "updateFavicon") {
                     /**
                     *  change Favicon color
@@ -132,23 +160,24 @@ function updateFavicon (color) {
                      */
                     let response = getTabInfo();
                     sendResponse(response);
-                } else if (request.command === "getUpdateSet") {
+                } else if (request.command === "execute-fieldnames") {
                     /**
-                    *  getUpdateSet
-                    */
-                    if (!g_ck) {
-                        sendResponse({"updateSet": "", "current": "", "status": 200});
-                        return false;
-                    }
+                     *  switch fieldnames/labels
+                     */
+                    sendResponse(true);
+                    switchFieldNames();
+                } else if (request.command === "getUpdateSet") {
                     console.log("*SNOW TOOL BELT* getting update set informations");
+
                     let concourseUrl = new Request("https://" + host + "/api/now/ui/concoursepicker/updateset");
                     let headers = new Headers();
-                    headers.append('X-UserToken', g_ck);
                     headers.append('Content-Type', 'application/json');
                     headers.append('Accept', 'application/json');
                     headers.append('Cache-Control', 'no-cache');
+                    headers.append('Cache-Control', 'no-cache');
 
-                    fetch(concourseUrl, {headers: headers})
+                    // fetch(concourseUrl, {headers: headers})
+                    fetch(concourseUrl, {credentials: "same-origin", headers: headers})
                         .then(function(response) {
                             if (response.ok && response.status === 200) {
                                 return response.text().then(function (txt) {
@@ -175,7 +204,7 @@ function updateFavicon (color) {
                     // let scans = 0;
                     // let maxScans = 50;
                     let nodes = [];
-                    fetch(url, {credentials: "same-origin"})
+                    fetch(statsUrl, {credentials: "same-origin"})
                         .then(function (response) {
                             if (response.ok && response.status === 200) {
                                 return response.text().then(function (text) {
@@ -234,7 +263,7 @@ function updateFavicon (color) {
                     let maxTries = 50;
                     let tries = 0;
                     let tryAgain = function () {
-                        fetch(url, {credentials: "same-origin"})
+                        fetch(statsUrl, {credentials: "same-origin"})
                             .then(function (response) {
                                 if (response.ok && response.status === 200) {
                                     return response.text();
@@ -260,7 +289,7 @@ function updateFavicon (color) {
                             });
                     };
 
-                    fetch(url, {credentials: "same-origin"})
+                    fetch(statsUrl, {credentials: "same-origin"})
                         .then(function (response) {
                             if (response.ok && response.status === 200) {
                                 return response.text();

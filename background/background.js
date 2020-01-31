@@ -141,6 +141,8 @@ const cmdListener = (command) => {
         currentTab = tabs[0];
         if (command === "execute-reframe") {
             popIn(currentTab.id);
+        } else if (command === "execute-fieldnames") {
+            chrome.tabs.sendMessage(currentTab.id, { "command": command });
         }
     });
 }

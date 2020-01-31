@@ -25,8 +25,7 @@ form#options-form {
     margin-top: 3px;
     width: 98%;
     min-width: 550px;
-    height: 400px;
-    max-height: 400px;
+    max-height: 450px;
 }
 div#knownInstances {
     padding: 3px;
@@ -126,12 +125,11 @@ div.tips #nextTip {
     text-align: center;
     font-weight: bold;
 }
-#messages_container #messages_more {
-    visibility:hidden;
-}
 #messages_details {
-    text-align: center;
+    text-align: left;
     font-size: smaller;
+    visibility: hidden;
+    resize: none;
 }
 .fade {
     opacity: 0 !important;
