@@ -134,6 +134,9 @@ div.tips #nextTip {
 .fade {
     opacity: 0 !important;
 }
+.fade {
+    opacity: 0 !important;
+}
 div#search {
     font-size: smaller;
     height: 35px;

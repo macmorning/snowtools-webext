@@ -1,6 +1,5 @@
 const isChrome = (typeof browser === "undefined");
 
-
 /**
  * Changes field labels to technical names and the other way round
  */
