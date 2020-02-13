@@ -427,7 +427,7 @@ const getOptions = () => {
         context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions","showUpdatesets"], (result) => {
             context.urlFilters = result.urlFilters || "service-now.com";
             context.urlFiltersArr = context.urlFilters.split(";");
-            context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true);
+            // context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true);
             try {
                 context.knownInstances = JSON.parse(result.knownInstances);
             } catch (e) {
@@ -606,7 +606,8 @@ const refreshList = () => {
                 context.clicked = e.target;
                 let items = [
                     { title: "&#8681; Nodes", fn: scanNodes },
-                    { title: "&#10000; Rename", fn: renameInstance }
+                    { title: "&#10000; Script", fn: openBackgroundScriptWindow },
+                    { title: "&#9088; Rename", fn: renameInstance }
                 ];
                 basicContext.show(items, e);
             });
@@ -758,12 +759,15 @@ const refreshNodes = (instance, evt) => {
  */
 const transformTitle = (title) => {
     let splittedName = title.toString().split("|");
+    console.log(splittedName);
     if (splittedName.length === 3) {
         // this is a specific object
         return splittedName[1].toString().trim() + " - " + splittedName[0].toString().trim();
     } else if (splittedName.length === 2) {
         // this is a list of objects
         return splittedName[0].toString().trim();
+    } else if (splittedName[0].indexOf("sys.scripts.do") > -1) {
+        return "Background script";
     } else {
         return title;
     }
@@ -821,7 +825,7 @@ const updateTabInfo = (instance, windowId, index) => {
     let url = new URL(tab.url);
     chrome.tabs.sendMessage(tab.id, {"command": "getTabInfo"}, (response) => {
         if (!response && chrome.runtime.lastError) {
-            console.warn("tab " + index + " > " + chrome.runtime.lastError.message);
+            // console.warn("tab " + index + " > " + chrome.runtime.lastError.message);
             tab.snt_type = "non responsive";
         } else {
             tab.snt_type = response.type;
@@ -963,14 +967,39 @@ const setActiveTab = () => {
     });
 };
 
+/**
+ * Opens a new background script window on target instance
+ * @param {object} evt the event that triggered the action
+ */
+const openBackgroundScriptWindow = (evt) => {
+
+    let targetInstance = "";
+    let windowId = context.windowId;
+    if (evt.target.getAttribute("data-instance")) {
+        targetInstance = evt.target.getAttribute("data-instance");
+        windowId = evt.target.getAttribute("data-window-id");
+    } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
+        targetInstance = context.clicked.getAttribute("data-instance");
+        windowId = context.clicked.getAttribute("data-window-id");
+    }
+
+    let createData = {
+        type: "popup",
+        url: "https://" + targetInstance + "/sys.scripts.do",
+        width: 700,
+        height: 500
+    };
+    let creating = chrome.windows.create(createData);
+}
+
 const openInPanel = () => {
-        let createData = {
-            type: "popup",
-            url: (isChrome ? "dialog/snowbelt.html" : "snowbelt.html"),
-            width: 700,
-            height: 500
-        };
-        let creating = chrome.windows.create(createData);
+    let createData = {
+        type: "popup",
+        url: (isChrome ? "dialog/snowbelt.html" : "snowbelt.html"),
+        width: 700,
+        height: 500
+    };
+    let creating = chrome.windows.create(createData);
 }
 
 const openOptions = () => {
@@ -1013,9 +1042,14 @@ const bootStrap = () => {
         }
     });
     let getWindows = (windows) => {
-        windows.forEach((window) => {
+        windows.forEach((window) => {            
             if (window.incognito) {
-                document.querySelector("span[data-window-id='" + window.id + "'].incognito").style.display = "inline";
+                let elements = document.querySelectorAll("span[data-window-id='" + window.id + "'].incognito");
+                if (elements.length > 0) {
+                    [].forEach.call(elements, (el) => {
+                        el.style.display = "inline";
+                    });
+                }
             }
         });
     }; 

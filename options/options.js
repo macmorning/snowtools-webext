@@ -73,7 +73,7 @@ const restoreOptions = () => {
         context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
             document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
             document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
-            document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true);
+            //document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true);
             try {
                 if (result.knownInstances !== undefined) { context.knownInstances = JSON.parse(result.knownInstances); }
                 else { context.knownInstances = {}; }
@@ -260,7 +260,7 @@ const saveOptions = (evt) => {
         context.urlFilters = document.getElementById("urlFilters").value.replace(regex, "").replace(regex2, "");
         context.autoFrame = document.getElementById("autoFrame").checked;
         context.useSync = document.getElementById("useSync").checked;
-        context.showUpdatesets = document.getElementById("showUpdatesets").checked;
+        //context.showUpdatesets = document.getElementById("showUpdatesets").checked;
         document.getElementById("urlFilters").value = context.urlFilters;
 
         for (var key in context.knownInstances) {

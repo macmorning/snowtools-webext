@@ -7,10 +7,18 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.2.1',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Fixed: the incognito window indicator was only shown for the first instance in this window.</li>"+
+            "<li>Removed: the show updateset Chrome-only feature had some annoying auth issues. Need to rethink it.</li>"+
+            "<li>Open a background script window: via the <b>instance contextual menu</b> or with a <b>new shortcut</b>. Make sure you configure your shortcuts in " + (isChrome ? chromeShortcutsURL : firefoxShortcutsURL) + ".</li>"+
+            "</ul>"
+    },{ 
         version: '4.2.0',
         msg: "Most notable new features:<br/>" +
             "<ul><li>New shortcut: switch between technical names and labels in lists and forms (UI16). Make sure you configure your shortcuts in " + (isChrome ? chromeShortcutsURL : firefoxShortcutsURL) + "</li>"+
-            "<li>[Chrome only] Display the actual current update set for each window/instance pair. This feature must be enabled in the options page.</li></ul>"
+            "</ul>"
     },{ 
         version: '4.1.0',
         msg: "Most notable new features:<br/>" +

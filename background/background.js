@@ -121,6 +121,24 @@ const popIn = (tabid) => {
 };
 
 /**
+ * Opens a new background script window on target instance
+ * @param {String} tab The tab from which the command was sent
+ */
+const openBackgroundScriptWindow = (tabid) => {
+    tabid = parseInt(tabid);
+    chrome.tabs.get(tabid, (tab) => {
+        let url = new URL(tab.url);
+        let createData = {
+            type: "popup",
+            url: "https://" + url.host + "/sys.scripts.do",
+            width: 700,
+            height: 700
+        };
+        let creating = chrome.windows.create(createData);
+    });
+}
+
+/**
  * Handles a change event coming from storage
  * @param {Object} objChanged an object that contains the items that changed with newValue and oldValue
  * @param {String} area Storage area (should be "sync")
@@ -143,6 +161,8 @@ const cmdListener = (command) => {
             popIn(currentTab.id);
         } else if (command === "execute-fieldnames") {
             chrome.tabs.sendMessage(currentTab.id, { "command": command });
+        } else if (command === "execute-backgroundscript") {
+            openBackgroundScriptWindow(currentTab.id);
         }
     });
 }
