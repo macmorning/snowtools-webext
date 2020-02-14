@@ -132,7 +132,7 @@ const openBackgroundScriptWindow = (tabid) => {
             type: "popup",
             url: "https://" + url.host + "/sys.scripts.do",
             width: 700,
-            height: 700
+            height: 500
         };
         let creating = chrome.windows.create(createData);
     });

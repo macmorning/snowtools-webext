@@ -82,6 +82,36 @@ function getTabInfo () {
  * @returns {boolean} true if work was done
  */
 function updateFavicon (color) {
+    let title = document.querySelector("title");
+    if (!title) { 
+        title = document.createElement("title");
+        document.head.appendChild(title);
+    }
+    if (window.location.pathname.indexOf("sys.scripts.do") > -1 || window.location.search.indexOf("sys.scripts.do") > -1) {
+        title.innerText = "Background Script";
+        let frame = document.getElementById("gsft_main");
+        let targetWindow = frame ? frame.contentWindow : window;
+        if (!targetWindow.codeMirrorLoaded) {
+            console.warn(">>>>>>>> loading");
+            targetWindow.codeMirrorLoaded = true;
+            let codeCSS = targetWindow.document.createElement("link");
+            codeCSS.setAttribute("href", chrome.runtime.getURL("/libs/codemirror/codemirror.css"));
+            codeCSS.setAttribute("rel", "stylesheet");
+            targetWindow.document.head.appendChild(codeCSS);
+            let codeJS = targetWindow.document.createElement("script");
+            codeJS.setAttribute("src",chrome.runtime.getURL("/libs/codemirror/codemirror.js"));
+            codeJS.onload = () => {
+                let jsJS = targetWindow.document.createElement("script");
+                jsJS.setAttribute("src",chrome.runtime.getURL("/libs/codemirror/javascript.js"));
+                targetWindow.document.head.appendChild(jsJS);
+                let injectedJS = targetWindow.document.createElement("script");
+                injectedJS.setAttribute("src",chrome.runtime.getURL("/content-script/injected.js"));
+                targetWindow.document.head.appendChild(injectedJS);
+            }
+            targetWindow.document.head.appendChild(codeJS);
+        }
+    } 
+
     console.log("*SNOW TOOL BELT* update favicon color to: " + color);
     if (color === undefined || color === "") {
         return true;
