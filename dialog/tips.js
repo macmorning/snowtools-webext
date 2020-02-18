@@ -7,6 +7,15 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.3.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Background script popup: Added a 'back' button. Note that you can use the alt+left shortcut to do the same.</li>"+
+            "<li>Background script popup: Added the CodeMirror editor to the script textarea.</li>"+
+            "<li></li>"+
+            "</ul>"+
+            "<b>Note:</b> if you're a developer, you may want to try <a href='https://docs.servicenow.com/bundle/orlando-application-development/page/build/applications/task/vscode-background-script.html' target='_blank'>the official VSCode extension</a> that ServiceNow provides."
+    },{ 
         version: '4.2.1',
         msg: "Most notable changes:<br/>" +
             "<ul>"+

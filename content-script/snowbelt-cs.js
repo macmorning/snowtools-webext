@@ -1,5 +1,7 @@
 const isChrome = (typeof browser === "undefined");
-
+const context = {
+    g_ck: ""
+}
 /**
  * Changes field labels to technical names and the other way round
  */
@@ -76,48 +78,95 @@ function getTabInfo () {
     }
     return response;
 }
+
+/**
+ * Initializes all content script features 
+ * @param {object} response the response object that was sent by the background script
+ * @returns {boolean} true if work was done
+ */
+function initScript (response) {
+    let frame = document.getElementById("gsft_main");
+    let targetWindow = frame ? frame.contentWindow : window;
+    console.log(targetWindow);
+    if (response.favIconColor !== undefined) {
+        updateFavicon(response.favIconColor);
+    }
+
+    // get session identifier "g_ck" from page
+    window.addEventListener("message", function(event) {
+        if (event.source == window &&
+            event.data.direction &&
+            event.data.direction == "from-page-script") {
+            context.g_ck = event.data.message;
+        }
+        console.log(context.g_ck);
+    });
+    let getSessionJS = window.document.createElement("script");
+    getSessionJS.setAttribute("src",chrome.runtime.getURL("/content-script/getSession.js"));
+    window.document.head.appendChild(getSessionJS);
+
+    // Handle the background script popup case
+    let title = document.querySelector("title");
+    if (!title) { 
+        title = document.createElement("title");
+        document.head.appendChild(title);
+    }
+
+    /*if (window.location.pathname.indexOf("sys.scripts.do") > -1) {
+        title.innerText = "Background Script";
+        let backBtn = document.getElementById("snowtools-backbtn");
+        if (!backBtn) {
+            backBtn = document.createElement("button");
+            backBtn.id = "snowtools-backbtn";
+            backBtn.style = "cursor: pointer;top:7px; right: 7px; position: fixed;";
+            backBtn.innerHTML = "&#8678; back";
+            backBtn.onclick = (evt) => { window.history.back(); };
+            document.body.appendChild(backBtn);
+        }
+
+        if (!targetWindow.codeMirrorLoaded) {
+            targetWindow.codeMirrorLoaded = true;
+            let codeCSS = targetWindow.document.createElement("link");
+            codeCSS.setAttribute("href", "/styles/GlideEditor5Includes.cssx?v=01-12-2020_1944");
+            codeCSS.setAttribute("rel", "stylesheet");
+            targetWindow.document.head.appendChild(codeCSS);
+            let doctypeJS = targetWindow.document.createElement("script");
+            doctypeJS.setAttribute("src","/scripts/doctype/js_includes_doctype.jsx");
+            doctypeJS.onload = () => {
+                console.warn('onload doctype');
+                let codeJS = targetWindow.document.createElement("script");
+                codeJS.setAttribute("src","/scripts/GlideEditor5Includes.jsx");
+                codeJS.onload = () => {
+                    console.warn('onload codejs');
+                    let codeJavascriptJS = targetWindow.document.createElement("script");
+                    codeJavascriptJS.setAttribute("src","/scripts/snc-code-editor/codemirror/mode/javascript/javascript.js");
+                    codeJavascriptJS.onload = () => {
+                        console.warn('onload codejavascript');
+                        let injectedJS = targetWindow.document.createElement("script");
+                        injectedJS.setAttribute("src",chrome.runtime.getURL("/content-script/activateCodeMirror.js"));
+                        targetWindow.document.head.appendChild(injectedJS);
+                    }
+                    targetWindow.document.head.appendChild(codeJavascriptJS);
+                }
+                targetWindow.document.head.appendChild(codeJS);
+            }
+            targetWindow.document.head.appendChild(doctypeJS);
+        }
+    } */
+
+}
+
 /**
  * Paints the favicon with a specific color
  * @param {string} color value
  * @returns {boolean} true if work was done
  */
 function updateFavicon (color) {
-    let title = document.querySelector("title");
-    if (!title) { 
-        title = document.createElement("title");
-        document.head.appendChild(title);
-    }
-    if (window.location.pathname.indexOf("sys.scripts.do") > -1 || window.location.search.indexOf("sys.scripts.do") > -1) {
-        title.innerText = "Background Script";
-        let frame = document.getElementById("gsft_main");
-        let targetWindow = frame ? frame.contentWindow : window;
-        if (!targetWindow.codeMirrorLoaded) {
-            console.warn(">>>>>>>> loading");
-            targetWindow.codeMirrorLoaded = true;
-            let codeCSS = targetWindow.document.createElement("link");
-            codeCSS.setAttribute("href", chrome.runtime.getURL("/libs/codemirror/codemirror.css"));
-            codeCSS.setAttribute("rel", "stylesheet");
-            targetWindow.document.head.appendChild(codeCSS);
-            let codeJS = targetWindow.document.createElement("script");
-            codeJS.setAttribute("src",chrome.runtime.getURL("/libs/codemirror/codemirror.js"));
-            codeJS.onload = () => {
-                let jsJS = targetWindow.document.createElement("script");
-                jsJS.setAttribute("src",chrome.runtime.getURL("/libs/codemirror/javascript.js"));
-                targetWindow.document.head.appendChild(jsJS);
-                let injectedJS = targetWindow.document.createElement("script");
-                injectedJS.setAttribute("src",chrome.runtime.getURL("/content-script/injected.js"));
-                targetWindow.document.head.appendChild(injectedJS);
-            }
-            targetWindow.document.head.appendChild(codeJS);
-        }
-    } 
-
     console.log("*SNOW TOOL BELT* update favicon color to: " + color);
     if (color === undefined || color === "") {
         return true;
     }
     let link = document.querySelector("link[rel~='icon']");
-    // console.log(link);
     if (!link) {
         link = document.createElement("link");
         link.setAttribute("rel", "shortcut icon");
@@ -152,9 +201,7 @@ function updateFavicon (color) {
         if (response === undefined || response.isServiceNow === false) {
             console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
         } else {
-            if (response.favIconColor !== undefined) {
-                updateFavicon(response.favIconColor);
-            }
+            initScript(response);
 
             // Defining how to react to messages coming from the background script or the browser action
             chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
@@ -162,6 +209,7 @@ function updateFavicon (color) {
                 let instanceName = window.location.hostname;
                 let host = window.location.host;
                 let statsUrl = new Request("https://" + host + "/stats.do");
+
                 /* No need to search for g_ck for now
                 let g_ck = "";
                 try {

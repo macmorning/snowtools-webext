@@ -766,8 +766,6 @@ const transformTitle = (title) => {
     } else if (splittedName.length === 2) {
         // this is a list of objects
         return splittedName[0].toString().trim();
-    } else if (splittedName[0].indexOf("sys.scripts.do") > -1) {
-        return "Background script";
     } else {
         return title;
     }
