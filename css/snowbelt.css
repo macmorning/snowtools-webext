@@ -2,6 +2,7 @@
     --main-bg-color: #F7F7F7;
     --main-color: #293E40;
     --secondary-color: #000000;
+    --muted-color:#81B5A1;
     --alt-bg-color: #e7e7e7;
     --disabled-color: #cecece;
     --btn-color: var(--main-color);
@@ -154,9 +155,11 @@ div#search button {
     font-size: normal;
     font-weight: normal;
 }
-span.updateset {
-    display: inline-block;
-    max-width: 200px;
+.updateset {
+    display: none;
+    color: var(--muted-color);
+    margin-left: 56px;
+    max-width: 450px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

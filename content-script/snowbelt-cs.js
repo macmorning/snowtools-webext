@@ -1,5 +1,7 @@
 const isChrome = (typeof browser === "undefined");
-
+const context = {
+    g_ck: ""
+}
 /**
  * Changes field labels to technical names and the other way round
  */
@@ -76,6 +78,40 @@ function getTabInfo () {
     }
     return response;
 }
+
+/**
+ * Initializes all content script features 
+ * @param {object} response the response object that was sent by the background script
+ * @returns {boolean} true if work was done
+ */
+function initScript (response) {
+    let frame = document.getElementById("gsft_main");
+    let targetWindow = frame ? frame.contentWindow : window;
+    console.log(targetWindow);
+    if (response.favIconColor !== undefined) {
+        updateFavicon(response.favIconColor);
+    }
+
+    // get session identifier "g_ck" from page
+    window.addEventListener("message", function(event) {
+        if (event.source == window &&
+            event.data.direction &&
+            event.data.direction == "from-snow-page-script") {
+            context.g_ck = event.data.message;
+        }
+    });
+    let getSessionJS = window.document.createElement("script");
+    getSessionJS.setAttribute("src",chrome.runtime.getURL("/content-script/getSession.js"));
+    window.document.head.appendChild(getSessionJS);
+
+    // Handle the background script popup case
+    let title = document.querySelector("title");
+    if (!title) { 
+        title = document.createElement("title");
+        document.head.appendChild(title);
+    }
+}
+
 /**
  * Paints the favicon with a specific color
  * @param {string} color value
@@ -87,7 +123,6 @@ function updateFavicon (color) {
         return true;
     }
     let link = document.querySelector("link[rel~='icon']");
-    // console.log(link);
     if (!link) {
         link = document.createElement("link");
         link.setAttribute("rel", "shortcut icon");
@@ -122,9 +157,7 @@ function updateFavicon (color) {
         if (response === undefined || response.isServiceNow === false) {
             console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
         } else {
-            if (response.favIconColor !== undefined) {
-                updateFavicon(response.favIconColor);
-            }
+            initScript(response);
 
             // Defining how to react to messages coming from the background script or the browser action
             chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
@@ -132,6 +165,7 @@ function updateFavicon (color) {
                 let instanceName = window.location.hostname;
                 let host = window.location.host;
                 let statsUrl = new Request("https://" + host + "/stats.do");
+
                 /* No need to search for g_ck for now
                 let g_ck = "";
                 try {
@@ -167,21 +201,26 @@ function updateFavicon (color) {
                     switchFieldNames();
                 } else if (request.command === "getUpdateSet") {
                     console.log("*SNOW TOOL BELT* getting update set informations");
-
+                    if (!context.g_ck) {
+                        sendResponse({"updateSet": "", "current": "", "status": 200});
+                        return false;
+                    }
+                    console.log("*SNOW TOOL BELT* getting update set informations");
                     let concourseUrl = new Request("https://" + host + "/api/now/ui/concoursepicker/updateset");
                     let headers = new Headers();
                     headers.append('Content-Type', 'application/json');
                     headers.append('Accept', 'application/json');
                     headers.append('Cache-Control', 'no-cache');
-                    headers.append('Cache-Control', 'no-cache');
+                    headers.append('X-UserToken', context.g_ck);
 
                     // fetch(concourseUrl, {headers: headers})
-                    fetch(concourseUrl, {credentials: "same-origin", headers: headers})
+                    fetch(concourseUrl, {headers: headers})
                         .then(function(response) {
                             if (response.ok && response.status === 200) {
                                 return response.text().then(function (txt) {
                                         try {
                                             let parsed = JSON.parse(txt).result;
+                                            console.warn(parsed);
                                             sendResponse({"updateSet": parsed.updateSet, "current": parsed.current, "status": 200});
                                         } catch(e) {
                                             console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);

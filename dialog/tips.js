@@ -7,6 +7,12 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.3.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Added the show update set option for all browsers to display the <b>actual</b> current update set in each instance window. You can disable this feature in the options page.</li>"+
+            "</ul>"
+    },{ 
         version: '4.2.1',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
