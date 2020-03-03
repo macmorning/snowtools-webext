@@ -10,7 +10,7 @@ const context = {
     instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
     knownNodes: {},
     tempInformations: {}, // store temporary data per instance, such as nodes and updates
-    showUpdatesets: false,
+    showUpdatesets: true,
     useSync: false,
     storageArea: {},
     commands: {},
@@ -427,7 +427,7 @@ const getOptions = () => {
         context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions","showUpdatesets"], (result) => {
             context.urlFilters = result.urlFilters || "service-now.com";
             context.urlFiltersArr = context.urlFilters.split(";");
-            // context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true);
+            context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
             try {
                 context.knownInstances = JSON.parse(result.knownInstances);
             } catch (e) {
@@ -687,6 +687,14 @@ const refreshList = () => {
                 });
             }
         }
+
+        // Update set indicator
+        if (context.showUpdatesets) {
+            elements = document.querySelectorAll(".updateset");
+            [].forEach.call(elements, (el) => {
+                el.style.display = "block";
+            });        
+        }    
     }
 };
 
@@ -759,7 +767,6 @@ const refreshNodes = (instance, evt) => {
  */
 const transformTitle = (title) => {
     let splittedName = title.toString().split("|");
-    console.log(splittedName);
     if (splittedName.length === 3) {
         // this is a specific object
         return splittedName[1].toString().trim() + " - " + splittedName[0].toString().trim();
@@ -830,17 +837,21 @@ const updateTabInfo = (instance, windowId, index) => {
             tab.snt_details = response.details;
             tab.snt_tabs = response.tabs;
             
-            if (isChrome && context.showUpdatesets && (context.updateSets[windowId] === undefined || context.updateSets[windowId][instance] === undefined)) {
+            if (context.showUpdatesets && (context.updateSets[windowId] === undefined || context.updateSets[windowId][instance] === undefined)) {
                 if (context.updateSets[windowId] === undefined) { context.updateSets[windowId] = {}; }
                 if (context.updateSets[windowId][instance] === undefined) { context.updateSets[windowId][instance] = {}; }
                 // if content script is active in this tab and we didn't get current update set yet, retrieve it
                 chrome.tabs.sendMessage(tab.id, {"command": "getUpdateSet"}, (response) => {
-                    console.log(response);
+                    let current = "";
                     if (response.current && response.current.name) {
                         context.updateSets[windowId][instance] = response;
-                        document.querySelector("span.update-set[data-instance='" + instance + "'][data-window-id='" + windowId + "']").innerText = response.current.name;
+                        current = response.current.name;
+                    } else {
+                        current = "unknown";
                     }
-                });
+                    document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").innerText = current;
+                    document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").title = current;
+            });
             }
         }
 

@@ -10,11 +10,8 @@ const whatsnew = [
         version: '4.3.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
-            "<li>Background script popup: Added a 'back' button. Note that you can use the alt+left shortcut to do the same.</li>"+
-            "<li>Background script popup: Added the CodeMirror editor to the script textarea.</li>"+
-            "<li></li>"+
-            "</ul>"+
-            "<b>Note:</b> if you're a developer, you may want to try <a href='https://docs.servicenow.com/bundle/orlando-application-development/page/build/applications/task/vscode-background-script.html' target='_blank'>the official VSCode extension</a> that ServiceNow provides."
+            "<li>Added the show update set option for all browsers to display the <b>actual</b> current update set in each instance window. You can disable this feature in the options page.</li>"+
+            "</ul>"
     },{ 
         version: '4.2.1',
         msg: "Most notable changes:<br/>" +

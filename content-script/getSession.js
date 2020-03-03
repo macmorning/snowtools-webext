@@ -1,8 +1,8 @@
-function sendSessionIdToContentScript() {
+sendSessionIdToContentScript = () => {
   window.postMessage({
-    direction: "from-page-script",
-    message: g_ck
+    direction: "from-snow-page-script",
+    message: (g_ck !== undefined ? g_ck : "")
   }, "*");
 }
-console.warn(">>>>>> " + g_ck);
+
 sendSessionIdToContentScript();

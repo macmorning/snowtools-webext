@@ -96,10 +96,9 @@ function initScript (response) {
     window.addEventListener("message", function(event) {
         if (event.source == window &&
             event.data.direction &&
-            event.data.direction == "from-page-script") {
+            event.data.direction == "from-snow-page-script") {
             context.g_ck = event.data.message;
         }
-        console.log(context.g_ck);
     });
     let getSessionJS = window.document.createElement("script");
     getSessionJS.setAttribute("src",chrome.runtime.getURL("/content-script/getSession.js"));
@@ -111,49 +110,6 @@ function initScript (response) {
         title = document.createElement("title");
         document.head.appendChild(title);
     }
-
-    /*if (window.location.pathname.indexOf("sys.scripts.do") > -1) {
-        title.innerText = "Background Script";
-        let backBtn = document.getElementById("snowtools-backbtn");
-        if (!backBtn) {
-            backBtn = document.createElement("button");
-            backBtn.id = "snowtools-backbtn";
-            backBtn.style = "cursor: pointer;top:7px; right: 7px; position: fixed;";
-            backBtn.innerHTML = "&#8678; back";
-            backBtn.onclick = (evt) => { window.history.back(); };
-            document.body.appendChild(backBtn);
-        }
-
-        if (!targetWindow.codeMirrorLoaded) {
-            targetWindow.codeMirrorLoaded = true;
-            let codeCSS = targetWindow.document.createElement("link");
-            codeCSS.setAttribute("href", "/styles/GlideEditor5Includes.cssx?v=01-12-2020_1944");
-            codeCSS.setAttribute("rel", "stylesheet");
-            targetWindow.document.head.appendChild(codeCSS);
-            let doctypeJS = targetWindow.document.createElement("script");
-            doctypeJS.setAttribute("src","/scripts/doctype/js_includes_doctype.jsx");
-            doctypeJS.onload = () => {
-                console.warn('onload doctype');
-                let codeJS = targetWindow.document.createElement("script");
-                codeJS.setAttribute("src","/scripts/GlideEditor5Includes.jsx");
-                codeJS.onload = () => {
-                    console.warn('onload codejs');
-                    let codeJavascriptJS = targetWindow.document.createElement("script");
-                    codeJavascriptJS.setAttribute("src","/scripts/snc-code-editor/codemirror/mode/javascript/javascript.js");
-                    codeJavascriptJS.onload = () => {
-                        console.warn('onload codejavascript');
-                        let injectedJS = targetWindow.document.createElement("script");
-                        injectedJS.setAttribute("src",chrome.runtime.getURL("/content-script/activateCodeMirror.js"));
-                        targetWindow.document.head.appendChild(injectedJS);
-                    }
-                    targetWindow.document.head.appendChild(codeJavascriptJS);
-                }
-                targetWindow.document.head.appendChild(codeJS);
-            }
-            targetWindow.document.head.appendChild(doctypeJS);
-        }
-    } */
-
 }
 
 /**
@@ -245,21 +201,26 @@ function updateFavicon (color) {
                     switchFieldNames();
                 } else if (request.command === "getUpdateSet") {
                     console.log("*SNOW TOOL BELT* getting update set informations");
-
+                    if (!context.g_ck) {
+                        sendResponse({"updateSet": "", "current": "", "status": 200});
+                        return false;
+                    }
+                    console.log("*SNOW TOOL BELT* getting update set informations");
                     let concourseUrl = new Request("https://" + host + "/api/now/ui/concoursepicker/updateset");
                     let headers = new Headers();
                     headers.append('Content-Type', 'application/json');
                     headers.append('Accept', 'application/json');
                     headers.append('Cache-Control', 'no-cache');
-                    headers.append('Cache-Control', 'no-cache');
+                    headers.append('X-UserToken', context.g_ck);
 
                     // fetch(concourseUrl, {headers: headers})
-                    fetch(concourseUrl, {credentials: "same-origin", headers: headers})
+                    fetch(concourseUrl, {headers: headers})
                         .then(function(response) {
                             if (response.ok && response.status === 200) {
                                 return response.text().then(function (txt) {
                                         try {
                                             let parsed = JSON.parse(txt).result;
+                                            console.warn(parsed);
                                             sendResponse({"updateSet": parsed.updateSet, "current": parsed.current, "status": 200});
                                         } catch(e) {
                                             console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
