@@ -7,6 +7,12 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.4.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Added a <i>hide</i> contextual action in instances menus.</li>"+
+            "</ul>"
+    },{ 
         version: '4.3.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
@@ -119,6 +125,8 @@ const getTip = () => {
         "This extension doesn't collect or upload any data.",
         "You can post issues and enhancement requests on <a target=\"_blank\" href=\"" + gitURL + "\">github</a>.",
         "Does Chuck really draw power from his bow tie?",
+        "You can unhide hidden instances from the options page.",
+        "If you want to see the tabs open in private windows, you have to allow the extension to run in private mode.",
         getCommands()
     ];
 

@@ -204,7 +204,9 @@ const msgListener = (message, sender, sendResponse) => {
             if (matchFound || filter.trim() === "") return true;
             if (hostname.indexOf(filter.trim()) > -1) {
                 let color = "";
+                let hidden = false;
                 if (context.instanceOptions[hostname] !== undefined) {
+                    hidden = context.instanceOptions[hostname]["hidden"];
                     color = context.instanceOptions[hostname]["color"];
                 }
                 console.log("*SNOW TOOL BELT* matchFound: " + filter);
@@ -218,7 +220,7 @@ const msgListener = (message, sender, sendResponse) => {
                     saveContext();
                 }
 
-                let response = { "isServiceNow": true, "favIconColor": color };
+                let response = { "isServiceNow": true, "favIconColor": color, "hidden": hidden };
                 console.log(response);
                 sendResponse(response);
             }
