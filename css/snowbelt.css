@@ -158,8 +158,8 @@ div#search button {
 .updateset {
     display: none;
     color: var(--muted-color);
-    margin-left: 56px;
-    max-width: 450px;
+    margin-left: 21px;
+    max-width: 560px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -216,11 +216,13 @@ input[type="checkbox"] {
 input[type="checkbox"] ~ ul {
     height: 0;
     transform: scaleY(0);
+    transition: transform .1s ease-out;
+    transform-origin: bottom;
 }
 input[type="checkbox"]:checked ~ ul {
     height: 100%;
     transform-origin: top;
-    transition: transform .2s ease-out;
+    transition: transform .1s ease-out;
     transform: scaleY(1); 
 }
 input[type="checkbox"] ~ label:before {

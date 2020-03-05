@@ -17,7 +17,7 @@ function saveContext () {
         "instanceOptions": JSON.stringify(context.instanceOptions),
         "urlFilters": context.urlFilters
     }, function () {
-        console.log("Options saved!");
+        console.log("*SNOW TOOL BELT BG* Options saved!");
     });
 }
 
@@ -95,12 +95,6 @@ function tabUpdated (tabId, changeInfo, tab) {
         let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
         chrome.tabs.update(tab.id, {url: newUrl});
     }
-    if (changeInfo.favIconUrl !== undefined) {
-        // favIcon was changed, check if we should replace it
-        if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
-            chrome.tabs.sendMessage(tabId, {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"]});
-        }
-    }
 }
 
 /**
@@ -144,15 +138,20 @@ const openBackgroundScriptWindow = (tabid) => {
  * @param {String} area Storage area (should be "sync")
  */
 function storageEvent (objChanged, area) {
-    console.log("*SNOW TOOL BELT* Storage update, reloading options");
-    getOptions();
+    // FF doesn't check if there is an actual change between new and old values
+    if ((objChanged.instanceOptions && objChanged.instanceOptions.newValue === objChanged.instanceOptions.oldValue) || (objChanged.knownInstances && objChanged.knownInstances.newValue === objChanged.knownInstances.oldValue)) {
+        return false;
+    } else {
+        console.log("*SNOW TOOL BELT BG* Storage update, reloading options");
+        getOptions();
+    }
 }
 /**
  * Command listener
  * @param {String} command Id of the command that was issued
  */
 const cmdListener = (command) => {
-    console.log("*SNOW TOOL BELT* received command " + command);
+    console.log("*SNOW TOOL BELT BG* received command " + command);
     let currentTab = {};
     // What is the current tab when the user pressed the keyboard combination?
     chrome.tabs.query({currentWindow: true, active: true}, (tabs) => {
@@ -173,14 +172,14 @@ const cmdListener = (command) => {
  * @param {Function} sendResponse
  */
 const msgListener = (message, sender, sendResponse) => {
-    console.log("*SNOW TOOL BELT* received message");
+    console.log("*SNOW TOOL BELT BG* received message");
     console.log(sender);
     console.log(message);
     let hostname;
     try {
         hostname = new URL(sender.url).hostname;
     } catch (e) {
-        console.error("Unable to get sender hostname: " + e);
+        console.error("*SNOW TOOL BELT BG* Unable to get sender hostname: " + e);
     }
     if (message.command === "execute-reframe" && message.tabid) {
         popIn(message.tabid);
@@ -209,7 +208,7 @@ const msgListener = (message, sender, sendResponse) => {
                     hidden = context.instanceOptions[hostname]["hidden"];
                     color = context.instanceOptions[hostname]["color"];
                 }
-                console.log("*SNOW TOOL BELT* matchFound: " + filter);
+                console.log("*SNOW TOOL BELT BG* matchFound: " + filter);
                 matchFound = true;
 
                 // This is an instance we did not know about, save it

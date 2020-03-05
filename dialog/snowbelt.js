@@ -870,11 +870,11 @@ const updateTabInfo = (instance, windowId, index) => {
                     if (response.current && response.current.name) {
                         context.updateSets[windowId][instance] = response;
                         current = response.current.name;
+                        document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").innerText = current;
+                        document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").title = current;
                     } else {
-                        current = "unknown";
+                        // let it be
                     }
-                    document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").innerText = current;
-                    document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").title = current;
             });
             }
         }

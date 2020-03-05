@@ -11,6 +11,7 @@ const whatsnew = [
         msg: "Most notable changes:<br/>" +
             "<ul>"+
             "<li>Added a <i>hide</i> contextual action in instances menus.</li>"+
+            "<li>Removed some useless refreshes on Firefox.</li>"+
             "</ul>"
     },{ 
         version: '4.3.0',
