@@ -31,7 +31,7 @@
             <li data-instance="{{instance}}" data-window-id="{{windowId}}">
                 <input id="{{instance}}{{windowId}}" class="instance-checkbox" data-instance="{{instance}}" data-window-id="{{windowId}}" type="checkbox" {{checked}}></input>
                 <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline color-indicator" title="current color">&#9632;</div>
-                <label for="{{instance}}{{windowId}}" class="instance-label">&nbsp;
+                <label for="{{instance}}{{windowId}}" class="instance-label">
                     <div data-instance="{{instance}}" data-window-id="{{windowId}}" contenteditable="false" class="instance-label">{{instanceName}}</div>
                     <span>{{windowIdLabel}}</span>
                     <span title="incognito window" data-window-id="{{windowId}}" class="incognito"> &#128526;</span>
@@ -39,7 +39,7 @@
                 <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline button-muted instance-commands" title="other options">&#133;</a> <!-- … -->
                 <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline button-muted instance-commands" title="close tabs">&#10006;</a> <!-- ✖ -->
                 <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline button-muted instance-commands" title="open a new tab">&#10010;</a> <!-- ✚ -->
-                <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="updateset">Current updateset: <span title="make sure content script is active in a tab and you are logged in as an admin">unknown <img src="../icons/question.png" width="8px"/></span></div>
+                <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="updateset">US: <span title="make sure content script is active in a tab and you are logged in as an admin">unknown <img src="../icons/question.png" width="8px"/></span></div>
                 <ul class="links-to-tabs">{{linksToTabs}}</ul>
             </li>
         </template>

@@ -6,8 +6,8 @@
     <link rel="stylesheet" href="../css/snowbelt.css"/>
   </head>
 
-  <body>
-      <form id="options-form">
+  <body class="options-body">
+      <form class="options-form" id="options-form">
             <label for="urlFilters" class="instance-label" title="Keywords or IP Addresses that should be found in URLs to consider them as potential ServiceNow instances.">URL Filters (separator ";") <img src="../icons/question.png" width="15px"/>
                 <input type="text" id="urlFilters">
             </label>
@@ -21,7 +21,12 @@
             <label class="switch" for="showUpdatesets"><input name="showUpdatesets" type='checkbox' id="showUpdatesets"/><span class='slider round'></span></label>
             <label class="instance-label" title="Displays actual current update sets for each window and instance combination">Show updatesets<img src="../icons/question.png" width="15px"/></label><br/>
 
-            <div id="knownInstances"><!-- known instances go here --></div>
+            <div id="knownInstances">
+                <div id="instanceFilterContainer">
+                    <input type="text" placeholder="&#128269;" id="instanceFilter"/>
+                </div>
+                <div id="knownInstancesList"><!-- known instances go here --></div>
+            </div>
       </form>
 
       <button id="save" class="options" type="submit" form="options-form" title="Save current settings into the selected storage area.">Save</button>

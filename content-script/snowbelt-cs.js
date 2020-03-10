@@ -166,22 +166,6 @@ function updateFavicon (color) {
                 let host = window.location.host;
                 let statsUrl = new Request("https://" + host + "/stats.do");
 
-                /* No need to search for g_ck for now
-                let g_ck = "";
-                try {
-                    if (window.g_ck) {
-                        // for SP and workspace
-                        g_ck = window.g_ck;
-                    } else if (document.getElementById("sysparm_ck")) {
-                        // for backoffice form out of iframe
-                        g_ck = document.getElementById("sysparm_ck").value;
-                    } else if (document.getElementsByTagName("iframe")[0] && document.getElementsByTagName("iframe")[0].contentWindow.document.getElementById("sysparm_ck")) {
-                        // for backoffice form inside of iframe
-                        g_ck = document.getElementsByTagName("iframe")[0].contentWindow.document.getElementById("sysparm_ck").value;
-                    }
-                } catch(e) {
-                    // we could not find a g_ck token, no REST call can be made from this instance of the content script
-                }*/
                 if (request.command === "updateFavicon") {
                     /**
                     *  change Favicon color
@@ -205,7 +189,6 @@ function updateFavicon (color) {
                         sendResponse({"updateSet": "", "current": "", "status": 200});
                         return false;
                     }
-                    console.log("*SNOW TOOL BELT* getting update set informations");
                     let concourseUrl = new Request("https://" + host + "/api/now/ui/concoursepicker/updateset");
                     let headers = new Headers();
                     headers.append('Content-Type', 'application/json');
@@ -220,7 +203,6 @@ function updateFavicon (color) {
                                 return response.text().then(function (txt) {
                                         try {
                                             let parsed = JSON.parse(txt).result;
-                                            console.warn(parsed);
                                             sendResponse({"updateSet": parsed.updateSet, "current": parsed.current, "status": 200});
                                         } catch(e) {
                                             console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
