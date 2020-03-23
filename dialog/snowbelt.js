@@ -500,7 +500,7 @@ const searchNow = (evt) => {
     if (evt.target.id === "search_doc") {
         targetUrl = "https://docs.servicenow.com/search?q=";
     } else if (evt.target.id === "search_api") {
-        targetUrl = "https://developer.servicenow.com/app.do#!/search?category=API&q=";
+        targetUrl = "https://developer.servicenow.com/dev.do#!/search/orlando/Reference/";
     } else {
         targetUrl = "https://cse.google.com/cse?cx=009916188806958231212:pa-o5rpnjhs&ie=UTF-8&q=";
     }
