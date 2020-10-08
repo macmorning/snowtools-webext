@@ -12,6 +12,9 @@
     from { transform: rotate(0deg); }
     to { transform: rotate(359deg); }
 }
+html {
+    height: 100%;
+}
 body {
     font-family: 'Helvetica', sans-serif;
     color: var(--main-color);
@@ -21,20 +24,38 @@ body {
     font-size: 10pt;
     min-height: 400px;
 }
-form#options-form {
+body.options-body {
+    min-height: 100%;
+    max-width: 600px;
+    margin:auto;
+}
+form.options-form {
     margin: auto;
     margin-top: 3px;
     width: 98%;
     min-width: 550px;
-    max-height: 450px;
+    max-height: 800px;
 }
 div#knownInstances {
-    padding: 3px;
+    padding: 0 3px 3px 3px;
     border: 2px solid var(--disabled-color);
-    height: 260px;
-    max-height: 260px;
+    height: 600px;
+    max-height: 600px;
     overflow-y: auto;
     overflow-x: hidden;
+}
+div#instanceFilterContainer {
+    position: sticky;
+    width: 100%;
+    background-color: var(--main-color);
+    height: 38px;
+    z-index: 30;
+    top: 0;
+}
+div#instanceFilterContainer input {
+    width: 50%;
+    float: right;
+    margin-right: 3%;
 }
 a {
     color: var(--main-color);
@@ -158,8 +179,8 @@ div#search button {
 .updateset {
     display: none;
     color: var(--muted-color);
-    margin-left: 56px;
-    max-width: 450px;
+    margin-left: 21px;
+    max-width: 560px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -209,6 +230,15 @@ div.instance-label {
     color: var(--main-color);
     cursor: pointer;
 }
+.small-instance-label {
+}
+.small-instance-label.enhanced:before {
+    font-size: larger;
+    content: "‣ \0020";
+}
+.small-instance-label.enhanced {
+    font-weight: bold;
+}
 input[type="checkbox"] {
     position: absolute;
     left: -9999px;
@@ -216,11 +246,13 @@ input[type="checkbox"] {
 input[type="checkbox"] ~ ul {
     height: 0;
     transform: scaleY(0);
+    transition: transform .1s ease-out;
+    transform-origin: bottom;
 }
 input[type="checkbox"]:checked ~ ul {
     height: 100%;
     transform-origin: top;
-    transition: transform .2s ease-out;
+    transition: transform .1s ease-out;
     transform: scaleY(1); 
 }
 input[type="checkbox"] ~ label:before {
@@ -239,6 +271,7 @@ ul.links-to-tabs li:before {
     content: "‣ \0020";
 }
 ul.links-to-tabs > li {
+    margin-left:-30px;
     line-height: 25px;
     padding: 0 5px 0 5px;
     cursor: pointer;
@@ -418,6 +451,7 @@ input:checked + .slider:before {
     top: 0; bottom: 0;
     overflow: auto; /* scrollbar will appear if the viewport is too tight to display all the popin content */
     opacity: 0;
+    z-index: 35;
     visibility: hidden;
   
     /* design */
@@ -445,9 +479,10 @@ input:checked + .slider:before {
 }
 .smart-popin .sp-body {
     position: relative; /* to allow absolute positionning inside */
-    z-index: 5; /* to ensure the popin body will be over the .sp-back layer */
+    z-index: 50; /* to ensure the popin body will be over the .sp-back layer */
     width: auto; /* by default the width of the wider element inside */
     min-width: 300px;  /* standard width for xs smartphones (320px) minus 2*10px (.sp-cell margins) */
+    max-width: 500px;
     margin: 0 auto;
   
     /* design */
@@ -465,6 +500,7 @@ input:checked + .slider:before {
 }
 .smart-popin .sp-back { /* only used to get clicks out of the popin body */
     position: fixed;
+    z-index: 40;
     left: 0; right: 0;
     top: 0; bottom: 0;
     display: block;
@@ -474,11 +510,11 @@ input:checked + .slider:before {
     top: 0;
     right: 0;
 
-    width: 36px;
-    height: 36px;
+    width: 45px;
+    height: 45px;
 
     text-align: center;
-    line-height: 36px;
+    line-height: 45px;
     font-size: 1.6em;
     color: #000000;
     font-weight: 900;

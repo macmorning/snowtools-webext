@@ -61,7 +61,7 @@ const selectColor = (evt) => {
  */
 const restoreOptions = () => {
     // clearOptions first
-    let instancesDiv = document.getElementById("knownInstances");
+    let instancesDiv = document.getElementById("knownInstancesList");
     while (instancesDiv.firstChild) {
         instancesDiv.removeChild(instancesDiv.firstChild);
     };
@@ -138,6 +138,21 @@ const restoreOptions = () => {
                 // Save and close button
                 document.getElementById("popin_color").addEventListener("click", saveColor);
                 document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
+
+                // Filter instances
+                document.getElementById("instanceFilter").addEventListener("keyup", (ev) => {
+                    let elements = document.getElementById("knownInstancesList").querySelectorAll("input[type='text']");
+                    [].forEach.call(elements, (el) => {
+                        if (el.value !== "" && el.value.toLowerCase().indexOf(ev.target.value.toLowerCase()) === -1
+                                && el.id.toLowerCase().indexOf(ev.target.value.toLowerCase()) === -1) {
+                            el.style.display = "none";
+                            document.getElementById("knownInstancesList").querySelector("label[for='" + el.id + "']").style.display = "none";
+                        } else {
+                            el.style.display = "initial";
+                            document.getElementById("knownInstancesList").querySelector("label[for='" + el.id + "']").style.display = "initial";
+                        }
+                    });
+                });
             }
         });
     });
@@ -226,8 +241,8 @@ const deleteInstance = (evt) => {
     let id = evt.target.id.split("#")[1];
     displayMessage("Forgetting about " + id + "...");
     delete context.knownInstances[id];
-    document.getElementById("knownInstances").removeChild(evt.target.parentNode.parentNode); // remove the label element
-    document.getElementById("knownInstances").removeChild(document.getElementById(id)); // remove the input element
+    document.getElementById("knownInstancesList").removeChild(evt.target.parentNode.parentNode); // remove the label element
+    document.getElementById("knownInstancesList").removeChild(document.getElementById(id)); // remove the input element
 };
 
 /**

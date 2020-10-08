@@ -129,6 +129,30 @@ const closeTabs = (evt) => {
     });
 };
 
+
+/**
+ * Lets the user hide selected instance
+ * @param {object} evt the event that triggered the action
+ */
+const hideInstance = (evt) => {
+    let targetInstance = "";
+    let windowId = context.windowId;
+    if (evt.target.getAttribute("data-instance")) {
+        targetInstance = evt.target.getAttribute("data-instance");
+        windowId = evt.target.getAttribute("data-window-id");
+    } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
+        targetInstance = context.clicked.getAttribute("data-instance");
+        windowId = context.clicked.getAttribute("data-window-id");
+    }
+
+    elements = document.querySelectorAll("li[data-instance=\"" + targetInstance + "\"");
+    [].forEach.call(elements, (el) => {
+        el.style.display = "none";
+    });
+    context.instanceOptions[targetInstance]["hidden"] = true;
+    saveInstanceOptions();
+};
+
 /**
  * Lets the user edit the name of the instance
  * @param {object} evt the event that triggered the action
@@ -476,7 +500,7 @@ const searchNow = (evt) => {
     if (evt.target.id === "search_doc") {
         targetUrl = "https://docs.servicenow.com/search?q=";
     } else if (evt.target.id === "search_api") {
-        targetUrl = "https://developer.servicenow.com/app.do#!/search?category=API&q=";
+        targetUrl = "https://developer.servicenow.com/dev.do#!/search/orlando/Reference/";
     } else {
         targetUrl = "https://cse.google.com/cse?cx=009916188806958231212:pa-o5rpnjhs&ie=UTF-8&q=";
     }
@@ -566,7 +590,7 @@ const refreshList = () => {
                         context.instanceOptions[instance].hidden === undefined ||
                         context.instanceOptions[instance].hidden === false)) {
                         items.push({
-                            title: context.knownInstances[instance],
+                            title: "<span class='small-instance-label" + (context.tabs[instance] !== undefined ? " enhanced" : "") + "'>" + context.knownInstances[instance] + "</span>",
                             fn: () => {
                                 chrome.tabs.get(parseInt(tabid), (tab) => {
                                     let url = new URL(tab.url);
@@ -607,7 +631,8 @@ const refreshList = () => {
                 let items = [
                     { title: "&#8681; Nodes", fn: scanNodes },
                     { title: "&#10000; Script", fn: openBackgroundScriptWindow },
-                    { title: "&#9088; Rename", fn: renameInstance }
+                    { title: "&#9088; Rename", fn: renameInstance },
+                    { title: "&#128065; Hide", fn: hideInstance }
                 ];
                 basicContext.show(items, e);
             });
@@ -791,8 +816,7 @@ const tabCreated = (tab) => {
         return false;
     }
     tab.instance = url.hostname;
-    if (tab.instance === "nowlearning.service-now.com" || tab.instance === "signon.service-now.com" || tab.instance === "hi.service-now.com" || tab.instance === "partnerportal.service-now.com") {
-        // known non-instance subdomains of service-now.com
+    if (context.instanceOptions[tab.instance] !== undefined && context.instanceOptions[tab.instance]['hidden'] === true) {
         return false;
     }
     let matchFound = false;
@@ -846,11 +870,11 @@ const updateTabInfo = (instance, windowId, index) => {
                     if (response.current && response.current.name) {
                         context.updateSets[windowId][instance] = response;
                         current = response.current.name;
+                        document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").innerText = current;
+                        document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").title = current;
                     } else {
-                        current = "unknown";
+                        // let it be
                     }
-                    document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").innerText = current;
-                    document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").title = current;
             });
             }
         }

@@ -17,7 +17,7 @@ function saveContext () {
         "instanceOptions": JSON.stringify(context.instanceOptions),
         "urlFilters": context.urlFilters
     }, function () {
-        console.log("Options saved!");
+        console.log("*SNOW TOOL BELT BG* Options saved!");
     });
 }
 
@@ -95,12 +95,6 @@ function tabUpdated (tabId, changeInfo, tab) {
         let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
         chrome.tabs.update(tab.id, {url: newUrl});
     }
-    if (changeInfo.favIconUrl !== undefined) {
-        // favIcon was changed, check if we should replace it
-        if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
-            chrome.tabs.sendMessage(tabId, {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"]});
-        }
-    }
 }
 
 /**
@@ -121,21 +115,42 @@ const popIn = (tabid) => {
 };
 
 /**
- * Opens a new background script window on target instance
- * @param {String} tab The tab from which the command was sent
+ * Opens a new window to show versions of the current object
+ * @param {Object} tab The tab from which the command was sent
  */
-const openBackgroundScriptWindow = (tabid) => {
-    tabid = parseInt(tabid);
-    chrome.tabs.get(tabid, (tab) => {
-        let url = new URL(tab.url);
-        let createData = {
-            type: "popup",
-            url: "https://" + url.host + "/sys.scripts.do",
-            width: 700,
-            height: 500
-        };
-        let creating = chrome.windows.create(createData);
-    });
+const openVersions = (tab) => {
+    let url = new URL(tab.url);
+    if (url.pathname == "/nav_to.do") {
+        // this is a framed nav window, get the base uri
+        url = new URL("https://" + url.host + url.searchParams.get("uri"));
+    }
+    var tableName = url.pathname.replace("/","").replace(".do","");
+    var sysId = url.searchParams.get("sys_id");
+    if (!tableName || !sysId) {
+        return false;
+    }
+    let createData = {
+        type: "popup",
+        url: "https://" + url.host + "/sys_update_version_list.do?sysparm_query=nameSTARTSWITH" + tableName + "_" + sysId,
+        width: 1200,
+        height: 500
+    };
+    let creating = chrome.windows.create(createData);
+}
+
+/**
+ * Opens a new background script window on target instance
+ * @param {Object} tab The tab from which the command was sent
+ */
+const openBackgroundScriptWindow = (tab) => {
+    let url = new URL(tab.url);
+    let createData = {
+        type: "popup",
+        url: "https://" + url.host + "/sys.scripts.do",
+        width: 700,
+        height: 800
+    };
+    let creating = chrome.windows.create(createData);
 }
 
 /**
@@ -144,25 +159,32 @@ const openBackgroundScriptWindow = (tabid) => {
  * @param {String} area Storage area (should be "sync")
  */
 function storageEvent (objChanged, area) {
-    console.log("*SNOW TOOL BELT* Storage update, reloading options");
-    getOptions();
+    // FF doesn't check if there is an actual change between new and old values
+    if ((objChanged.instanceOptions && objChanged.instanceOptions.newValue === objChanged.instanceOptions.oldValue) || (objChanged.knownInstances && objChanged.knownInstances.newValue === objChanged.knownInstances.oldValue)) {
+        return false;
+    } else {
+        console.log("*SNOW TOOL BELT BG* Storage update, reloading options");
+        getOptions();
+    }
 }
 /**
  * Command listener
  * @param {String} command Id of the command that was issued
  */
 const cmdListener = (command) => {
-    console.log("*SNOW TOOL BELT* received command " + command);
+    console.log("*SNOW TOOL BELT BG* received command " + command);
     let currentTab = {};
     // What is the current tab when the user pressed the keyboard combination?
     chrome.tabs.query({currentWindow: true, active: true}, (tabs) => {
         currentTab = tabs[0];
         if (command === "execute-reframe") {
             popIn(currentTab.id);
+        } else if (command === "execute-openversions") {
+            openVersions(currentTab);
         } else if (command === "execute-fieldnames") {
             chrome.tabs.sendMessage(currentTab.id, { "command": command });
         } else if (command === "execute-backgroundscript") {
-            openBackgroundScriptWindow(currentTab.id);
+            openBackgroundScriptWindow(currentTab);
         }
     });
 }
@@ -173,14 +195,14 @@ const cmdListener = (command) => {
  * @param {Function} sendResponse
  */
 const msgListener = (message, sender, sendResponse) => {
-    console.log("*SNOW TOOL BELT* received message");
+    console.log("*SNOW TOOL BELT BG* received message");
     console.log(sender);
     console.log(message);
     let hostname;
     try {
         hostname = new URL(sender.url).hostname;
     } catch (e) {
-        console.error("Unable to get sender hostname: " + e);
+        console.error("*SNOW TOOL BELT BG* Unable to get sender hostname: " + e);
     }
     if (message.command === "execute-reframe" && message.tabid) {
         popIn(message.tabid);
@@ -204,10 +226,12 @@ const msgListener = (message, sender, sendResponse) => {
             if (matchFound || filter.trim() === "") return true;
             if (hostname.indexOf(filter.trim()) > -1) {
                 let color = "";
+                let hidden = false;
                 if (context.instanceOptions[hostname] !== undefined) {
+                    hidden = context.instanceOptions[hostname]["hidden"];
                     color = context.instanceOptions[hostname]["color"];
                 }
-                console.log("*SNOW TOOL BELT* matchFound: " + filter);
+                console.log("*SNOW TOOL BELT BG* matchFound: " + filter);
                 matchFound = true;
 
                 // This is an instance we did not know about, save it
@@ -218,7 +242,7 @@ const msgListener = (message, sender, sendResponse) => {
                     saveContext();
                 }
 
-                let response = { "isServiceNow": true, "favIconColor": color };
+                let response = { "isServiceNow": true, "favIconColor": color, "hidden": hidden };
                 console.log(response);
                 sendResponse(response);
             }
