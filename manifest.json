@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "ServiceNow tool belt",
-  "version": "4.4.1",
+  "version": "4.5.0",
   "description": "A set of tools for ServiceNow developpers and administrators",
   "homepage_url": "https://github.com/macmorning/snowtools-webext",
   "icons": {
@@ -27,10 +27,13 @@
       },
       "description": "Switch from technical to display field names"
     },
-    "execute-backgroundscript": {
+    "execute-openversions": {
       "suggested_key": {
-        "default": "Alt+B"
+        "default": "Alt+V"
       },
+      "description": "View versions of current object"
+    },
+    "execute-backgroundscript": {
       "description": "Open a background script window on current instance"
     }
   },

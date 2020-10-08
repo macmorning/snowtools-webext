@@ -230,6 +230,15 @@ div.instance-label {
     color: var(--main-color);
     cursor: pointer;
 }
+.small-instance-label {
+}
+.small-instance-label.enhanced:before {
+    font-size: larger;
+    content: "‣ \0020";
+}
+.small-instance-label.enhanced {
+    font-weight: bold;
+}
 input[type="checkbox"] {
     position: absolute;
     left: -9999px;
@@ -262,6 +271,7 @@ ul.links-to-tabs li:before {
     content: "‣ \0020";
 }
 ul.links-to-tabs > li {
+    margin-left:-30px;
     line-height: 25px;
     padding: 0 5px 0 5px;
     cursor: pointer;

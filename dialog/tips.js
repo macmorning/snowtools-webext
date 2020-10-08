@@ -7,10 +7,18 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.5.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Changed the layout of the instance list a little.</li>"+
+            "<li>In the 'open on instance' popup, the instances that are currently open in a tab are more visible.</li>"+
+            "<li>See versions of current object: <b>new shortcut</b>. Make sure you configure your shortcuts in " + (isChrome ? chromeShortcutsURL : firefoxShortcutsURL) + ".</li>"+
+            "</ul>"
+    },{ 
         version: '4.4.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
-            "<li>The extension is now available for the new Edge browser (Chromium). Remember you can export your settings in a json file and import them into another.</li>"+
+            "<li>The extension is now available for the new Edge browser (Chromium). Remember you can export your settings in a json file and import them into another browser.</li>"+
             "<li>Options page is a little more useable. It opens in a tab and the instance list has a filter field.</li>"+
             "<li>Added a <i>hide</i> contextual action in instances menus.</li>"+
             "<li>Removed some useless refreshes on Firefox.</li>"+

@@ -590,7 +590,7 @@ const refreshList = () => {
                         context.instanceOptions[instance].hidden === undefined ||
                         context.instanceOptions[instance].hidden === false)) {
                         items.push({
-                            title: context.knownInstances[instance],
+                            title: "<span class='small-instance-label" + (context.tabs[instance] !== undefined ? " enhanced" : "") + "'>" + context.knownInstances[instance] + "</span>",
                             fn: () => {
                                 chrome.tabs.get(parseInt(tabid), (tab) => {
                                     let url = new URL(tab.url);

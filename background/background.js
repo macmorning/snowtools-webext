@@ -115,21 +115,42 @@ const popIn = (tabid) => {
 };
 
 /**
- * Opens a new background script window on target instance
- * @param {String} tab The tab from which the command was sent
+ * Opens a new window to show versions of the current object
+ * @param {Object} tab The tab from which the command was sent
  */
-const openBackgroundScriptWindow = (tabid) => {
-    tabid = parseInt(tabid);
-    chrome.tabs.get(tabid, (tab) => {
-        let url = new URL(tab.url);
-        let createData = {
-            type: "popup",
-            url: "https://" + url.host + "/sys.scripts.do",
-            width: 700,
-            height: 500
-        };
-        let creating = chrome.windows.create(createData);
-    });
+const openVersions = (tab) => {
+    let url = new URL(tab.url);
+    if (url.pathname == "/nav_to.do") {
+        // this is a framed nav window, get the base uri
+        url = new URL("https://" + url.host + url.searchParams.get("uri"));
+    }
+    var tableName = url.pathname.replace("/","").replace(".do","");
+    var sysId = url.searchParams.get("sys_id");
+    if (!tableName || !sysId) {
+        return false;
+    }
+    let createData = {
+        type: "popup",
+        url: "https://" + url.host + "/sys_update_version_list.do?sysparm_query=nameSTARTSWITH" + tableName + "_" + sysId,
+        width: 1200,
+        height: 500
+    };
+    let creating = chrome.windows.create(createData);
+}
+
+/**
+ * Opens a new background script window on target instance
+ * @param {Object} tab The tab from which the command was sent
+ */
+const openBackgroundScriptWindow = (tab) => {
+    let url = new URL(tab.url);
+    let createData = {
+        type: "popup",
+        url: "https://" + url.host + "/sys.scripts.do",
+        width: 700,
+        height: 800
+    };
+    let creating = chrome.windows.create(createData);
 }
 
 /**
@@ -158,10 +179,12 @@ const cmdListener = (command) => {
         currentTab = tabs[0];
         if (command === "execute-reframe") {
             popIn(currentTab.id);
+        } else if (command === "execute-openversions") {
+            openVersions(currentTab);
         } else if (command === "execute-fieldnames") {
             chrome.tabs.sendMessage(currentTab.id, { "command": command });
         } else if (command === "execute-backgroundscript") {
-            openBackgroundScriptWindow(currentTab.id);
+            openBackgroundScriptWindow(currentTab);
         }
     });
 }
