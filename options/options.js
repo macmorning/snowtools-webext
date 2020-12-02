@@ -282,14 +282,18 @@ const saveInstanceOptions = () => {
  */
 const saveOptions = (evt) => {
     evt.preventDefault();
-    console.log({'id': evt.target.id, 'value': evt.target.value});
+    // console.log({'id': evt.target.id, 'value': evt.target.value});
     try {
         if (evt.target.id === "autoFrame") {
             context.autoFrame = evt.target.checked;
+            context.storageArea.set({ "autoFrame": context.autoFrame }, () => {
+                console.log("autoFrame saved!");
+            });
         } else if (evt.target.id === "showUpdatesets") {
             context.showUpdatesets = evt.target.checked;
-        } else if (evt.target.id === "useSync") {
-            context.useSync = evt.target.checked;
+            context.storageArea.set({ "showUpdatesets": context.showUpdatesets }, () => {
+                console.log("showUpdatesets saved!");
+            });
         } else if (evt.target.id === "urlFilters") {
             // remove http:// and https:// from filter string
             const regex = /http[s]{0,1}:\/\//gm;
@@ -297,7 +301,10 @@ const saveOptions = (evt) => {
             context.urlFilters = evt.target.value.replace(regex, "").replace(regex2, "");
             if (context.urlFilters !== evt.target.value) {
                 document.getElementById("urlFilters").value = context.urlFilters;
-            } 
+            }
+            context.storageArea.set({ "urlFilters": context.urlFilters }, () => {
+                console.log("urlFilters saved!");
+            });
         } else {
             for (var key in context.knownInstances) {
                 context.knownInstances[key] = document.getElementById(key).value;
@@ -306,18 +313,13 @@ const saveOptions = (evt) => {
                 }
                 context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
             }    
+            context.storageArea.set({
+                "knownInstances": JSON.stringify(context.knownInstances),
+                "instanceOptions": JSON.stringify(context.instanceOptions),
+            }, () => {
+                console.log("Options saved!");
+            });
         }
-
-        context.storageArea.set({
-            "knownInstances": JSON.stringify(context.knownInstances),
-            "instanceOptions": JSON.stringify(context.instanceOptions),
-            "urlFilters": context.urlFilters,
-            "autoFrame": context.autoFrame,
-            "showUpdatesets" : context.showUpdatesets
-        }, () => {
-            // displayMessage("Options saved!");
-            console.log("Options saved!");
-        });
     } catch (e) {
         console.log(e);
         displayMessage("Options could not be saved. Please report this error with below details.", e);
