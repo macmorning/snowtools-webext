@@ -87,7 +87,6 @@ function getTabInfo () {
 function initScript (response) {
     let frame = document.getElementById("gsft_main");
     let targetWindow = frame ? frame.contentWindow : window;
-    console.log(targetWindow);
     if (response.favIconColor !== undefined) {
         updateFavicon(response.favIconColor);
     }
