@@ -7,6 +7,14 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.6.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Removed a few console logs from the content script.</li>"+
+            "<li>Updated the URL for dev portal search to use the latest release by default.</li>"+
+            "<li>Updated the options page, removed the 'save' button and the annoying confirmation messages.</li>"+
+            "</ul>"
+    },{ 
         version: '4.5.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+

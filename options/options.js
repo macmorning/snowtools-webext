@@ -94,6 +94,7 @@ const restoreOptions = () => {
                 for (var key in context.knownInstances) {
                     let input = document.createElement("input");
                     input.setAttribute("type", "text");
+                    input.setAttribute("name", "instanceLabel");
                     input.setAttribute("id", key);
                     input.value = context.knownInstances[key];
                     var hidden = (context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
@@ -102,7 +103,7 @@ const restoreOptions = () => {
                     label.setAttribute("for", input.id);
                     label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key + 
                         " <span class='pull-right'>" +
-                        "<label class='switch'  title=\"show or hide this instance\"><input type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
+                        "<label class='switch'  title=\"show or hide this instance\"><input name='showOrHide' type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
                         " <a class=\"no_underline button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
 
                     instancesDiv.appendChild(label);
@@ -116,6 +117,18 @@ const restoreOptions = () => {
                     el.addEventListener("click", deleteInstance);
                 });
 
+                // show/hide actions
+                elements = document.querySelectorAll("input[name=\"showOrHide\"]");
+                [].forEach.call(elements, (el) => {
+                    el.addEventListener("change", saveOptions);
+                });
+
+                // store label change
+                elements = document.querySelectorAll("input[name=\"instanceLabel\"]");
+                [].forEach.call(elements, (el) => {
+                    el.addEventListener("change", saveOptions);
+                });
+                
                 // add close tab actions
                 elements = document.querySelectorAll("a[title=\"pick a color\"]");
                 [].forEach.call(elements, (el) => {
@@ -239,10 +252,11 @@ const saveNoColor = (evt) => {
  */
 const deleteInstance = (evt) => {
     let id = evt.target.id.split("#")[1];
-    displayMessage("Forgetting about " + id + "...");
+    // displayMessage("Forgetting about " + id + "...");
     delete context.knownInstances[id];
     document.getElementById("knownInstancesList").removeChild(evt.target.parentNode.parentNode); // remove the label element
     document.getElementById("knownInstancesList").removeChild(document.getElementById(id)); // remove the input element
+    saveOptions(evt);
 };
 
 /**
@@ -253,7 +267,7 @@ const saveInstanceOptions = () => {
         context.storageArea.set({
             "instanceOptions": JSON.stringify(context.instanceOptions)
         }, () => {
-            displayMessage("Options saved");
+            // displayMessage("Options saved");
             console.log("Saved instance options");
         });
     } catch (e) {
@@ -268,22 +282,30 @@ const saveInstanceOptions = () => {
  */
 const saveOptions = (evt) => {
     evt.preventDefault();
+    console.log({'id': evt.target.id, 'value': evt.target.value});
     try {
-        // remove http:// and https:// from filter string
-        const regex = /http[s]{0,1}:\/\//gm;
-        const regex2 = /\/[^;]*/gm;
-        context.urlFilters = document.getElementById("urlFilters").value.replace(regex, "").replace(regex2, "");
-        context.autoFrame = document.getElementById("autoFrame").checked;
-        context.useSync = document.getElementById("useSync").checked;
-        context.showUpdatesets = document.getElementById("showUpdatesets").checked;
-        document.getElementById("urlFilters").value = context.urlFilters;
-
-        for (var key in context.knownInstances) {
-            context.knownInstances[key] = document.getElementById(key).value;
-            if (context.instanceOptions[key] === undefined) {
-                context.instanceOptions[key] = {};
-            }
-            context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
+        if (evt.target.id === "autoFrame") {
+            context.autoFrame = evt.target.checked;
+        } else if (evt.target.id === "showUpdatesets") {
+            context.showUpdatesets = evt.target.checked;
+        } else if (evt.target.id === "useSync") {
+            context.useSync = evt.target.checked;
+        } else if (evt.target.id === "urlFilters") {
+            // remove http:// and https:// from filter string
+            const regex = /http[s]{0,1}:\/\//gm;
+            const regex2 = /\/[^;]*/gm;
+            context.urlFilters = evt.target.value.replace(regex, "").replace(regex2, "");
+            if (context.urlFilters !== evt.target.value) {
+                document.getElementById("urlFilters").value = context.urlFilters;
+            } 
+        } else {
+            for (var key in context.knownInstances) {
+                context.knownInstances[key] = document.getElementById(key).value;
+                if (context.instanceOptions[key] === undefined) {
+                    context.instanceOptions[key] = {};
+                }
+                context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
+            }    
         }
 
         context.storageArea.set({
@@ -293,7 +315,8 @@ const saveOptions = (evt) => {
             "autoFrame": context.autoFrame,
             "showUpdatesets" : context.showUpdatesets
         }, () => {
-            displayMessage("Options saved!");
+            // displayMessage("Options saved!");
+            console.log("Options saved!");
         });
     } catch (e) {
         console.log(e);
@@ -317,7 +340,7 @@ const exportOptions = (evt) => {
                 url: URL.createObjectURL(blob)
             });
         } catch (e) {
-            displayMessage("Sorry, there was a browser error. Please report it with below details.", e);
+            displayMessage("Sorry, there was a browser error. Please report it with the details below.", e);
             console.log(e);
         }
     });
@@ -330,7 +353,7 @@ const importOptions = (evt) => {
     let file = evt.target.files[0];
     let reader = new FileReader();
     reader.onerror = (event) => {
-        displayMessage("Sorry, there was an error importing your file. Please report it with below details.", JSON.stringify(event));
+        displayMessage("Sorry, there was an error importing your file. Please report it with the details below.", JSON.stringify(event));
         reader.abort();
         evt.target.value = "";
     };
@@ -355,7 +378,7 @@ const importOptions = (evt) => {
             }
         } catch (e) {
             console.log(e);
-            displayMessage("Sorry, there was an error importing your file. Please report it with below details.", e);
+            displayMessage("Sorry, there was an error importing your file. Please report it the details below.", e);
         } finally {
             evt.target.value = "";
         }
@@ -394,6 +417,9 @@ const toggleSync = (evt) => {
 document.addEventListener("DOMContentLoaded", restoreOptions);
 document.querySelector("form").addEventListener("submit", saveOptions);
 document.getElementById("useSync").addEventListener("change", toggleSync);
+document.getElementById("autoFrame").addEventListener("change", saveOptions);
+document.getElementById("showUpdatesets").addEventListener("change", saveOptions);
+document.getElementById("urlFilters").addEventListener("change", saveOptions);
 document.getElementById("export").addEventListener("click", exportOptions);
 document.getElementById("import").addEventListener("click", openFileSelect);
 document.getElementById("importFile").style.display = "none";
