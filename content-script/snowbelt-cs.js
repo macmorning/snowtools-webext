@@ -41,8 +41,8 @@ function getNameFromStatsPage (text) {
             instanceName = instanceName.split(":")[1];
         }
     } catch (e) {
-        console.log("*SNOW TOOL BELT* Couldn't analyze the text we got from the stats page");
-        console.log(text);
+        // console.log("*SNOW TOOL BELT* Couldn't analyze the text we got from the stats page");
+        // console.log(text);
     }
     return instanceName;
 }
@@ -68,7 +68,7 @@ function getTabInfo () {
                 response.tabs.push(elem.shadowRoot.querySelector("li a span:nth-of-type(2)").innerText);
             });
         } catch (e) {
-            console.log("*SNOW TOOL BELT* unable to find workspace tabs: " + e);
+            // console.log("*SNOW TOOL BELT* unable to find workspace tabs: " + e);
         }
     } else if (document.querySelector("div.sp-page-root")) {
         response.type = "portal";
@@ -87,7 +87,6 @@ function getTabInfo () {
 function initScript (response) {
     let frame = document.getElementById("gsft_main");
     let targetWindow = frame ? frame.contentWindow : window;
-    console.log(targetWindow);
     if (response.favIconColor !== undefined) {
         updateFavicon(response.favIconColor);
     }
@@ -118,7 +117,7 @@ function initScript (response) {
  * @returns {boolean} true if work was done
  */
 function updateFavicon (color) {
-    console.log("*SNOW TOOL BELT* update favicon color to: " + color);
+    // console.log("*SNOW TOOL BELT* update favicon color to: " + color);
     if (color === undefined || color === "") {
         return true;
     }
@@ -155,13 +154,13 @@ function updateFavicon (color) {
     // ask background script if this tab must be considered as a ServiceNow instance, and get the favicon color
     chrome.runtime.sendMessage({"command": "isServiceNow"}, function (response) {
         if (response === undefined || response.isServiceNow === false) {
-            console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
+            // console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
         } else {
             initScript(response);
 
             // Defining how to react to messages coming from the background script or the browser action
             chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-                console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
+                // console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
                 let instanceName = window.location.hostname;
                 let host = window.location.host;
                 let statsUrl = new Request("https://" + host + "/stats.do");
@@ -184,7 +183,7 @@ function updateFavicon (color) {
                     sendResponse(true);
                     switchFieldNames();
                 } else if (request.command === "getUpdateSet") {
-                    console.log("*SNOW TOOL BELT* getting update set informations");
+                    // console.log("*SNOW TOOL BELT* getting update set informations");
                     if (!context.g_ck) {
                         sendResponse({"updateSet": "", "current": "", "status": 200});
                         return false;
@@ -205,13 +204,13 @@ function updateFavicon (color) {
                                             let parsed = JSON.parse(txt).result;
                                             sendResponse({"updateSet": parsed.updateSet, "current": parsed.current, "status": 200});
                                         } catch(e) {
-                                            console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
+                                            // console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
                                             sendResponse({"updateSet": "", "current": "", "status": 200});
                                         }
                                 });
                             } else {
                                 // there was an error while fetching xmlstats, stop here
-                                console.log("*SNOW TOOL BELT* there was an error while fetching concourse API, stopping now: " + response.status);
+                                // console.log("*SNOW TOOL BELT* there was an error while fetching concourse API, stopping now: " + response.status);
                                 sendResponse({"updateset": "", "current": "", "status": response.status});
                             }
                         });
@@ -220,7 +219,7 @@ function updateFavicon (color) {
                     /**
                     *  scanNodes
                     */
-                    console.log("*SNOW TOOL BELT* going to search for nodes");
+                    console.log("*SNOW TOOL BELT* Using this tab to search for nodes");
                     // let scans = 0;
                     // let maxScans = 50;
                     let nodes = [];
@@ -232,7 +231,7 @@ function updateFavicon (color) {
                                         return false;
                                     }
                                     let current = getNameFromStatsPage(text);
-                                    console.log("*SNOW TOOL BELT* current: " + current);
+                                    // console.log("*SNOW TOOL BELT* current: " + current);
 
                                     let xmlStatsURL = new Request("https://" + host + "/xmlstats.do");
                                     fetch(xmlStatsURL, {credentials: "same-origin"})
@@ -245,8 +244,8 @@ function updateFavicon (color) {
                                                     nodesList.forEach(function (node) {
                                                         nodes.push(node.textContent.split(":")[1]);
                                                     });
-                                                    console.log("*SNOW TOOL BELT* nodes: ");
-                                                    console.log(nodes);
+                                                    // console.log("*SNOW TOOL BELT* nodes: ");
+                                                    // console.log(nodes);
 
                                                     sendResponse({"nodes": nodes, "current": current, "status": 200});
                                                 });
@@ -278,7 +277,7 @@ function updateFavicon (color) {
                     /**
                     *  switchNode
                     */
-                    console.log("*SNOW TOOL BELT* switch to node " + request.node);
+                    console.log("*SNOW TOOL BELT* using this tab to switch to node " + request.node);
                     let targetNode = request.node.toString();
                     let maxTries = 50;
                     let tries = 0;
@@ -295,7 +294,7 @@ function updateFavicon (color) {
                             })
                             .then(function (text) {
                                 let current = getNameFromStatsPage(text);
-                                console.log("*SNOW TOOL BELT* node name: " + current);
+                                // console.log("*SNOW TOOL BELT* node name: " + current);
                                 if (current === targetNode) {
                                     sendResponse({"status": 200, "current": current});
                                 } else if (tries < maxTries) {
