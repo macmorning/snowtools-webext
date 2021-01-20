@@ -177,6 +177,18 @@ const cmdListener = (command) => {
     // What is the current tab when the user pressed the keyboard combination?
     chrome.tabs.query({currentWindow: true, active: true}, (tabs) => {
         currentTab = tabs[0];
+        let hostname;
+        try {
+            hostname = new URL(currentTab.url).hostname;
+        } catch (e) {
+            console.error("*SNOW TOOL BELT BG* Unable to get sender hostname: " + e);
+        }
+        let test = isServiceNow(hostname);
+        console.warn(test);
+        if (test.isServiceNow === false) {
+            // do nothing
+            return false;
+        }
         if (command === "execute-reframe") {
             popIn(currentTab.id);
         } else if (command === "execute-openversions") {
@@ -186,7 +198,40 @@ const cmdListener = (command) => {
         } else if (command === "execute-backgroundscript") {
             openBackgroundScriptWindow(currentTab);
         }
+        return true;
     });
+}
+/**
+ * Returns an object if current URL is known to be a ServiceNow instance
+ * @param {String} FQDN of the current calling tab
+ */
+const isServiceNow = (hostname) => {
+    let matchFound = false;
+    let response = { "isServiceNow": false };
+    context.urlFiltersArr.forEach(function (filter) {
+        if (matchFound || filter.trim() === "") return true;
+        if (hostname.indexOf(filter.trim()) > -1) {
+            let color = "";
+            let hidden = false;
+            if (context.instanceOptions[hostname] !== undefined) {
+                hidden = context.instanceOptions[hostname]["hidden"];
+                color = context.instanceOptions[hostname]["color"];
+            }
+            matchFound = true;
+
+            // This is an instance we did not know about, save it
+            if (context.knownInstances[hostname] === undefined) {
+                context.knownInstances[hostname] = hostname;
+                context.instanceOptions[hostname] = {
+                    'hidden': false
+                };
+                saveContext();
+            }
+
+            response = { "isServiceNow": true, "favIconColor": color, "hidden": hidden };
+        }
+    });
+    return (response);
 }
 /**
  * Message listener
@@ -221,33 +266,7 @@ const msgListener = (message, sender, sendResponse) => {
         sendResponse(true);
         return true;
     } else if (message.command === "isServiceNow" && sender.url) {
-        let matchFound = false;
-        context.urlFiltersArr.forEach(function (filter) {
-            if (matchFound || filter.trim() === "") return true;
-            if (hostname.indexOf(filter.trim()) > -1) {
-                let color = "";
-                let hidden = false;
-                if (context.instanceOptions[hostname] !== undefined) {
-                    hidden = context.instanceOptions[hostname]["hidden"];
-                    color = context.instanceOptions[hostname]["color"];
-                }
-                console.log("*SNOW TOOL BELT BG* matchFound: " + filter);
-                matchFound = true;
-
-                // This is an instance we did not know about, save it
-                if (context.knownInstances[hostname] === undefined) {
-                    context.knownInstances[hostname] = hostname;
-                    context.instanceOptions[hostname] = {};
-                    console.log(context.knownInstances);
-                    saveContext();
-                }
-
-                let response = { "isServiceNow": true, "favIconColor": color, "hidden": hidden };
-                console.log(response);
-                sendResponse(response);
-            }
-        });
-        sendResponse({ "isServiceNow": false });
+        sendResponse(isServiceNow(hostname));
     }
     sendResponse("");
 };
