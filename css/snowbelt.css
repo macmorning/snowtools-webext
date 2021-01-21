@@ -521,13 +521,36 @@ input:checked + .slider:before {
     text-decoration: none;
 }
 .history {
-    padding: 10px;
+    padding: 0 10px;
+    margin-bottom: 10px;
+    max-height: 130px;
+    overflow-y: auto;
 }
-.history p {
-    text-align: center;
+.history_table {
+    width: 100%;
+    background-color: var(--bg-color);
+    table-layout: fixed;
+    border-collapse: collapse;
 }
-.history .history-col {
-    width: 32.5%;
-    display: inline-block;
-    text-align: center;
+.history_table th {
+    position: sticky;
+    top: 0;
+    background-color: var(--btn-color);
+    color: var(--main-bg-color);
+}
+.history_table tr {
+    text-align: left;
+}
+.history_table tr {
+    cursor: pointer;
+}
+.history_table tr:hover {
+    background-color: var(--alt-bg-color);
+}
+.history_table td {
+    padding: 5px;
+    font-size:small;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

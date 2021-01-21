@@ -116,7 +116,7 @@ function initScript (options) {
         document.title = "Background script popup";
         let textareaEl = document.querySelector("textarea");
 
-        // load the extension CSS file, because I can
+        // load the Heisenberg css file
         let cssFile = window.document.createElement("link");
         cssFile.setAttribute("rel", "stylesheet");
         cssFile.setAttribute("href",chrome.runtime.getURL("/css/snowbelt.css"));
@@ -149,31 +149,25 @@ function initScript (options) {
                             current: -1,
                             recordsCount: uniqueRecords.length
                         };
-                        const content = backgroundScriptAddonTemplate();
-                        document.body.insertAdjacentHTML("afterbegin", content);
-                        let nextBtnEl = document.querySelector("#historyNextButton");
-                        let previousBtnEl = document.querySelector("#historyPreviousButton");
-                        let historyCurrentEl = document.querySelector("#historyCurrent");
-
-                        const displayHistoryRecord = () => {
-                            textareaEl.innerHTML = context.history.records[context.history.current].script;
-                            historyCurrentEl.innerText = (context.history.current+1) + "/" + context.history.recordsCount;
+                        const table = backgroundScriptAddonTableTemplate();
+                        document.body.insertAdjacentHTML("afterbegin", table);
+                        let tableEl = document.getElementById("execution_history_table");
+                        let tableContent = "";
+                        context.history.records.forEach((record, index)=>{
+                            tableContent += backgroundScriptAddonRowTemplate(record, index);
+                        });
+                        tableEl.innerHTML += tableContent;
+                        const displayHistoryRecord = (index) => {
+                            textareaEl.innerHTML = context.history.records[index].script;
                         }
-                        nextBtnEl.onclick = (evt) => { 
-                            context.history.current--;
-                            if (context.history.current < 0) {
-                                context.history.current = context.history.recordsCount - 1;
+                        elements = document.querySelectorAll(".history_table tr");
+                        [].forEach.call(elements, (el) => {
+                            el.onclick = (evt) => {
+                                console.log(evt);
+                                let index = (evt.target.getAttribute("data-id") ? evt.target.getAttribute("data-id") : evt.target.parentNode.getAttribute("data-id"));
+                                displayHistoryRecord(index);
                             }
-                            displayHistoryRecord();
-                        };
-                        previousBtnEl.onclick = (evt) => { 
-                            context.history.current++;
-                            if (context.history.current >= context.history.recordsCount) {
-                                context.history.current = 0;
-                            }
-                            displayHistoryRecord();
-                        };
-                        previousBtnEl.onclick();
+                        });
                     }
                 });
         } else {
@@ -198,24 +192,45 @@ function backgroundScriptAddonTemplate2() {
 }
 
 /**
- *  Returns an HTML string to display the title and the buttons to navigate in the script history
+ *  Returns an HTML table
  */
-function backgroundScriptAddonTemplate() {
+function backgroundScriptAddonTableTemplate() {
     return `
-        <div class="history">
-            <!--p>Background scripts history loaded: ${context.history.recordsCount} unique scripts found. Use the buttons below to load them.</p-->
-            <div class="history-col">
-                <button id="historyPreviousButton" title="load previously executed script">&lt; previous</button>
-            </div>
-            <div class="history-col">
-                <h3 id="historyCurrent">&nbsp;</h3>
-            </div>
-            <div class="history-col">
-                <button id="historyNextButton" title="load next previously executed script">next &gt;</button>
-            </div>
-        </div>
+    <div class="history">
+        <table id="execution_history_table" class="history_table">
+            <tr id="execution_history_header">
+                <th style="width:3%;" name="">
+                </th>
+                <th style="width:25%;" name="last_executed">
+                    <span style="white-space:nowrap">last executed</span>
+                </th>
+                <th style="width:72%;" name="script">
+                    <span style="white-space:nowrap">script</span>
+                </th>
+            </tr>
+        </table>
+    </div>
     `
 }
+/**
+ *  Returns an HTML table row
+ */
+function backgroundScriptAddonRowTemplate(row, index) {
+    return `
+        <tr data-id="${index}" id="execution_history_table_${row.sys_id}">
+            <td name="">
+                &gt;
+            </td>
+            <td name="started">
+                ${row.started}
+            </td>
+            <td name="script">
+                ${row.script}
+            </td>
+        </tr>
+    `
+}
+
 
 /**
  * Paints the favicon with a specific color

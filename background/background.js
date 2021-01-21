@@ -148,7 +148,7 @@ const openBackgroundScriptWindow = (tab) => {
         type: "popup",
         url: "https://" + url.host + "/sys.scripts.do",
         width: 700,
-        height: 800
+        height: 850
     };
     let creating = chrome.windows.create(createData);
 }

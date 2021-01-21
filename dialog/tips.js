@@ -6,6 +6,13 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.7.1',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>The previous background scripts are now selectable from a list.</li>"+
+            "<li>Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
+            "</ul>"
+    },{ 
         version: '4.7.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
