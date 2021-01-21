@@ -81,14 +81,14 @@ function getTabInfo () {
 
 /**
  * Initializes all content script features 
- * @param {object} response the response object that was sent by the background script
+ * @param {object} options the response object that was sent by the background script
  * @returns {boolean} true if work was done
  */
-function initScript (response) {
+function initScript (options) {
     let frame = document.getElementById("gsft_main");
     let targetWindow = frame ? frame.contentWindow : window;
-    if (response.favIconColor !== undefined) {
-        updateFavicon(response.favIconColor);
+    if (options.favIconColor !== undefined) {
+        updateFavicon(options.favIconColor);
     }
 
     // get session identifier "g_ck" from page
@@ -99,17 +99,138 @@ function initScript (response) {
             context.g_ck = event.data.message;
         }
     });
+    // inject the getSession script to get the g_ck token
     let getSessionJS = window.document.createElement("script");
     getSessionJS.setAttribute("src",chrome.runtime.getURL("/content-script/getSession.js"));
     window.document.head.appendChild(getSessionJS);
 
-    // Handle the background script popup case
     let title = document.querySelector("title");
     if (!title) { 
         title = document.createElement("title");
         document.head.appendChild(title);
     }
+
+    // Handle the background script popup case
+    let url = new URL(window.location);
+    if (url.pathname == "/sys.scripts.do") {
+        document.title = "Background script popup";
+        let textareaEl = document.querySelector("textarea");
+
+        // load the Heisenberg css file
+        let cssFile = window.document.createElement("link");
+        cssFile.setAttribute("rel", "stylesheet");
+        cssFile.setAttribute("href",chrome.runtime.getURL("/css/snowbelt.css"));
+        window.document.head.appendChild(cssFile);
+
+        if (textareaEl) {
+            // We are on the initial background script page
+            // retrieves execution history for the current user
+            let historyUrl = new Request(url.origin + "/sys_script_execution_history_list.do?JSONv2&sysparm_action=getRecords&sysparm_query=executed_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe^ORDERBYDESCstarted");
+            let headers = new Headers();
+            headers.append('Content-Type', 'application/json');
+            headers.append('Accept', 'application/json');
+            headers.append('Cache-Control', 'no-cache');
+
+            fetch(historyUrl, {headers: headers})
+                .then((response) => {
+                    if (response.ok && response.status === 200) {
+                        // we got a response, return the result
+                        return response.json();
+                    } else {
+                        // there was an error while fetching the data, stop here
+                    }
+                }).then((data) => {
+                    if (data.records && data.records.length > 0) {
+                        let uniqueRecords = data.records.filter(function({script}) {
+                            return !this[script] && (this[script] = script)
+                        }, {})
+                        context.history = {
+                            records: uniqueRecords,
+                            current: -1,
+                            recordsCount: uniqueRecords.length
+                        };
+                        const table = backgroundScriptAddonTableTemplate();
+                        document.body.insertAdjacentHTML("afterbegin", table);
+                        let tableEl = document.getElementById("execution_history_table");
+                        let tableContent = "";
+                        context.history.records.forEach((record, index)=>{
+                            tableContent += backgroundScriptAddonRowTemplate(record, index);
+                        });
+                        tableEl.innerHTML += tableContent;
+                        const displayHistoryRecord = (index) => {
+                            textareaEl.innerHTML = context.history.records[index].script;
+                        }
+                        elements = document.querySelectorAll(".history_table tr");
+                        [].forEach.call(elements, (el) => {
+                            el.onclick = (evt) => {
+                                console.log(evt);
+                                let index = (evt.target.getAttribute("data-id") ? evt.target.getAttribute("data-id") : evt.target.parentNode.getAttribute("data-id"));
+                                displayHistoryRecord(index);
+                            }
+                        });
+                    }
+                });
+        } else {
+            // We are on the execution summary page, show the back button
+            const content = backgroundScriptAddonTemplate2();
+            document.body.insertAdjacentHTML("afterbegin", content);
+            let backBtnEl = document.querySelector("#historyBackButton");
+            backBtnEl.onclick = (evt) => { window.history.back(); }
+        }    
+    }
 }
+
+/**
+ *  Returns an HTML string to display the title and the buttons to navigate in the script history
+ */
+function backgroundScriptAddonTemplate2() {
+    return `
+        <div class="history">
+            <button id="historyBackButton">&lt;- back</button>
+        </div>
+    `
+}
+
+/**
+ *  Returns an HTML table
+ */
+function backgroundScriptAddonTableTemplate() {
+    return `
+    <div class="history">
+        <table id="execution_history_table" class="history_table">
+            <tr id="execution_history_header">
+                <th style="width:3%;" name="">
+                </th>
+                <th style="width:25%;" name="last_executed">
+                    <span style="white-space:nowrap">last executed</span>
+                </th>
+                <th style="width:72%;" name="script">
+                    <span style="white-space:nowrap">script</span>
+                </th>
+            </tr>
+        </table>
+    </div>
+    `
+}
+/**
+ *  Returns an HTML table row
+ */
+function backgroundScriptAddonRowTemplate(row, index) {
+    return `
+        <tr data-id="${index}" id="execution_history_table_${row.sys_id}">
+            <td name="">
+                &gt;
+            </td>
+            <td name="started">
+                ${row.started}
+            </td>
+            <td name="script">
+                ${row.script}
+            </td>
+        </tr>
+    `
+}
+
 
 /**
  * Paints the favicon with a specific color
@@ -163,7 +284,7 @@ function updateFavicon (color) {
                 // console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
                 let instanceName = window.location.hostname;
                 let host = window.location.host;
-                let statsUrl = new Request("https://" + host + "/stats.do");
+                let statsUrl = new Request(window.location.origin + "/stats.do");
 
                 if (request.command === "updateFavicon") {
                     /**
@@ -188,7 +309,7 @@ function updateFavicon (color) {
                         sendResponse({"updateSet": "", "current": "", "status": 200});
                         return false;
                     }
-                    let concourseUrl = new Request("https://" + host + "/api/now/ui/concoursepicker/updateset");
+                    let concourseUrl = new Request(window.location.origin + "/api/now/ui/concoursepicker/updateset");
                     let headers = new Headers();
                     headers.append('Content-Type', 'application/json');
                     headers.append('Accept', 'application/json');

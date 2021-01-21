@@ -57,11 +57,11 @@ div#instanceFilterContainer input {
     float: right;
     margin-right: 3%;
 }
-a {
+a[href] {
     color: var(--main-color);
     text-decoration: underline;
 }
-a:hover {
+a[href]:hover {
     text-decoration: underline;
 }
 .no_underline, .no_underline:hover {
@@ -239,27 +239,27 @@ div.instance-label {
 .small-instance-label.enhanced {
     font-weight: bold;
 }
-input[type="checkbox"] {
+input.instance-checkbox[type="checkbox"] {
     position: absolute;
     left: -9999px;
 }
-input[type="checkbox"] ~ ul {
+input.instance-checkbox[type="checkbox"] ~ ul {
     height: 0;
     transform: scaleY(0);
     transition: transform .1s ease-out;
     transform-origin: bottom;
 }
-input[type="checkbox"]:checked ~ ul {
+input.instance-checkbox[type="checkbox"]:checked ~ ul {
     height: 100%;
     transform-origin: top;
     transition: transform .1s ease-out;
     transform: scaleY(1); 
 }
-input[type="checkbox"] ~ label:before {
+input.instance-checkbox[type="checkbox"] ~ label:before {
     font-size: larger;
     content: "\2295";
 }
-input[type="checkbox"]:checked ~ label:before {
+input.instance-checkbox[type="checkbox"]:checked ~ label:before {
     font-size: larger;
     content: "\2296";
 }
@@ -519,4 +519,38 @@ input:checked + .slider:before {
     color: #000000;
     font-weight: 900;
     text-decoration: none;
+}
+.history {
+    padding: 0 10px;
+    margin-bottom: 10px;
+    max-height: 130px;
+    overflow-y: auto;
+}
+.history_table {
+    width: 100%;
+    background-color: var(--bg-color);
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+.history_table th {
+    position: sticky;
+    top: 0;
+    background-color: var(--btn-color);
+    color: var(--main-bg-color);
+}
+.history_table tr {
+    text-align: left;
+}
+.history_table tr {
+    cursor: pointer;
+}
+.history_table tr:hover {
+    background-color: var(--alt-bg-color);
+}
+.history_table td {
+    padding: 5px;
+    font-size:small;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

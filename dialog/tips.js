@@ -1,12 +1,25 @@
 const chromeURL = "https://chrome.google.com/webstore/detail/servicenow-tool-belt/jflcifhpkilfaomlnikfaaccmpidkmln";
 const mozURL = "https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/";
 const gitURL = "https://github.com/macmorning/snowtools-webext";
-const chromeShortcutsURL = "chrome://extensions/shortcuts";
-const firefoxShortcutsURL = "about:addons";
+const shortcutsURL = (isChrome ? "chrome://extensions/shortcuts" : "about:addons");
 let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '4.7.1',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>The previous background scripts are now selectable from a list.</li>"+
+            "<li>Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
+            "</ul>"
+    },{ 
+        version: '4.7.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Enhanced the background script popup window with an execution history!</li>"+
+            "<li>Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
+            "</ul>"
+    },{ 
         version: '4.6.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
@@ -20,7 +33,7 @@ const whatsnew = [
             "<ul>"+
             "<li>Changed the layout of the instance list a little.</li>"+
             "<li>In the 'open on instance' popup, the instances that are currently open in a tab are more visible.</li>"+
-            "<li>See versions of current object: <b>new shortcut</b>. Make sure you configure your shortcuts in " + (isChrome ? chromeShortcutsURL : firefoxShortcutsURL) + ".</li>"+
+            "<li>See versions of current object: <b>new shortcut</b>. Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
             "</ul>"
     },{ 
         version: '4.4.0',
@@ -43,12 +56,12 @@ const whatsnew = [
             "<ul>"+
             "<li>Fixed: the incognito window indicator was only shown for the first instance in this window.</li>"+
             "<li>Removed: the show updateset Chrome-only feature had some annoying auth issues. Need to rethink it.</li>"+
-            "<li>Open a background script window: via the <b>instance contextual menu</b> or with a <b>new shortcut</b>. Make sure you configure your shortcuts in " + (isChrome ? chromeShortcutsURL : firefoxShortcutsURL) + ".</li>"+
+            "<li>Open a background script window: via the <b>instance contextual menu</b> or with a <b>new shortcut</b>. Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
             "</ul>"
     },{ 
         version: '4.2.0',
         msg: "Most notable new features:<br/>" +
-            "<ul><li>New shortcut: switch between technical names and labels in lists and forms (UI16). Make sure you configure your shortcuts in " + (isChrome ? chromeShortcutsURL : firefoxShortcutsURL) + "</li>"+
+            "<ul><li>New shortcut: switch between technical names and labels in lists and forms (UI16). Make sure you configure your shortcuts in " + shortcutsURL + "</li>"+
             "</ul>"
     },{ 
         version: '4.1.0',
@@ -114,7 +127,7 @@ const getCommands = () => {
             result += '<li>' + (command.name === '_execute_browser_action' ? 'Open tools popup' : command.description) + ': <e>' + command.shortcut + '</e></li>';
     });
     result += "</ul>";
-    result += "See " + (isChrome ? chromeShortcutsURL : firefoxShortcutsURL) + " for configuration";
+    result += "See " + shortcutsURL + " for configuration";
     return result;
 }
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "ServiceNow tool belt",
-  "version": "4.6.0",
+  "version": "4.7.1",
   "description": "A set of tools for ServiceNow developpers and administrators",
   "homepage_url": "https://github.com/macmorning/snowtools-webext",
   "icons": {
@@ -72,6 +72,7 @@
     }
   },
   "web_accessible_resources": [
-    "/content-script/getSession.js"
+    "/content-script/getSession.js",
+    "/css/snowbelt.css"
   ]
 }
