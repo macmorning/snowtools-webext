@@ -26,7 +26,7 @@ body {
 }
 body.options-body {
     min-height: 100%;
-    max-width: 600px;
+    max-width: 1000px;
     margin:auto;
 }
 form.options-form {
@@ -320,11 +320,6 @@ button {
     font-size: larger;
     font-weight: bold;
 }
-button.options {
-    display: inline-block;
-    width: 100%;
-    margin: 2px 5px;
-}
 button.btn-secondary {
     background-color: var(--main-bg-color);
     color: var(--main-color);
@@ -553,4 +548,8 @@ input:checked + .slider:before {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+#newFilter {
+    max-width: 25em;
+    margin-left: 20px;
 }

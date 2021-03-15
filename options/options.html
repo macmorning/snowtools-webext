@@ -1,25 +1,37 @@
 <!DOCTYPE html>
 
 <html>
-  <head>
-    <meta charset="utf-8">
-    <link rel="stylesheet" href="../css/snowbelt.css"/>
-  </head>
+    <head>
+        <meta charset="utf-8">
+        <link rel="stylesheet" href="../css/snowbelt.css"/>
+    </head>
 
-  <body class="options-body">
-      <form class="options-form" id="options-form">
-            <label for="urlFilters" class="instance-label" title="Keywords or IP Addresses that should be found in URLs to consider them as potential ServiceNow instances.">URL Filters (separator ";") <img src="../icons/question.png" width="15px"/>
-                <input type="text" id="urlFilters">
-            </label>
+    <body class="options-body">
+        <h3>ServiceNow Toolbelt Extension options</h3>
+
+        <p>
+            <a id="export" href="javascript:void();" class="options">Export</a>: Export your settings to an json file, which you can reimport into another browser. <img src="../icons/question.png" title="Requires the optional Donwloads permission" width="15px"/><br/>
+            <a id="import" href="javascript:void();" class="options">Import</a>: Import your settings from a json file. This will erase the data in the selected storage area.<br/>
+            <br/>
+            <span id="shortcuts" class="options">Shortcuts: </a>
+        </p>
+
+        <form class="options-form" id="options-form">
+            <label class="switch" for="useSync"><input name="useSync" type='checkbox' id="useSync"/><span class='slider round'></span></label>
+            <label class="instance-label" title="Keep your settings in your browser's cloud storage area. This will not erase your local settings. Use the export/import function to copy them from one area to another.">Use cloud storage to sync your settings <img src="../icons/question.png" width="15px"/></label><br/>
+
+            <label class="switch" for="extraDomains"><input name="extraDomains" type='checkbox' id="extraDomains"/><span class='slider round'></span></label>
+            <label class="instance-label" title="Enable to use domains outside of service-now.com. Requires additional permissions.">Enable extra domains for content script <img src="../icons/question.png" width="15px"/></label>
+            <div id="urlFiltersListContainer">
+                <ul class="links-to-tabs" id="urlFiltersList"></ul>
+                <input placeholder="ex: mydomain.com or instance.mydomain.com" type="text" id="newFilter">
+            </div><br/>
 
             <label class="switch" for="autoFrame"><input name="autoFrame" type='checkbox' id="autoFrame"/><span class='slider round'></span></label>
             <label class="instance-label" title="If you experiment issues such as redirection loops, disable this option.">Enable autoframe <img src="../icons/question.png" width="15px"/></label><br/>
 
-            <label class="switch" for="useSync"><input name="useSync" type='checkbox' id="useSync"/><span class='slider round'></span></label>
-            <label class="instance-label" title="Keep your settings in your browser's cloud storage area. This will not erase your local settings. Use the export/import function to copy them from one area to another.">Use cloud storage to sync your settings <img src="../icons/question.png" width="15px"/></label><br/>
-
             <label class="switch" for="showUpdatesets"><input name="showUpdatesets" type='checkbox' id="showUpdatesets"/><span class='slider round'></span></label>
-            <label class="instance-label" title="Displays actual current update sets for each window and instance combination">Show updatesets<img src="../icons/question.png" width="15px"/></label><br/>
+            <label class="instance-label" title="Displays actual current update sets for each window and instance combination">Show updatesets <img src="../icons/question.png" width="15px"/></label><br/>
 
             <div id="knownInstances">
                 <div id="instanceFilterContainer">
@@ -27,43 +39,47 @@
                 </div>
                 <div id="knownInstancesList"><!-- known instances go here --></div>
             </div>
-      </form>
+        </form>
 
-      <!--button id="save" class="options" type="submit" form="options-form" title="Save current settings into the selected storage area.">Save</button-->
-      <button id="export" class="options btn-secondary" title="Export your settings to an json file, which you can reimport into another browser.">Export</button>
-      <button id="import" class="options btn-secondary" title="Import your settings from a json file. This will erase the data in the selected storage area.">Import</button>
-      <input type="file"
-        id="importFile" name="importFile"
-        accept="application/json">
+        <input type="file" style="display:none;"
+            id="importFile" name="importFile"
+            accept="application/json">
 
-    <div class="smart-popin" id="messagePopin">
-        <div class="sp-table">
-            <div class="sp-cell">
-                <div class="sp-body">
-                  <div id="messages_container"><span id="messages">&nbsp;</span></div>
-                  <textarea readonly id="messages_details" cols="50" rows="5"></textarea>
-                  <a href="#" class="no_underline sp-close">×</a>
-                </div>
-                <a href="#" class="no_underline sp-back"></a>
-            </div>
-        </div>
-    </div>
-    <div class="smart-popin" id="colorPicker">
-        <div class="sp-table">
-            <div class="sp-cell">
-                <div class="sp-body">
-                    <p>Select a color for <span name="instanceName"></span></p>
-                    <input id="colorPickerColor" type="color"/>
-                    <button class="thin" id="popin_color" title="save color">use this color</button>
-                    <button class="thin btn-secondary" id="popin_no_color" title="no color">no color</button>
+        <div class="smart-popin" id="messagePopin">
+            <div class="sp-table">
+                <div class="sp-cell">
+                    <div class="sp-body">
+                    <div id="messages_container"><span id="messages">&nbsp;</span></div>
+                    <textarea readonly id="messages_details" cols="50" rows="5"></textarea>
                     <a href="#" class="no_underline sp-close">×</a>
+                    </div>
+                    <a href="#" class="no_underline sp-back"></a>
                 </div>
-                <a href="#" class="no_underline sp-back"></a>
             </div>
         </div>
-    </div>
-    <script src="options.js"></script>
+        <div class="smart-popin" id="colorPicker">
+            <div class="sp-table">
+                <div class="sp-cell">
+                    <div class="sp-body">
+                        <p>Select a color for <span name="instanceName"></span></p>
+                        <input id="colorPickerColor" type="color"/>
+                        <button class="thin" id="popin_color" title="save color">use this color</button>
+                        <button class="thin btn-secondary" id="popin_no_color" title="no color">no color</button>
+                        <a href="#" class="no_underline sp-close">×</a>
+                    </div>
+                    <a href="#" class="no_underline sp-back"></a>
+                </div>
+            </div>
+        </div>
+        <script src="options.js"></script>
+        <script src="../dialog/tips.js"></script>
 
-  </body>
+        <template id="domainRow">
+            <li name="item_{{domainid}}" class="link-to-tab">
+                <a data-id="{{domainid}}" class="no_underline button-muted tab-commands" title="remove">&#10006;</a> <!-- ✖ -->
+                <span id="title_{{domainid}}">{{title}}</span>
+            </li>
+        </template>
+    </body>
 
 </html>

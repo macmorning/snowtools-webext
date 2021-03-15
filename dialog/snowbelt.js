@@ -1,4 +1,5 @@
-const isChrome = (typeof browser === "undefined");
+let isChromium = (typeof browser === "undefined");
+
 const context = {
     windowId: 1,
     tabCount: 0,
@@ -12,6 +13,7 @@ const context = {
     tempInformations: {}, // store temporary data per instance, such as nodes and updates
     showUpdatesets: true,
     useSync: false,
+    extraDomains: false,
     storageArea: {},
     commands: {},
     updateSets: {} // one value per window and instance
@@ -443,14 +445,18 @@ const getOptions = () => {
     });
     context.urlFilters = "service-now.com";
     context.urlFiltersArr = ["service-now.com"];
+    context.extraDomains = false;
     context.knownInstances = {};
     context.instanceOptions = {};
     chrome.storage.local.get("useSync",(result1) => {
         context.useSync = result1.useSync;
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions","showUpdatesets"], (result) => {
-            context.urlFilters = result.urlFilters || "service-now.com";
-            context.urlFiltersArr = context.urlFilters.split(";");
+        context.storageArea.get(["extraDomains","urlFilters", "knownInstances", "instanceOptions","showUpdatesets"], (result) => {
+            context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
+            if (context.extraDomains) {
+                context.urlFilters = result.urlFilters || "service-now.com";
+                context.urlFiltersArr = context.urlFilters.split(";");    
+            }
             context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
             try {
                 context.knownInstances = JSON.parse(result.knownInstances);
@@ -534,7 +540,7 @@ const refreshList = () => {
             if (context.instanceOptions[key] !== undefined && context.instanceOptions[key]["checkState"] !== undefined) {
                 checked = (context.instanceOptions[key]["checkState"] ? "checked" : "");
             } else {
-                checked = (context.tabs[key].length <= context.collapseThreshold ? "checked" : "");
+                checked = (context.tabs[key].length <= context.collapseThreshold ? "" : "checked");
             }
             let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{windowId\}\}/g, winkey).replace(/\{\{windowIdLabel\}\}/g, (winkey != 1 ? " ["+winkey+"]":"")).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
 
@@ -652,7 +658,7 @@ const refreshList = () => {
                 el.style.color = "black";
             }
             // add open color picker
-            if (isChrome) {
+            if (isChromium) {
                 el.addEventListener("click", (e) => {
                     context.clicked = e.target;
                     selectColor(e);
@@ -820,10 +826,13 @@ const tabCreated = (tab) => {
         return false;
     }
     let matchFound = false;
+    // testing each
     for (let i = 0; i < context.urlFiltersArr.length && matchFound !== true; i++) {
         let filter = context.urlFiltersArr[i].trim();
-        if (filter !== "" && tab.url.toString().indexOf(filter) > -1) {
-            matchFound = true;
+        if (filter !== "") {
+            // each filter can match a pattern seach as equant.com or service-now.com
+            let regex = new RegExp(filter.replace("*","(.*)"));
+            matchFound = (tab.instance.match(regex) ? true : false);
         }
     }
     if (matchFound) {
@@ -850,6 +859,9 @@ const tabCreated = (tab) => {
  * @param {*} index
  */
 const updateTabInfo = (instance, windowId, index) => {
+    if (!context.tabs[instance] || !context.tabs[instance][windowId] || !context.tabs[instance][windowId][index]) {
+        return false;
+    }
     let tab = context.tabs[instance][windowId][index];
     let url = new URL(tab.url);
     chrome.tabs.sendMessage(tab.id, {"command": "getTabInfo"}, (response) => {
@@ -1028,14 +1040,14 @@ const openBackgroundScriptWindow = (evt) => {
 const openInPanel = () => {
     let createData = {
         type: "popup",
-        url: (isChrome ? "dialog/snowbelt.html" : "snowbelt.html"),
+        url: (isChromium ? "dialog/snowbelt.html" : "snowbelt.html"),
         width: 700,
         height: 500
     };
     let creating = chrome.windows.create(createData);
 }
 
-const openOptions = () => {
+const openOptions = (elt) => {
     if (chrome.runtime.openOptionsPage) {
         chrome.runtime.openOptionsPage();
     } else {

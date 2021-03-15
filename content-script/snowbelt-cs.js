@@ -1,4 +1,4 @@
-const isChrome = (typeof browser === "undefined");
+const isChromium = (typeof browser === "undefined");
 const context = {
     g_ck: ""
 }
@@ -59,7 +59,7 @@ function getTabInfo () {
     };
 
     // is this a workspace?
-    if (document.querySelector("sn-workspace-layout")) {
+    if (document.querySelector("sn-workspace-layout") || document.querySelector("sn-canvas-root")) {
         response.type = "workspace";
         try {
             // This is a very workspace DOM dependent implementation; need to find a better way of doing this 
@@ -158,12 +158,13 @@ function initScript (options) {
                         });
                         tableEl.innerHTML += tableContent;
                         const displayHistoryRecord = (index) => {
+
+                            textareaEl.value = context.history.records[index].script;
                             textareaEl.innerHTML = context.history.records[index].script;
                         }
                         elements = document.querySelectorAll(".history_table tr");
                         [].forEach.call(elements, (el) => {
                             el.onclick = (evt) => {
-                                console.log(evt);
                                 let index = (evt.target.getAttribute("data-id") ? evt.target.getAttribute("data-id") : evt.target.parentNode.getAttribute("data-id"));
                                 displayHistoryRecord(index);
                             }
@@ -275,7 +276,7 @@ function updateFavicon (color) {
     // ask background script if this tab must be considered as a ServiceNow instance, and get the favicon color
     chrome.runtime.sendMessage({"command": "isServiceNow"}, function (response) {
         if (response === undefined || response.isServiceNow === false) {
-            // console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
+            console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
         } else {
             initScript(response);
 

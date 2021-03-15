@@ -28,9 +28,10 @@ const getOptions = () => {
     chrome.storage.local.get("useSync",(result1) => {
         context.useSync = result1.useSync;
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
             if (Object.keys(result).length === 0) {
                 // Nothing is stored yet
+                context.urlFilters = false;
                 context.urlFilters = "service-now.com;";
                 context.knownInstances = "{}";
                 context.instanceOptions = "{}";
@@ -45,6 +46,23 @@ const getOptions = () => {
 
             context.autoFrame = (result.autoFrame === "true" || result.autoFrame === true);
             context.urlFiltersArr = context.urlFilters.split(";");
+            context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
+            if (context.extraDomains && context.urlFiltersArr.length) {
+                context.urlFiltersArr.forEach(filter => {
+                    if (filter && filter.length) {
+                        try {
+                            // For Chrome, this uses the content-script-register-polyfill
+                            chrome.contentScripts.register({
+                                matches: ['https://' + filter + '/*','https://*.' + filter + '/*'],
+                                js: [{file: "content-script/snowbelt-cs.js"}]
+                            });
+                        } catch(e) {
+                            console.error("*SNOW TOOL BELT BG* Could not register content script for > " + filter);
+                            console.error(e);
+                        }
+                    }
+                });
+            }
             try {
                 context.knownInstances = JSON.parse(context.knownInstances);
             } catch (e) {
@@ -57,6 +75,7 @@ const getOptions = () => {
                 console.log(e);
                 context.instanceOptions = {};
             }
+            // update tab icons
             chrome.tabs.query({}, (tabs) => {
                 for (var i = 0; i < tabs.length; ++i) {
                     let instance = new URL(tabs[i].url).hostname;
@@ -65,8 +84,6 @@ const getOptions = () => {
                     }
                 }
             });
-
-            console.log(context);
         });
     });
 };
@@ -210,14 +227,14 @@ const isServiceNow = (hostname) => {
     let response = { "isServiceNow": false };
     context.urlFiltersArr.forEach(function (filter) {
         if (matchFound || filter.trim() === "") return true;
-        if (hostname.indexOf(filter.trim()) > -1) {
+        matchFound = ( hostname.indexOf(filter) ? true : false );
+        if (matchFound) {
             let color = "";
             let hidden = false;
             if (context.instanceOptions[hostname] !== undefined) {
                 hidden = context.instanceOptions[hostname]["hidden"];
                 color = context.instanceOptions[hostname]["color"];
             }
-            matchFound = true;
 
             // This is an instance we did not know about, save it
             if (context.knownInstances[hostname] === undefined) {
@@ -241,8 +258,8 @@ const isServiceNow = (hostname) => {
  */
 const msgListener = (message, sender, sendResponse) => {
     console.log("*SNOW TOOL BELT BG* received message");
-    console.log(sender);
-    console.log(message);
+    // console.log(sender);
+    // console.log(message);
     let hostname;
     try {
         hostname = new URL(sender.url).hostname;
@@ -276,3 +293,124 @@ chrome.tabs.onUpdated.addListener(tabUpdated);
 chrome.storage.onChanged.addListener(storageEvent);
 chrome.commands.onCommand.addListener(cmdListener);
 getOptions();
+
+/* https://github.com/fregante/content-scripts-register-polyfill @ v2.1.0 */
+
+(function () {
+	'use strict';
+
+	function NestedProxy(target) {
+		return new Proxy(target, {
+			get(target, prop) {
+				if (typeof target[prop] !== 'function') {
+					return new NestedProxy(target[prop]);
+				}
+				return (...arguments_) =>
+					new Promise((resolve, reject) => {
+						target[prop](...arguments_, result => {
+							if (chrome.runtime.lastError) {
+								reject(new Error(chrome.runtime.lastError.message));
+							} else {
+								resolve(result);
+							}
+						});
+					});
+			}
+		});
+	}
+	const chromeP =
+		typeof window === 'object' &&
+		(window.browser || new NestedProxy(window.chrome));
+
+	const patternValidationRegex = /^(https?|wss?|file|ftp|\*):\/\/(\*|\*\.[^*/]+|[^*/]+)\/.*$|^file:\/\/\/.*$|^resource:\/\/(\*|\*\.[^*/]+|[^*/]+)\/.*$|^about:/;
+	const isFirefox = typeof navigator === 'object' && navigator.userAgent.includes('Firefox/');
+	function getRawRegex(matchPattern) {
+	    if (!patternValidationRegex.test(matchPattern)) {
+	        throw new Error(matchPattern + ' is an invalid pattern, it must match ' + String(patternValidationRegex));
+	    }
+	    let [, protocol, host, pathname] = matchPattern.split(/(^[^:]+:[/][/])([^/]+)?/);
+	    protocol = protocol
+	        .replace('*', isFirefox ? '(https?|wss?)' : 'https?')
+	        .replace(/[/]/g, '[/]');
+	    host = (host !== null && host !== void 0 ? host : '')
+	        .replace(/^[*][.]/, '([^/]+.)*')
+	        .replace(/^[*]$/, '[^/]+')
+	        .replace(/[.]/g, '[.]')
+	        .replace(/[*]$/g, '[^.]+');
+	    pathname = pathname
+	        .replace(/[/]/g, '[/]')
+	        .replace(/[.]/g, '[.]')
+	        .replace(/[*]/g, '.*');
+	    return '^' + protocol + host + '(' + pathname + ')?$';
+	}
+	function patternToRegex(...matchPatterns) {
+	    if (matchPatterns.includes('<all_urls>')) {
+	        return /^(https?|file|ftp):[/]+/;
+	    }
+	    return new RegExp(matchPatterns.map(getRawRegex).join('|'));
+	}
+
+	async function isOriginPermitted(url) {
+	    return chromeP.permissions.contains({
+	        origins: [new URL(url).origin + '/*']
+	    });
+	}
+	async function wasPreviouslyLoaded(tabId, loadCheck) {
+	    const result = await chromeP.tabs.executeScript(tabId, {
+	        code: loadCheck,
+	        runAt: 'document_start'
+	    });
+	    return result === null || result === void 0 ? void 0 : result[0];
+	}
+	if (typeof chrome === 'object' && !chrome.contentScripts) {
+	    chrome.contentScripts = {
+	        async register(contentScriptOptions, callback) {
+	            const { js = [], css = [], allFrames, matchAboutBlank, matches, runAt } = contentScriptOptions;
+	            const loadCheck = `document[${JSON.stringify(JSON.stringify({ js, css }))}]`;
+	            const matchesRegex = patternToRegex(...matches);
+	            const listener = async (tabId, _,
+	            { url }) => {
+	                if (!url ||
+	                    !matchesRegex.test(url) ||
+	                    !await isOriginPermitted(url) ||
+	                    await wasPreviouslyLoaded(tabId, loadCheck)
+	                ) {
+	                    return;
+	                }
+	                for (const file of css) {
+	                    chrome.tabs.insertCSS(tabId, {
+	                        ...file,
+	                        matchAboutBlank,
+	                        allFrames,
+	                        runAt: runAt !== null && runAt !== void 0 ? runAt : 'document_start'
+	                    });
+	                }
+	                for (const file of js) {
+	                    chrome.tabs.executeScript(tabId, {
+	                        ...file,
+	                        matchAboutBlank,
+	                        allFrames,
+	                        runAt
+	                    });
+	                }
+	                chrome.tabs.executeScript(tabId, {
+	                    code: `${loadCheck} = true`,
+	                    runAt: 'document_start',
+	                    allFrames
+	                });
+	            };
+	            chrome.tabs.onUpdated.addListener(listener);
+	            const registeredContentScript = {
+	                async unregister() {
+	                    chromeP.tabs.onUpdated.removeListener(listener);
+	                }
+	            };
+	            if (typeof callback === 'function') {
+	                callback(registeredContentScript);
+	            }
+	            return Promise.resolve(registeredContentScript);
+	        }
+	    };
+	}
+
+}());

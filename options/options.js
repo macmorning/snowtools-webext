@@ -1,10 +1,13 @@
+let isChromium = (typeof browser === "undefined");
 const context = {
     knownInstances: {},
     instanceOptions: {},
     useSync: false,
     storageArea: {}
 };
-
+chrome.commands.getAll((result) => { 
+    context.commands = result;
+});
 /**
  * Displays a message for a short time.
  * @param {String} txt Message to display.
@@ -56,6 +59,54 @@ const selectColor = (evt) => {
     location.hash = "colorPicker";
 };
 
+const removeFilter = (ev) => {
+    if (ev && ev.target && ev.target.getAttribute("data-id")) {
+        context.urlFilters = context.urlFilters.replace(ev.target.getAttribute("data-id") + ";", ";");
+        saveFilters();
+        rebuildDomainsList();
+    }
+};
+
+const addFilter = (el) => {
+    if (el && el.value && context.urlFilters.indexOf(el.value + ";") == -1) {
+        // remove http:// and https:// from filter string
+        // each filter can match a pattern seach as equant.com or service-now.com
+        const regex = /http[s]{0,1}:\/\//gm;
+        const regex2 = /\/[^;]*/gm;
+        newFilter = el.value.replace(regex, "").replace(regex2, "");
+        el.value = "";
+        context.urlFilters += newFilter + ";";
+        saveFilters();
+        rebuildDomainsList();
+    }
+};
+const rebuildDomainsList = () => {
+
+    let urlFiltersList = document.getElementById("urlFiltersList");
+    let urlFiltersListContainer = document.getElementById("urlFiltersListContainer");
+    if (context.extraDomains) {
+        urlFiltersListContainer.style.display = "block";
+        while (urlFiltersList.firstChild) {
+            urlFiltersList.removeChild(urlFiltersList.firstChild);
+        };
+        let urlFiltersArray = context.urlFilters.split(";");
+        urlFiltersArray.sort();
+        urlFiltersArray.forEach(domain => {
+            if (domain.length) {
+                let templateInstance = document.getElementById("domainRow");
+                let domainRow = templateInstance.innerHTML.toString().replace(/\{\{domainid\}\}/g, domain).replace(/\{\{title\}\}/g, domain);
+                urlFiltersList.innerHTML += domainRow;
+            }
+        });
+        // add remove filter actions
+        elements = document.querySelectorAll("a[title=\"remove\"]");
+        [].forEach.call(elements, (el) => {
+            el.addEventListener("click", removeFilter);
+        });
+    } else {
+        urlFiltersListContainer.style.display = "none";
+    }
+};
 /**
  * Restores the options saved into storage area
  */
@@ -70,8 +121,13 @@ const restoreOptions = () => {
         document.getElementById("useSync").checked = context.useSync;
         // load options from storage area depending on the useSync setting
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
-            document.getElementById("urlFilters").value = result.urlFilters || "service-now.com;";
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
+            context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
+            context.urlFilters = result.urlFilters || "service-now.com;";
+            rebuildDomainsList();
+            
+            document.getElementById("extraDomains").checked = context.extraDomains;
+            // document.getElementById("urlFilters").value = context.urlFilters;
             document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
             document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
             try {
@@ -260,6 +316,12 @@ const deleteInstance = (evt) => {
 };
 
 /**
+ * Saves the domain filters
+ */
+const saveFilters = () => {
+    context.storageArea.set({ "urlFilters": context.urlFilters }, () => {});
+}
+/**
  * Saves the instances checked states
  */
 const saveInstanceOptions = () => {
@@ -276,35 +338,64 @@ const saveInstanceOptions = () => {
     }
 };
 
+async function register(hosts, code) {
+    return await chrome.contentScripts.register({
+        matches: [hosts],
+        js: [{code}],
+        runAt: "document_idle"
+    });
+}
+
 /**
  * Saves the options into storage
  * @param {object} evt the event that triggered the action
  */
 const saveOptions = (evt) => {
     evt.preventDefault();
-    // console.log({'id': evt.target.id, 'value': evt.target.value});
     try {
         if (evt.target.id === "autoFrame") {
             context.autoFrame = evt.target.checked;
-            context.storageArea.set({ "autoFrame": context.autoFrame }, () => {
-                console.log("autoFrame saved!");
-            });
+            context.storageArea.set({ "autoFrame": context.autoFrame }, () => {});
         } else if (evt.target.id === "showUpdatesets") {
             context.showUpdatesets = evt.target.checked;
-            context.storageArea.set({ "showUpdatesets": context.showUpdatesets }, () => {
-                console.log("showUpdatesets saved!");
-            });
-        } else if (evt.target.id === "urlFilters") {
-            // remove http:// and https:// from filter string
-            const regex = /http[s]{0,1}:\/\//gm;
-            const regex2 = /\/[^;]*/gm;
-            context.urlFilters = evt.target.value.replace(regex, "").replace(regex2, "");
-            if (context.urlFilters !== evt.target.value) {
-                document.getElementById("urlFilters").value = context.urlFilters;
+            context.storageArea.set({ "showUpdatesets": context.showUpdatesets }, () => {});
+        } else if (evt.target.id === "extraDomains") {
+            console.log(evt.target.checked);
+            context.extraDomains = evt.target.checked;
+            if (context.extraDomains) {
+                chrome.permissions.contains({
+                    origins: ['<all_urls>']
+                }, (result) => {
+                    console.log("result before > " + result);
+                });
+                chrome.permissions.request({
+                    origins: ['<all_urls>']
+                }, granted => {
+                    if (granted) {
+                        context.storageArea.set({ "extraDomains": context.extraDomains }, () => {
+                            // this should trigger an event that will be catched by the background script, which will ask the browser to inject the content script
+                            rebuildDomainsList();
+                        });
+                    } else {
+                        evt.target.checked = false;
+                        context.extraDomains = false;
+                        rebuildDomainsList();
+                        displayMessage("Your permission is required to use the extension outside of service-now.com domains.");
+                    }
+                    chrome.permissions.contains({
+                        origins: ['<all_urls>']
+                    }, (result) => {
+                        console.log("result after > " + result);
+                    });
+                });
+            } else {
+                chrome.permissions.remove({
+                    origins: ['<all_urls>']
+                });
+                context.storageArea.set({ "extraDomains": context.extraDomains }, () => { 
+                    rebuildDomainsList();
+                });
             }
-            context.storageArea.set({ "urlFilters": context.urlFilters }, () => {
-                console.log("urlFilters saved!");
-            });
         } else {
             for (var key in context.knownInstances) {
                 context.knownInstances[key] = document.getElementById(key).value;
@@ -330,22 +421,29 @@ const saveOptions = (evt) => {
  * @param {object} evt the event that triggered the action
  */
 const exportOptions = (evt) => {
-    evt.preventDefault();
-
-    context.storageArea.get(["urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
-        // let string = encodeURIComponent(JSON.stringify(result));
-        var blob = new Blob([JSON.stringify(result)], {type: "application/json;charset=utf-8"});
-        try {
-            chrome.downloads.download({
-                filename: "snow-toolbelt-backup.json",
-                saveAs: true,
-                url: URL.createObjectURL(blob)
+    chrome.permissions.request({
+        permissions: ['downloads']
+    }, (granted) => {
+        if (granted) {
+            context.storageArea.get(["extraDomains","urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
+                // let string = encodeURIComponent(JSON.stringify(result));
+                var blob = new Blob([JSON.stringify(result)], {type: "application/json;charset=utf-8"});
+                try {
+                    chrome.downloads.download({
+                        filename: "snow-toolbelt-backup.json",
+                        saveAs: true,
+                        url: URL.createObjectURL(blob)
+                    });
+                } catch (e) {
+                    displayMessage("Sorry, there was a browser error. Please report it with the details below.", e);
+                    console.log(e);
+                }
             });
-        } catch (e) {
-            displayMessage("Sorry, there was a browser error. Please report it with the details below.", e);
-            console.log(e);
+        } else {
+            displayMessage("Sorry, the extension can only export your data if you approved the requested permission.");
         }
     });
+    evt.preventDefault();
 };
 /**
  * Imports the options into storage
@@ -370,6 +468,7 @@ const importOptions = (evt) => {
                 context.storageArea.set({
                     "knownInstances": obj.knownInstances,
                     "instanceOptions": obj.instanceOptions,
+                    "extraDomains": false, // always set to false by default to request the all_urls permission again if required
                     "urlFilters": obj.urlFilters,
                     "autoFrame": obj.autoFrame,
                     "showUpdatesets": obj.showUpdatesets
@@ -420,9 +519,15 @@ document.addEventListener("DOMContentLoaded", restoreOptions);
 document.querySelector("form").addEventListener("submit", saveOptions);
 document.getElementById("useSync").addEventListener("change", toggleSync);
 document.getElementById("autoFrame").addEventListener("change", saveOptions);
+document.getElementById("extraDomains").addEventListener("change", saveOptions);
 document.getElementById("showUpdatesets").addEventListener("change", saveOptions);
-document.getElementById("urlFilters").addEventListener("change", saveOptions);
 document.getElementById("export").addEventListener("click", exportOptions);
 document.getElementById("import").addEventListener("click", openFileSelect);
 document.getElementById("importFile").style.display = "none";
 document.getElementById("importFile").addEventListener("change", importOptions);
+document.getElementById("newFilter").addEventListener("keyup", function (event) {
+    event.preventDefault();
+    if (event.keyCode === 13) {
+        addFilter(event.target);
+    }
+});

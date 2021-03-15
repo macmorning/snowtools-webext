@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "ServiceNow tool belt",
-  "version": "4.7.1",
+  "version": "5.0.0",
   "description": "A set of tools for ServiceNow developers and administrators",
   "homepage_url": "https://github.com/macmorning/snowtools-webext",
   "icons": {
@@ -51,7 +51,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": ["https://*.service-now.com/*"],
       "js": ["content-script/snowbelt-cs.js"]
     }
   ],
@@ -62,8 +62,13 @@
   "permissions": [
     "tabs", 
     "storage", 
-    "cookies",
-    "downloads"
+    "cookies"
+  ],
+  "optional_permissions": [
+        "http://*/*",
+        "https://*/*",
+        "<all_urls>",
+        "downloads"
   ],
   "content_security_policy": "script-src 'self'; object-src 'self'",
   "browser_specific_settings": {

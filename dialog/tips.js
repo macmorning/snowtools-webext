@@ -1,11 +1,22 @@
 const chromeURL = "https://chrome.google.com/webstore/detail/servicenow-tool-belt/jflcifhpkilfaomlnikfaaccmpidkmln";
 const mozURL = "https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/";
 const gitURL = "https://github.com/macmorning/snowtools-webext";
-const shortcutsURL = (isChrome ? "chrome://extensions/shortcuts" : "about:addons");
+
+
+const shortcutsURL = (isChromium ? "chrome://extensions/shortcuts" : "about:addons");
+
 let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '5.0.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Removed the broadest default permissions for the extension.</li>"+
+            "</ul>"+
+            "<b>important:</b> You now have to <b>explicitly</b> allow the extension to be used outside of the service-now.com domain. \"Enable extra domains for content script\" in the options page if you want to use this feature. <br/>" +
+            "Just to be safe, remember you can use the export button in the options page to save your settings into a JSON file. You can import it back later in case of a bug or an issue with sync storage, or to copy your settings accross browsers."
+    },{ 
         version: '4.7.1',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
@@ -122,13 +133,15 @@ const rememberWhatsNew = () => {
  * Returns the list of commands
  */
 const getCommands = () => {
-    let result = 'The following commands are currently configured for your browser:<ul>';
-    context.commands.forEach((command) => {
-            result += '<li>' + (command.name === '_execute_browser_action' ? 'Open tools popup' : command.description) + ': <e>' + command.shortcut + '</e></li>';
-    });
-    result += "</ul>";
-    result += "See " + shortcutsURL + " for configuration";
-    return result;
+    if (context && context.commands) {
+        let result = 'The following commands are currently configured for your browser:<ul>';
+        context.commands.forEach((command) => {
+                result += '<li>' + (command.name === '_execute_browser_action' ? 'Open tools popup' : command.description) + ': <b>' + command.shortcut + '</b></li>';
+        });
+        result += "</ul>";
+        result += "See " + shortcutsURL + " for configuration";
+        return result;    
+    }
 }
 
 const nextTip = () => {
@@ -148,9 +161,9 @@ const getTip = () => {
     tips = [
         "Lost your settings?<br/>Go to the options pages and make sure you are using the storage area where you saved them.",
         "You can hide automatically saved serice-now.com sub-domains such as \"partnerportal\", \"hi\" or \"signon\" by toggling their visibility in the options page.",
-        "You can export your preferences and import them into " + (isChrome ? "Firefox" : "Chrome") + " from the options page.",
-        "You can rate this extension <a href=\"" + (isChrome ? chromeURL : mozURL) + "\" target=\"_blank\">here</a>.",
-        "This extension is also available on <a target=\"_blank\" href=\"" + (isChrome ? mozURL : chromeURL) + "\">" + (isChrome ? "Firefox" : "Chrome") + "</a>.",
+        "You can export your preferences and import them into " + (isChromium ? "Firefox" : "Chrome") + " from the options page.",
+        "You can rate this extension <a href=\"" + (isChromium ? chromeURL : mozURL) + "\" target=\"_blank\">here</a>.",
+        "This extension is also available on <a target=\"_blank\" href=\"" + (isChromium ? mozURL : chromeURL) + "\">" + (isChromium ? "Firefox" : "Chrome") + "</a>.",
         "When switching to a specific node, the extension will send requests to your instance until we are routed to this node or the maximum number of tries was reached. You can retry as many times as you want, though.",
         "You can post enhancement requests or defects on <a target=\"_blank\" href=\"https://github.com/macmorning/snowtools-webext/issues\">github</a>.",
         "This extension requires access to downloads to let you export your preferences, access to cookies for node switching, and access to all domains because your ServiceNow instances could be accessed through a custom domain.",
@@ -169,3 +182,11 @@ const getTip = () => {
     document.getElementById("tip").innerHTML = tips[number];
     return true;
 };
+
+// If there is a "shortcuts" element, like on the options page, add the shortcuts list
+if (document.querySelector("span#shortcuts")) {
+    chrome.commands.getAll((result) => { 
+        context.commands = result;
+        document.querySelector("span#shortcuts").insertAdjacentHTML("afterend", getCommands());
+    });
+}
