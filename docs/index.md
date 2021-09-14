@@ -8,13 +8,10 @@ Servicenow Tool Belt is a set of tools for Firefox and Chromium based browsers d
 # Install the extension
 
 You can download & install the extension for your browser from the store:
-* [addons.firefox.com](https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/)
-* [chrome.google.com](https://chrome.google.com/webstore/detail/servicenow-tool-belt/jflcifhpkilfaomlnikfaaccmpidkmln) 
-* [microsoftedge.microsoft.com](https://microsoftedge.microsoft.com/addons/detail/servicenow-tool-belt/ofefboehibiaekjaiaiacalcdeonfbil)
 
-
-![Mozilla Add-on](https://img.shields.io/amo/users/snow-tool-belt.svg?label=firefox%20users&logo=mozilla)
-![Chrome Web Store](https://img.shields.io/chrome-web-store/users/jflcifhpkilfaomlnikfaaccmpidkmln.svg?label=chrome%20users&logo=google)
+[![Mozilla Add-on](https://img.shields.io/amo/users/snow-tool-belt.svg?label=firefox%20users&logo=mozilla)](https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/users/jflcifhpkilfaomlnikfaaccmpidkmln.svg?label=chrome%20users&logo=google)](https://chrome.google.com/webstore/detail/servicenow-tool-belt/jflcifhpkilfaomlnikfaaccmpidkmln) 
+[![](https://img.shields.io/badge/dynamic/json?label=edge&nbsp;users&query=%24.activeInstallCount&url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fofefboehibiaekjaiaiacalcdeonfbil)](https://microsoftedge.microsoft.com/addons/detail/servicenow-tool-belt/ofefboehibiaekjaiaiacalcdeonfbil)
 
 # Privacy policy
 
