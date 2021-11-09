@@ -158,9 +158,7 @@ function initScript (options) {
                         });
                         tableEl.innerHTML += tableContent;
                         const displayHistoryRecord = (index) => {
-
                             textareaEl.value = context.history.records[index].script;
-                            textareaEl.innerHTML = context.history.records[index].script;
                         }
                         elements = document.querySelectorAll(".history_table tr");
                         [].forEach.call(elements, (el) => {
