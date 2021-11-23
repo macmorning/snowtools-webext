@@ -215,16 +215,21 @@ function backgroundScriptAddonTableTemplate() {
  *  Returns an HTML table row
  */
 function backgroundScriptAddonRowTemplate(row, index) {
+    let safeRow = {};
+    Object.keys(row).forEach(function(key) {
+        safeRow[key] = DOMPurify.sanitize(row[key]);
+    });
+
     return `
-        <tr data-id="${index}" id="execution_history_table_${row.sys_id}">
+        <tr data-id="${index}" id="execution_history_table_${safeRow.sys_id}">
             <td name="">
-                &gt;
+            &gt;
             </td>
             <td name="started">
-                ${row.started}
+                ${safeRow.started}
             </td>
             <td name="script">
-                ${row.script}
+                ${safeRow.script}
             </td>
         </tr>
     `

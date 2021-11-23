@@ -230,8 +230,7 @@ div.instance-label {
     color: var(--main-color);
     cursor: pointer;
 }
-.small-instance-label {
-}
+
 .small-instance-label.enhanced:before {
     font-size: larger;
     content: "‣ \0020";
