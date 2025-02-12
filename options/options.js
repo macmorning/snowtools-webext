@@ -310,6 +310,7 @@ const deleteInstance = (evt) => {
     let id = evt.target.id.split("#")[1];
     // displayMessage("Forgetting about " + id + "...");
     delete context.knownInstances[id];
+    delete context.instanceOptions[id];
     document.getElementById("knownInstancesList").removeChild(evt.target.parentNode.parentNode); // remove the label element
     document.getElementById("knownInstancesList").removeChild(document.getElementById(id)); // remove the input element
     saveOptions(evt);
