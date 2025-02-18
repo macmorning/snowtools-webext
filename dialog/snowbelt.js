@@ -504,7 +504,7 @@ const searchNow = (evt) => {
     let currentText = document.getElementById("searchInput").value;
     let targetUrl = "";
     if (evt.target.id === "search_doc") {
-        targetUrl = "https://docs.servicenow.com/search?q=";
+        targetUrl = "https://www.servicenow.com/docs/en-US/search?q=";
     } else if (evt.target.id === "search_api") {
         targetUrl = "https://developer.servicenow.com/dev.do#!/search/latest/Reference/";
     } else {
