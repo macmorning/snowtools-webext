@@ -9,6 +9,13 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '5.1.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Finally made some updates required by the recent ServiceNow UI changes.</li>"+
+            "<li>Updated the documentation search link.</li>"+
+            "</ul>"
+    },{ 
         version: '5.0.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
@@ -55,39 +62,6 @@ const whatsnew = [
             "<li>Added a <i>hide</i> contextual action in instances menus.</li>"+
             "<li>Removed some useless refreshes on Firefox.</li>"+
             "</ul>"
-    },{ 
-        version: '4.3.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>Added the show update set option for all browsers to display the <b>actual</b> current update set in each instance window. You can disable this feature in the options page.</li>"+
-            "</ul>"
-    },{ 
-        version: '4.2.1',
-        msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>Fixed: the incognito window indicator was only shown for the first instance in this window.</li>"+
-            "<li>Removed: the show updateset Chrome-only feature had some annoying auth issues. Need to rethink it.</li>"+
-            "<li>Open a background script window: via the <b>instance contextual menu</b> or with a <b>new shortcut</b>. Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
-            "</ul>"
-    },{ 
-        version: '4.2.0',
-        msg: "Most notable new features:<br/>" +
-            "<ul><li>New shortcut: switch between technical names and labels in lists and forms (UI16). Make sure you configure your shortcuts in " + shortcutsURL + "</li>"+
-            "</ul>"
-    },{ 
-        version: '4.1.0',
-        msg: "Most notable new features:<br/>" +
-            "<ul><li>Dropped the 'all_urls' permission requirement.</li>" +
-            "<li>You can now define shortcuts for two basic actions: open this browser popup and reopen in navpage frame.</li>" +
-            "<li>Enhanced the 'tips' displayed when no instance tabs were found, you can now display more cool tips!</li></ul>" +
-            "If you encounter any issue with this version, please do post them on <a href='" + gitURL + "'>github</a>."
-    },{ 
-        version: '4.0.0',
-        msg: "Most notable new features:<br/>" +
-            "<ul><li>this WhatsNew feature</li>" +
-            "<li>storage sync feature activation</li></ul>" +
-            "<b>important:</b> You now have to <b>explicitly</b> set the storage area for your settings. Make sure you enable \"use cloud storage\" in the options page if you want to use this feature. <br/>" +
-            "Just to be safe, remember you can use the export button in the options page to save your settings into a JSON file. You can import it back later in case of a bug or an issue with sync storage, or to copy your settings accross browsers."
     }
 ];
 let commandsTip = "";

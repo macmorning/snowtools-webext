@@ -144,10 +144,14 @@ const restoreOptions = () => {
                 context.instanceOptions = {};
                 console.log(e);
             }
-            if (context.knownInstances !== {}) {
+            if (Object.keys(context.knownInstances).length !== 0) {
                 // if knownInstances is not empty, build the input fields
                 sortInstances(sortProperties(context.knownInstances, false));
                 for (var key in context.knownInstances) {
+                    if (!key.endsWith("service-now.com")) {
+                        console.log("found a non service-now.com instance");
+                        document.getElementById("extraDomainsHighlight").style.display = "inline";
+                    }
                     let input = document.createElement("input");
                     input.setAttribute("type", "text");
                     input.setAttribute("name", "instanceLabel");
