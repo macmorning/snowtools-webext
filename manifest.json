@@ -16,9 +16,6 @@
       "description": "Open the tools popup"
     },
     "execute-reframe": {
-      "suggested_key": {
-        "default": "Alt+F"
-      },
       "description": "Reopen current url into navpage"
     },
     "execute-fieldnames": {
