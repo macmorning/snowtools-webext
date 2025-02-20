@@ -148,8 +148,7 @@ const restoreOptions = () => {
                 // if knownInstances is not empty, build the input fields
                 sortInstances(sortProperties(context.knownInstances, false));
                 for (var key in context.knownInstances) {
-                    if (!key.endsWith("service-now.com")) {
-                        console.log("found a non service-now.com instance");
+                    if (!key.endsWith("service-now.com") && !context.extraDomains) {
                         document.getElementById("extraDomainsHighlight").style.display = "inline";
                     }
                     let input = document.createElement("input");
