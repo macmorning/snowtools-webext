@@ -406,7 +406,7 @@ function updateFavicon (color) {
                     */
                     console.log("*SNOW TOOL BELT* using this tab to switch to node " + request.node);
                     let targetNode = request.node.toString();
-                    let maxTries = 50;
+                    let maxTries = 20;
                     let tries = 0;
                     let tryAgain = function () {
                         fetch(statsUrl, {credentials: "same-origin"})

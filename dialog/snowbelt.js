@@ -63,7 +63,7 @@ const newTab = (evt, url, windowId) => {
         targetUrl = url;
     } else {
         instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
-        targetUrl = "https://" + instance + "/";
+        targetUrl = "https://" + instance + "/now/nav/ui/classic/params/target/blank.do";
     }
     // is there an open tab for this instance ? if yes, insert the new tab after the last one
     if (context.tabs[instance] !== undefined && context.tabs[instance][windowId] !== undefined) {
@@ -892,7 +892,7 @@ const updateTabInfo = (instance, windowId, index) => {
         }
 
         // hide "reopen in frame"
-        if (tab.snt_type !== "other" || url.pathname === "/nav_to.do" || url.pathname === "/navpage.do") {
+        if (tab.snt_type !== "other" || url.pathname === "/nav_to.do" || url.pathname === "/navpage.do" || url.pathname.includes("now/nav/ui/classic/params/target")) {
             document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "none";
         } else {
             document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "inline";
