@@ -144,10 +144,13 @@ const restoreOptions = () => {
                 context.instanceOptions = {};
                 console.log(e);
             }
-            if (context.knownInstances !== {}) {
+            if (Object.keys(context.knownInstances).length !== 0) {
                 // if knownInstances is not empty, build the input fields
                 sortInstances(sortProperties(context.knownInstances, false));
                 for (var key in context.knownInstances) {
+                    if (!key.endsWith("service-now.com") && !context.extraDomains) {
+                        document.getElementById("extraDomainsHighlight").style.display = "inline";
+                    }
                     let input = document.createElement("input");
                     input.setAttribute("type", "text");
                     input.setAttribute("name", "instanceLabel");
@@ -310,6 +313,7 @@ const deleteInstance = (evt) => {
     let id = evt.target.id.split("#")[1];
     // displayMessage("Forgetting about " + id + "...");
     delete context.knownInstances[id];
+    delete context.instanceOptions[id];
     document.getElementById("knownInstancesList").removeChild(evt.target.parentNode.parentNode); // remove the label element
     document.getElementById("knownInstancesList").removeChild(document.getElementById(id)); // remove the input element
     saveOptions(evt);

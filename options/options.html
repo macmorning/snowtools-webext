@@ -22,6 +22,7 @@
 
             <label class="switch" for="extraDomains"><input name="extraDomains" type='checkbox' id="extraDomains"/><span class='slider round'></span></label>
             <label class="instance-label" title="Enable to use domains outside of service-now.com. Requires additional permissions.">Enable extra domains for content script <img src="../icons/question.png" width="15px"/></label>
+            <span id="extraDomainsHighlight" class="highlight" style="display:none;"><br/>You have at least one known instance which is not in the service-now.com domain. You may want to enable this feature to use the extension with it.<br/></span>
             <div id="urlFiltersListContainer">
                 <ul class="links-to-tabs" id="urlFiltersList"></ul>
                 <input placeholder="ex: mydomain.com or instance.mydomain.com" type="text" id="newFilter">

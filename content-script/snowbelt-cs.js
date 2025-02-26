@@ -6,10 +6,12 @@ const context = {
  * Changes field labels to technical names and the other way round
  */
 function switchFieldNames() {
+    // console.log("*SNOW TOOL BELT* Switching field names");
     // this is *very* DOM dependent and could break anyday if ServiceNow changes the structure of their pages
     let doc = (document.getElementsByTagName("iframe")[0] ? document.getElementsByTagName("iframe")[0].contentWindow.document : document);
     // for [related] lists
     let fields = doc.querySelectorAll("[glide_field]");
+    console.log(fields);
     [].forEach.call(fields, (el) => {
         childEl = el.querySelector("span a");
         childEl.innerText = (childEl.innerText === el.getAttribute("glide_field")) ? el.getAttribute("glide_label") : el.getAttribute("glide_field");
@@ -158,7 +160,7 @@ function initScript (options) {
                         });
                         tableEl.innerHTML += tableContent;
                         const displayHistoryRecord = (index) => {
-                            textareaEl.value = context.history.records[index].script;
+                            textareaEl.innerText = context.history.records[index].script;
                         }
                         elements = document.querySelectorAll(".history_table tr");
                         [].forEach.call(elements, (el) => {
@@ -285,7 +287,7 @@ function updateFavicon (color) {
 
             // Defining how to react to messages coming from the background script or the browser action
             chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-                // console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
+                console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
                 let instanceName = window.location.hostname;
                 let host = window.location.host;
                 let statsUrl = new Request(window.location.origin + "/stats.do");
@@ -404,7 +406,7 @@ function updateFavicon (color) {
                     */
                     console.log("*SNOW TOOL BELT* using this tab to switch to node " + request.node);
                     let targetNode = request.node.toString();
-                    let maxTries = 50;
+                    let maxTries = 20;
                     let tries = 0;
                     let tryAgain = function () {
                         fetch(statsUrl, {credentials: "same-origin"})

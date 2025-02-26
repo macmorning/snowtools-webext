@@ -63,7 +63,7 @@ const newTab = (evt, url, windowId) => {
         targetUrl = url;
     } else {
         instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
-        targetUrl = "https://" + instance + "/nav_to.do?uri=blank.do";
+        targetUrl = "https://" + instance + "/now/nav/ui/classic/params/target/blank.do";
     }
     // is there an open tab for this instance ? if yes, insert the new tab after the last one
     if (context.tabs[instance] !== undefined && context.tabs[instance][windowId] !== undefined) {
@@ -504,7 +504,7 @@ const searchNow = (evt) => {
     let currentText = document.getElementById("searchInput").value;
     let targetUrl = "";
     if (evt.target.id === "search_doc") {
-        targetUrl = "https://docs.servicenow.com/search?q=";
+        targetUrl = "https://www.servicenow.com/docs/en-US/search?q=";
     } else if (evt.target.id === "search_api") {
         targetUrl = "https://developer.servicenow.com/dev.do#!/search/latest/Reference/";
     } else {
@@ -892,7 +892,7 @@ const updateTabInfo = (instance, windowId, index) => {
         }
 
         // hide "reopen in frame"
-        if (tab.snt_type !== "other" || url.pathname === "/nav_to.do" || url.pathname === "/navpage.do") {
+        if (tab.snt_type !== "other" || url.pathname === "/nav_to.do" || url.pathname === "/navpage.do" || url.pathname.includes("now/nav/ui/classic/params/target")) {
             document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "none";
         } else {
             document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "inline";

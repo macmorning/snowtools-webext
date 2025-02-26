@@ -136,6 +136,7 @@ const popIn = (tabid) => {
  * @param {Object} tab The tab from which the command was sent
  */
 const openVersions = (tab) => {
+    // console.log("*SNOW TOOL BELT BG* openVersions");
     let url = new URL(tab.url);
     if (url.pathname == "/nav_to.do") {
         // this is a framed nav window, get the base uri
@@ -143,6 +144,13 @@ const openVersions = (tab) => {
     }
     var tableName = url.pathname.replace("/","").replace(".do","");
     var sysId = url.searchParams.get("sys_id");
+    if (url.pathname.startsWith("/now/nav/ui/classic/params/target")) {
+        // this the "new" ui management
+        tableName = tableName.replace("now/nav/ui/classic/params/target/","").split("%3F")[0];
+        sysId = url.pathname.split("%3D")[1]
+    }
+    // console.log("*SNOW TOOL BELT BG* tableName: " + tableName);
+    // console.log("*SNOW TOOL BELT BG* sysId: " + sysId);
     if (!tableName || !sysId) {
         return false;
     }
@@ -152,6 +160,7 @@ const openVersions = (tab) => {
         width: 1200,
         height: 500
     };
+    // console.log(createData);
     let creating = chrome.windows.create(createData);
 }
 
