@@ -9,6 +9,14 @@ let tips;
 context.lastTipNumber = -1;
 const whatsnew = [
     { 
+        version: '6.0.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Upgraded manifest to v3. Not a big change from a user point of view but it was such a pain I thought it deserved its own major release.</li>"+
+            "<li>Not much more, to be honest. Please create issues on github if you see the extension misbehaving.</li>"+
+            "<li>If you are using extra-service-now.com domains, you may have to re-enable the option, so the extension requests the new, renamed authorization to access all urls.</li>"+
+            "</ul>"
+    },{ 
         version: '5.1.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+

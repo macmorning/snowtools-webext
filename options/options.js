@@ -368,12 +368,12 @@ const saveOptions = (evt) => {
             context.extraDomains = evt.target.checked;
             if (context.extraDomains) {
                 chrome.permissions.contains({
-                    origins: ['<all_urls>']
+                    origins: ["https://*/*"]
                 }, (result) => {
                     console.log("result before > " + result);
                 });
                 chrome.permissions.request({
-                    origins: ['<all_urls>']
+                    origins: ["https://*/*"]
                 }, granted => {
                     if (granted) {
                         context.storageArea.set({ "extraDomains": context.extraDomains }, () => {
@@ -387,14 +387,14 @@ const saveOptions = (evt) => {
                         displayMessage("Your permission is required to use the extension outside of service-now.com domains.");
                     }
                     chrome.permissions.contains({
-                        origins: ['<all_urls>']
+                        origins: ["https://*/*"]
                     }, (result) => {
                         console.log("result after > " + result);
                     });
                 });
             } else {
                 chrome.permissions.remove({
-                    origins: ['<all_urls>']
+                    origins: ["https://*/*"]
                 });
                 context.storageArea.set({ "extraDomains": context.extraDomains }, () => { 
                     rebuildDomainsList();
