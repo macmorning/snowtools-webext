@@ -7,6 +7,9 @@ const shortcutsURL = (isChromium ? "chrome://extensions/shortcuts" : "about:addo
 
 let tips;
 context.lastTipNumber = -1;
+context.currentVersion = "6.0.0";
+document.getElementById("help").title = "current version: " + context.currentVersion;
+
 const whatsnew = [
     { 
         version: '6.0.0',
