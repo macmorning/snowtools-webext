@@ -7,11 +7,17 @@ const shortcutsURL = (isChromium ? "chrome://extensions/shortcuts" : "about:addo
 
 let tips;
 context.lastTipNumber = -1;
-context.currentVersion = "6.0.0";
+context.currentVersion = "6.1.0";
 document.getElementById("help").title = "current version: " + context.currentVersion;
 
 const whatsnew = [
     { 
+        version: '6.1.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Corrected a few issues following the manifest version upgrade.</li>"+
+            "</ul>"
+    },{ 
         version: '6.0.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+

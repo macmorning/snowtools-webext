@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ServiceNow tool belt",
-  "version": "6.0.1",
+  "version": "6.1.0",
   "description": "A set of tools for ServiceNow developers and administrators",
   "homepage_url": "https://github.com/macmorning/snowtools-webext",
   "icons": {
@@ -38,7 +38,7 @@
     }
   },
   "background": {
-    "service_worker": "background/background.js"
+    "scripts": ["background/background.js"]
   },
   "action": {
     "default_title": "SNOW Toolbelt",

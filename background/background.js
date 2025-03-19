@@ -232,11 +232,18 @@ const cmdListener = (command) => {
  * @param {String} FQDN of the current calling tab
  */
 const isServiceNow = (hostname) => {
+    console.log("isServiceNow? hostname=" + hostname);
     let matchFound = false;
     let response = { "isServiceNow": false };
+    // console.log(context.urlFiltersArr);
     context.urlFiltersArr.forEach(function (filter) {
-        if (matchFound || filter.trim() === "") return true;
-        matchFound = ( hostname.indexOf(filter) ? true : false );
+        // console.log("matchFound=" + matchFound);
+        // console.log("filter=" + filter);
+        // console.log("hostname.indexOf(filter)=" + hostname.indexOf(filter));
+        
+        if (filter.trim() === "") return false;
+        if (matchFound) return true;
+        matchFound = ( hostname.indexOf(filter)>0 ? true : false );
         if (matchFound) {
             let color = "";
             let hidden = false;
@@ -256,6 +263,7 @@ const isServiceNow = (hostname) => {
 
             response = { "isServiceNow": true, "favIconColor": color, "hidden": hidden };
         }
+        console.log(response);
     });
     return (response);
 }
@@ -267,11 +275,12 @@ const isServiceNow = (hostname) => {
  */
 const msgListener = (message, sender, sendResponse) => {
     console.log("*SNOW TOOL BELT BG* received message");
-    // console.log(sender);
-    // console.log(message);
+    console.log(sender);
+    console.log(message);
     let hostname;
     try {
         hostname = new URL(sender.url).hostname;
+        console.log("*SNOW TOOL BELT BG* hostname=" + hostname);
     } catch (e) {
         console.error("*SNOW TOOL BELT BG* Unable to get sender hostname: " + e);
     }
