@@ -12,6 +12,7 @@ document.getElementById("help").title = "current version: " + context.currentVer
 
 const whatsnew = [
     { 
+<<<<<<< HEAD
         version: '6.1.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
@@ -26,6 +27,8 @@ const whatsnew = [
             "<li>If you are using extra-service-now.com domains, you may have to re-enable the option, so the extension requests the new, renamed authorization to access all urls.</li>"+
             "</ul>"
     },{ 
+=======
+>>>>>>> d8f595514a28ad6bec65b0b88a3afd6414279e02
         version: '5.1.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
