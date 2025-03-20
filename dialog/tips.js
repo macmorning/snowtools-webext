@@ -7,8 +7,25 @@ const shortcutsURL = (isChromium ? "chrome://extensions/shortcuts" : "about:addo
 
 let tips;
 context.lastTipNumber = -1;
+context.currentVersion = "6.1.0";
+document.getElementById("help").title = "current version: " + context.currentVersion;
+
 const whatsnew = [
     { 
+        version: '6.1.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Corrected a few issues following the manifest version upgrade.</li>"+
+            "</ul>"
+    },{ 
+        version: '6.0.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>"+
+            "<li>Upgraded manifest to v3. Not a big change from a user point of view but it was such a pain I thought it deserved its own major release.</li>"+
+            "<li>Not much more, to be honest. Please create issues on github if you see the extension misbehaving.</li>"+
+            "<li>If you are using extra-service-now.com domains, you may have to re-enable the option, so the extension requests the new, renamed authorization to access all urls.</li>"+
+            "</ul>"
+    },{ 
         version: '5.1.0',
         msg: "Most notable changes:<br/>" +
             "<ul>"+
@@ -36,31 +53,6 @@ const whatsnew = [
             "<ul>"+
             "<li>Enhanced the background script popup window with an execution history!</li>"+
             "<li>Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
-            "</ul>"
-    },{ 
-        version: '4.6.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>Removed a few console logs from the content script.</li>"+
-            "<li>Updated the URL for dev portal search to use the latest release by default.</li>"+
-            "<li>Updated the options page, removed the 'save' button and the annoying confirmation messages.</li>"+
-            "</ul>"
-    },{ 
-        version: '4.5.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>Changed the layout of the instance list a little.</li>"+
-            "<li>In the 'open on instance' popup, the instances that are currently open in a tab are more visible.</li>"+
-            "<li>See versions of current object: <b>new shortcut</b>. Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
-            "</ul>"
-    },{ 
-        version: '4.4.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>The extension is now available for the new Edge browser (Chromium). Remember you can export your settings in a json file and import them into another browser.</li>"+
-            "<li>Options page is a little more useable. It opens in a tab and the instance list has a filter field.</li>"+
-            "<li>Added a <i>hide</i> contextual action in instances menus.</li>"+
-            "<li>Removed some useless refreshes on Firefox.</li>"+
             "</ul>"
     }
 ];

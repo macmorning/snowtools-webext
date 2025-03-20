@@ -38,7 +38,7 @@
     }
   },
   "background": {
-    "scripts": ["background/background.js"]
+    "service_worker": "background/background.js"
   },
   "action": {
     "default_title": "SNOW Toolbelt",
