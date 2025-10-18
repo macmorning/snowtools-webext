@@ -2,35 +2,43 @@
     --main-bg-color: #F7F7F7;
     --main-color: #293E40;
     --secondary-color: #000000;
-    --muted-color:#81B5A1;
+    --muted-color: #81B5A1;
     --alt-bg-color: #e7e7e7;
     --disabled-color: #cecece;
     --btn-color: var(--main-color);
-    --btn-hover-color:#81B5A1;
-    --highlight:#d66419;
+    --btn-hover-color: #81B5A1;
+    --highlight: #d66419;
 }
 
 /* Dark theme variables */
 @media (prefers-color-scheme: dark) {
     :root {
         --main-bg-color: #1e1e1e;
-        --main-color: #e0e0e0;
+        --main-color: #81B5A1;
         --secondary-color: #ffffff;
-        --muted-color: #81B5A1;
+        --muted-color: #293E40;
         --alt-bg-color: #2d2d2d;
-        --disabled-color: #666666;
-        --btn-color: #4a4a4a;
+        --disabled-color: #b6b6b6;
+        --btn-color: var(--main-color);
         --btn-hover-color: #81B5A1;
         --highlight: #ff8c42;
     }
 }
+
 @keyframes rotation {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(359deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(359deg);
+    }
 }
+
 html {
     height: 100%;
 }
+
 body {
     font-family: 'Helvetica', sans-serif;
     color: var(--main-color);
@@ -40,15 +48,18 @@ body {
     font-size: 10pt;
     min-height: 400px;
 }
+
 span.highlight {
     color: var(--highlight);
     font-weight: bold;
 }
+
 body.options-body {
     min-height: 100%;
     max-width: 1000px;
-    margin:auto;
+    margin: auto;
 }
+
 form.options-form {
     margin: auto;
     margin-top: 3px;
@@ -56,14 +67,15 @@ form.options-form {
     min-width: 550px;
     max-height: 800px;
 }
+
 div#knownInstances {
     padding: 0 3px 3px 3px;
-    border: 2px solid var(--disabled-color);
     height: 600px;
     max-height: 600px;
     overflow-y: auto;
     overflow-x: hidden;
 }
+
 div#instanceFilterContainer {
     position: sticky;
     width: 100%;
@@ -72,38 +84,47 @@ div#instanceFilterContainer {
     z-index: 30;
     top: 0;
 }
+
 div#instanceFilterContainer input {
-    width: 50%;
+    width: 25%;
     float: right;
     margin-right: 3%;
 }
+
 a[href] {
     color: var(--main-color);
     text-decoration: underline;
 }
+
 a[href]:hover {
     text-decoration: underline;
 }
-.no_underline, .no_underline:hover {
+
+.no_underline,
+.no_underline:hover {
     text-decoration: none;
 }
+
 span.pull-right {
-    float:right;
+    float: right;
 }
+
 img.top-commands {
     position: absolute;
     width: 25px;
     cursor: pointer;
-    top: 15px; 
+    top: 15px;
 }
+
 div.whatsnew {
     width: 100%;
     line-height: 1.4em;
     text-align: initial;
     max-height: 200px;
     overflow-y: auto;
-    
+
 }
+
 img.whatsnew {
     display: block;
     position: absolute;
@@ -111,43 +132,53 @@ img.whatsnew {
     left: 48%;
     width: 25px;
 }
+
 button#whatsnewRemember {
     margin-top: 10px;
 }
+
 img#config {
     right: 30px;
 }
+
 img#help {
     right: 70px;
 }
+
 img#open_in_panel {
     right: 110px;
 }
+
 p#tip {
     opacity: 1;
-    transition: opacity 0.3s; 
-    text-align:center;
+    transition: opacity 0.3s;
+    text-align: center;
     height: 150px;
 }
+
 div.tips {
     opacity: 1;
 }
+
 div#tipsContainer {
     width: 95%;
     max-width: 450px;
     margin: auto;
-    text-align:center;
+    text-align: center;
     line-height: 1.4em;
     display: block;
 }
+
 div.tips ul {
-    text-align:left;
+    text-align: left;
 }
+
 div.tips img {
     display: inline-block;
     width: 30px;
     margin: auto;
 }
+
 div.tips #nextTip {
     display: block;
     position: absolute;
@@ -156,37 +187,45 @@ div.tips #nextTip {
     width: 25px;
     cursor: pointer;
 }
+
 #messages {
     text-align: center;
     font-weight: bold;
     opacity: 1;
-    transition: opacity 0.4s; 
+    transition: opacity 0.4s;
 }
+
 #messages_container {
     padding: 5px;
     text-align: center;
     font-weight: bold;
 }
+
 #messages_details {
     text-align: left;
     font-size: smaller;
     visibility: hidden;
     resize: none;
 }
+
 .fade {
     opacity: 0 !important;
 }
+
 .fade {
     opacity: 0 !important;
 }
+
 div#search {
     font-size: smaller;
     height: 35px;
     width: 420px;
 }
+
 div#search input[type=text] {
     width: 50%;
 }
+
 div#search button {
     display: inline-block;
     width: 50px;
@@ -196,6 +235,7 @@ div#search button {
     font-size: normal;
     font-weight: normal;
 }
+
 .updateset {
     display: none;
     color: var(--muted-color);
@@ -205,31 +245,38 @@ div#search button {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
 span.incognito {
-    display:none;
+    display: none;
 }
+
 div#container {
     min-width: 650px;
     margin: 5px;
     padding: 5px;
 }
+
 div.basicContext {
     border: 1px var(--main-color) solid;
     background-color: var(--main-bg-color);
     border-radius: 5px;
 }
+
 tr.basicContext__item {
     background-color: var(--main-bg-color);
     color: var(--main-color)
 }
+
 tr.basicContext__item:hover {
     background-color: var(--main-color);
     color: var(--main-bg-color)
 }
+
 h1 {
     color: var(--secondary-color);
     font-size: 1.5em;
 }
+
 ul.firstLvlUL {
     user-select: none;
     -moz-user-select: none;
@@ -237,13 +284,16 @@ ul.firstLvlUL {
     padding-left: 10px;
     list-style-type: none;
 }
+
 ul#nodeList {
     font-size: larger;
 }
+
 div.instance-label {
     margin-left: 5px;
     display: inline-block;
 }
+
 .instance-label {
     line-height: 30px;
     font-size: large;
@@ -255,63 +305,78 @@ div.instance-label {
     font-size: larger;
     content: "‣ \0020";
 }
+
 .small-instance-label.enhanced {
     font-weight: bold;
 }
+
 input.instance-checkbox[type="checkbox"] {
     position: absolute;
     left: -9999px;
 }
-input.instance-checkbox[type="checkbox"] ~ ul {
+
+input.instance-checkbox[type="checkbox"]~ul {
     height: 0;
     transform: scaleY(0);
     transition: transform .1s ease-out;
     transform-origin: bottom;
 }
-input.instance-checkbox[type="checkbox"]:checked ~ ul {
+
+input.instance-checkbox[type="checkbox"]:checked~ul {
     height: 100%;
     transform-origin: top;
     transition: transform .1s ease-out;
-    transform: scaleY(1); 
+    transform: scaleY(1);
 }
-input.instance-checkbox[type="checkbox"] ~ label:before {
+
+input.instance-checkbox[type="checkbox"]~label:before {
     font-size: larger;
     content: "\2295";
 }
-input.instance-checkbox[type="checkbox"]:checked ~ label:before {
+
+input.instance-checkbox[type="checkbox"]:checked~label:before {
     font-size: larger;
     content: "\2296";
 }
+
 ul.links-to-tabs {
     list-style-type: none;
     margin: 0 5px;
 }
+
 ul.links-to-tabs li:before {
     content: "‣ \0020";
 }
-ul.links-to-tabs > li {
-    margin-left:-30px;
+
+ul.links-to-tabs>li {
+    margin-left: -30px;
     line-height: 25px;
     padding: 0 5px 0 5px;
     cursor: pointer;
-    border: 1px var(--main-bg-color) solid ;
+    border: 1px var(--main-bg-color) solid;
     border-radius: 4px;
 }
-ul.links-to-tabs > li:hover {
+
+ul.links-to-tabs>li:hover {
     border-color: var(--main-color);
 }
+
 .load-indicator {
     display: inline-block;
     width: 20px;
 }
+
 .loading {
     animation: rotation 3s infinite linear;
 }
+
 li.selectedTab {
     color: var(--main-bg-color);
     background-color: var(--main-color);
 }
-input[type=text], select {
+
+input[type=text],
+select {
     width: 100%;
     padding: 6px 10px;
     margin: 4px 0;
@@ -321,12 +386,15 @@ input[type=text], select {
     color: var(--main-color);
     background-color: var(--main-bg-color);
 }
+
 select.select-instance {
     margin-bottom: 15px;
 }
+
 label {
     color: var(--secondary-color);
 }
+
 button {
     width: 100%;
     margin: auto;
@@ -340,17 +408,21 @@ button {
     font-size: larger;
     font-weight: bold;
 }
+
 button.btn-secondary {
     background-color: var(--main-bg-color);
     color: var(--main-color);
 }
+
 button:hover {
     background-color: var(--btn-hover-color);
     border-color: var(--btn-hover-color);
 }
+
 button.btn-secondary:hover {
     color: var(--main-bg-color);
 }
+
 .instance-commands {
     cursor: pointer;
     text-align: right;
@@ -358,36 +430,53 @@ button.btn-secondary:hover {
     margin-right: 15px;
     font-size: large;
 }
+
 .color-indicator {
     display: inline-block;
-    font-size: x-large;
     cursor: pointer;
+    border: 1px solid var(--main-color);
+    border-radius: 1px;
+    width: 16px;
+    height: 16px;
+    vertical-align: baseline;
+    position: relative;
+    top: 2px;
+    margin-right: 4px;
+    /* Hide the Unicode character and use background color instead */
+    font-size: 0;
+    text-indent: -9999px;
+    overflow: hidden;
 }
+
 .tab-commands {
     font-size: larger;
 }
+
 .button-muted {
     margin-left: 3px;
     padding-left: 5px;
     padding-right: 5px;
     color: var(--disabled-color);
-    text-decoration: none;   
+    text-decoration: none;
     font-weight: bold;
     cursor: pointer;
 }
+
 .button-muted:hover {
     color: var(--main-color);
 }
+
 .button {
     margin-left: 3px;
     padding: 5px;
     color: var(--main-color);
-    text-decoration: none;   
+    text-decoration: none;
     font-size: x-large;
     font-weight: bold;
-    cursor: pointer;    
+    cursor: pointer;
 }
-li.selectedTab > .button-muted:hover {
+
+li.selectedTab>.button-muted:hover {
     color: var(--main-bg-color);
 }
 
@@ -396,10 +485,16 @@ p.text-muted {
     font-weight: normal;
     color: var(--disabled-color);
 }
+
 input#colorPickerColor {
     margin: .4rem;
     margin-bottom: 15px;
+    border: 2px solid var(--main-color);
+    border-radius: 4px;
+    width: 60px;
+    height: 40px;
 }
+
 /* Sliders */
 .switch {
     position: relative;
@@ -408,7 +503,9 @@ input#colorPickerColor {
     height: 17px;
 }
 
-.switch input {display:none;}
+.switch input {
+    display: none;
+}
 
 .slider {
     position: absolute;
@@ -439,21 +536,21 @@ input#colorPickerColor {
     .slider {
         background-color: #555;
     }
-    
+
     .slider:before {
         background-color: #f0f0f0;
     }
 }
 
-input:checked + .slider {
+input:checked+.slider {
     background-color: var(--main-color);
 }
 
-input:focus + .slider {
+input:focus+.slider {
     box-shadow: 0 0 1px var(--main-color);
 }
 
-input:checked + .slider:before {
+input:checked+.slider:before {
     -webkit-transform: translateX(16px);
     -ms-transform: translateX(16px);
     transform: translateX(16px);
@@ -473,16 +570,19 @@ input:checked + .slider:before {
  */
 .smart-popin {
     position: fixed;
-    left: 0; right: 0;
-    top: 0; bottom: 0;
-    overflow: auto; /* scrollbar will appear if the viewport is too tight to display all the popin content */
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    overflow: auto;
+    /* scrollbar will appear if the viewport is too tight to display all the popin content */
     opacity: 0;
     z-index: 35;
     visibility: hidden;
-  
+
     /* design */
-  
-    background-color: rgba(0,0,0,0.5);
+
+    background-color: rgba(0, 0, 0, 0.5);
     -webkit-transition: all 0.4s ease;
     -moz-transition: all 0.4s ease;
     -ms-transition: all 0.4s ease;
@@ -493,51 +593,69 @@ input:checked + .slider:before {
 /* Dark theme popup overlay */
 @media (prefers-color-scheme: dark) {
     .smart-popin {
-        background-color: rgba(0,0,0,0.8);
+        background-color: rgba(0, 0, 0, 0.8);
     }
 }
+
 .smart-popin:target {
     opacity: 1;
     visibility: visible;
 }
+
 .smart-popin .sp-table {
     display: table;
     height: 100%;
     width: 100%;
 }
+
 .smart-popin .sp-cell {
     display: table-cell;
     vertical-align: middle;
-    padding: 10px; /* this space is important to let the box-shadow exceed around the popin - so it has to be at least equal to the shadow radius */
+    padding: 10px;
+    /* this space is important to let the box-shadow exceed around the popin - so it has to be at least equal to the shadow radius */
 }
+
 .smart-popin .sp-body {
-    position: relative; /* to allow absolute positionning inside */
-    z-index: 50; /* to ensure the popin body will be over the .sp-back layer */
-    width: auto; /* by default the width of the wider element inside */
-    min-width: 300px;  /* standard width for xs smartphones (320px) minus 2*10px (.sp-cell margins) */
+    position: relative;
+    /* to allow absolute positionning inside */
+    z-index: 50;
+    /* to ensure the popin body will be over the .sp-back layer */
+    width: auto;
+    /* by default the width of the wider element inside */
+    min-width: 300px;
+    /* standard width for xs smartphones (320px) minus 2*10px (.sp-cell margins) */
     max-width: 500px;
     margin: 0 auto;
-  
+
     /* design */
     text-align: center;
     border: 1px var(--main-color) solid;
     background-color: var(--main-bg-color);
     border-radius: 5px;
     padding: 2em;
-    -webkit-box-shadow: 0 3px 5px 1px rgba(0,0,0,0.25);
-    box-shadow: 0 3px 5px 1px rgba(0,0,0,0.25);
-    width: 66.66%; /* 66.66 looks good :-) */;
+    -webkit-box-shadow: 0 3px 5px 1px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 3px 5px 1px rgba(0, 0, 0, 0.25);
+    width: 66.66%;
+    /* 66.66 looks good :-) */
+    ;
 }
+
 .smart-popin .sp-body * {
-    max-width: 100%; /* this is a security to prevents wide elements such as img to stretch the popin beyond the viewport width */
+    max-width: 100%;
+    /* this is a security to prevents wide elements such as img to stretch the popin beyond the viewport width */
 }
-.smart-popin .sp-back { /* only used to get clicks out of the popin body */
+
+.smart-popin .sp-back {
+    /* only used to get clicks out of the popin body */
     position: fixed;
     z-index: 40;
-    left: 0; right: 0;
-    top: 0; bottom: 0;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
     display: block;
 }
+
 .smart-popin .sp-close {
     position: absolute;
     top: 0;
@@ -553,46 +671,54 @@ input:checked + .slider:before {
     font-weight: 900;
     text-decoration: none;
 }
+
 .history {
     padding: 0 10px;
     margin-bottom: 10px;
     max-height: 130px;
     overflow-y: auto;
 }
+
 .history_table {
     width: 100%;
     background-color: var(--bg-color);
     table-layout: fixed;
     border-collapse: collapse;
 }
+
 .history_table th {
     position: sticky;
     top: 0;
     background-color: var(--btn-color);
     color: var(--main-bg-color);
 }
+
 .history_table tr {
     text-align: left;
 }
+
 .history_table tr {
     cursor: pointer;
 }
+
 .history_table tr:hover {
     background-color: var(--alt-bg-color);
 }
+
 .history_table td {
     padding: 5px;
-    font-size:small;
+    font-size: small;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
 #newFilter {
     max-width: 25em;
     margin-left: 20px;
 }
-/*
- Manual theme overrides */
+
+/* Manual theme overrides */
 body.theme-dark,
 body.theme-auto.theme-dark-detected {
     --main-bg-color: #1e1e1e;
@@ -630,16 +756,33 @@ body.theme-auto.theme-dark-detected .slider:before {
     background-color: #f0f0f0;
 }
 
+/* Dark theme enabled switch styling */
+body.theme-dark input:checked+.slider,
+body.theme-auto.theme-dark-detected input:checked+.slider {
+    background-color: var(--btn-hover-color, #81B5A1);
+}
+
+body.theme-dark input:checked+.slider:before,
+body.theme-auto.theme-dark-detected input:checked+.slider:before {
+    background-color: var(--main-bg-color, #1e1e1e);
+}
+
+body.theme-dark input:focus+.slider,
+body.theme-auto.theme-dark-detected input:focus+.slider {
+    box-shadow: 0 0 1px var(--btn-hover-color, #81B5A1);
+}
+
 body.theme-dark .smart-popin,
 body.theme-auto.theme-dark-detected .smart-popin {
-    background-color: rgba(0,0,0,0.8);
+    background-color: rgba(0, 0, 0, 0.8);
 }
 
 /* Theme toggle icon positioning */
 #theme-toggle {
     right: 150px;
-}/* Dark th
-eme icon adjustments */
+}
+
+/* Dark theme icon adjustments */
 body.theme-dark img.top-commands,
 body.theme-auto.theme-dark-detected img.top-commands,
 body.theme-dark img.whatsnew,
@@ -665,8 +808,9 @@ body.theme-auto.theme-dark-detected img[src*="bulb.png"] {
 body.theme-dark img[src*="newspaper.png"],
 body.theme-auto.theme-dark-detected img[src*="newspaper.png"] {
     filter: invert(1) brightness(0.85);
-}/
-* Alternative approach using dark-theme-icons class */
+}
+
+/* Alternative approach using dark-theme-icons class */
 body.dark-theme-icons img.top-commands,
 body.dark-theme-icons img.whatsnew,
 body.dark-theme-icons .tips img,
@@ -689,7 +833,9 @@ body.dark-theme-icons img[src*="newspaper.png"] {
 /* Ensure icons remain visible on hover */
 body.dark-theme-icons img.top-commands:hover {
     filter: invert(1) brightness(1) contrast(1.3);
-}/* Opti
+}
+
+/* Opti
 ons page icon support for dark theme */
 body.options-body.theme-dark img[src*="question.png"],
 body.options-body.theme-auto.theme-dark-detected img[src*="question.png"],
@@ -730,4 +876,54 @@ select.select-theme {
     width: 200px;
     display: block;
     margin-bottom: 15px;
+}
+
+/* 
+Color indicator hover effects */
+.color-indicator:hover {
+    border-color: var(--btn-hover-color);
+    transform: scale(1.1);
+    transition: all 0.2s ease;
+}
+
+/* Color picker hover effects */
+input#colorPickerColor:hover {
+    border-color: var(--btn-hover-color);
+    transform: scale(1.05);
+    transition: all 0.2s ease;
+}
+
+/* Dark theme color indicator adjustments */
+body.theme-dark .color-indicator,
+body.theme-auto.theme-dark-detected .color-indicator,
+body.dark-theme-icons .color-indicator {
+    border-color: var(--main-color);
+    background-color: var(--main-bg-color);
+}
+
+body.theme-dark .color-indicator:hover,
+body.theme-auto.theme-dark-detected .color-indicator:hover,
+body.dark-theme-icons .color-indicator:hover {
+    border-color: var(--btn-hover-color);
+}
+
+body.theme-dark input#colorPickerColor,
+body.theme-auto.theme-dark-detected input#colorPickerColor,
+body.dark-theme-icons input#colorPickerColor {
+    border-color: var(--main-color);
+}
+
+body.theme-dark input#colorPickerColor:hover,
+body.theme-auto.theme-dark-detected input#colorPickerColor:hover,
+body.dark-theme-icons input#colorPickerColor:hover {
+    border-color: var(--btn-hover-color);
+}
+
+/* 
+Override button padding for color indicators in options page */
+.button.color-indicator {
+    padding: 0;
+    margin-left: 0;
+    margin-right: 4px;
+    font-size: 0;
 }

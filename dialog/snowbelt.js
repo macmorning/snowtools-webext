@@ -16,7 +16,8 @@ const context = {
     extraDomains: false,
     storageArea: {},
     commands: {},
-    updateSets: {} // one value per window and instance
+    updateSets: {}, // one value per window and instance
+    frameExceptions: ["/navpage.do", "/stats.do", "/nav_to.do", "/cache.do", "/login.do", "/workflow_ide.do", "/hi_login.do", "/auth_redirect.do", "/ssologin.do", "/profile_update.do"] // URLs that should not be reframed
 };
 
 /**
@@ -431,7 +432,7 @@ const updateColor = (instance) => {
     color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "black");
     elements = document.querySelectorAll("div.color-indicator[data-instance=\"" + instance + "\"");
     [].forEach.call(elements, (el) => {
-        el.style.color = color;
+        el.style.backgroundColor = color;
     });
 };
 
@@ -659,9 +660,9 @@ const refreshList = () => {
                 color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "");
             }
             if (color) {
-                el.style.color = color;
+                el.style.backgroundColor = color;
             } else {
-                el.style.color = "black";
+                el.style.backgroundColor = "black";
             }
             // add open color picker
             if (isChromium) {
@@ -897,11 +898,15 @@ const updateTabInfo = (instance, windowId, index) => {
             }
         }
 
-        // hide "reopen in frame"
-        if (tab.snt_type !== "other" || url.pathname === "/nav_to.do" || url.pathname === "/navpage.do" || url.pathname.includes("now/nav/ui/classic/params/target")) {
-            document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "none";
-        } else {
-            document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]").style.display = "inline";
+        // show/hide "reopen in frame" button
+        const shouldShowReframeButton = url.pathname.endsWith(".do") 
+            && context.frameExceptions.indexOf(url.pathname) === -1 
+            && !url.pathname.startsWith("/$")
+            && !url.pathname.includes("now/nav/ui/classic/params/target");
+            
+        const reframeButton = document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]");
+        if (reframeButton) {
+            reframeButton.style.display = shouldShowReframeButton ? "inline" : "none";
         }
         let typeEl = document.getElementById("tab" + tab.id + "_type");
         if (typeEl) {
@@ -1036,9 +1041,9 @@ const openBackgroundScriptWindow = (evt) => {
 
     let createData = {
         type: "popup",
-        url: "https://" + targetInstance + "/sys.scripts.do",
+        url: "https://" + targetInstance + "/sys.scripts.modern.do",
         width: 700,
-        height: 500
+        height: 800
     };
     let creating = chrome.windows.create(createData);
 }
@@ -1080,7 +1085,7 @@ const displayWhatsNew = () => {
  * Initial function that gets the saved preferences and the list of open tabs
  */
 const bootStrap = () => {
-    console.warn("** bootstrapin' **");
+    console.info("** bootstrapin' **");
     chrome.windows.getCurrent((wi) => {
         context.windowType = wi.type;
         if (context.windowType == "popup") {

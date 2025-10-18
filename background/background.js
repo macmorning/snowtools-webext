@@ -1,9 +1,51 @@
+// Firefox compatibility
+const isChromium = (typeof browser === "undefined");
+const chromeAPI = isChromium ? chrome : browser;
+
+/**
+ * Cross-browser content script registration
+ * @param {string} filter Domain filter for content script registration
+ */
+const registerContentScript = async (filter) => {
+    const scriptId = `snowbelt-${filter.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const matches = [`https://${filter}/*`, `https://*.${filter}/*`];
+
+    if (isChromium && chrome.scripting && chrome.scripting.registerContentScripts) {
+        // Modern Chrome/Edge with Manifest V3
+        try {
+            await chrome.scripting.registerContentScripts([{
+                id: scriptId,
+                matches: matches,
+                js: ["content-script/purify.js", "content-script/snowbelt-cs.js"],
+                runAt: "document_end"
+            }]);
+            console.log("*SNOW TOOL BELT BG* Registered content script for:", filter);
+        } catch (error) {
+            console.error("*SNOW TOOL BELT BG* Failed to register content script for:", filter, error);
+        }
+    } else if (typeof browser !== "undefined" && browser.contentScripts) {
+        // Firefox with browser.contentScripts API
+        try {
+            await browser.contentScripts.register({
+                matches: matches,
+                js: [{ file: "content-script/purify.js" }, { file: "content-script/snowbelt-cs.js" }],
+                runAt: "document_end"
+            });
+            console.log("*SNOW TOOL BELT BG* Registered content script for:", filter);
+        } catch (error) {
+            console.error("*SNOW TOOL BELT BG* Failed to register content script for:", filter, error);
+        }
+    } else {
+        console.warn("*SNOW TOOL BELT BG* Content script registration not supported");
+    }
+};
+
 const context = {
     urlFilters: "",
     urlFiltersArr: [],
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
     instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
-    autoFrame: false,
+
     useSync: false,
     storageArea: {}
 };
@@ -11,7 +53,7 @@ const context = {
 /**
  * Saves context into storage sync area
  */
-function saveContext () {
+function saveContext() {
     context.storageArea.set({
         "knownInstances": JSON.stringify(context.knownInstances),
         "instanceOptions": JSON.stringify(context.instanceOptions),
@@ -25,13 +67,12 @@ function saveContext () {
  * Retrieves saved options
  */
 const getOptions = () => {
-    chrome.storage.local.get("useSync",(result1) => {
+    chromeAPI.storage.local.get("useSync", (result1) => {
         context.useSync = result1.useSync;
-        context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "autoFrame"], (result) => {
+        context.storageArea = (context.useSync ? chromeAPI.storage.sync : chromeAPI.storage.local);
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions"], (result) => {
             if (Object.keys(result).length === 0) {
                 // Nothing is stored yet
-                context.urlFilters = false;
                 context.urlFilters = "service-now.com;";
                 context.knownInstances = "{}";
                 context.instanceOptions = "{}";
@@ -39,24 +80,23 @@ const getOptions = () => {
                 // remove http:// and https:// from filter string
                 const regex = /http[s]{0,1}:\/\//gm;
                 const regex2 = /\/[^;]*/gm;
-                context.urlFilters = result.urlFilters.replace(regex, "").replace(regex2, "");
+                context.urlFilters = (result.urlFilters || "service-now.com;").replace(regex, "").replace(regex2, "");
                 context.knownInstances = result.knownInstances;
                 context.instanceOptions = result.instanceOptions;
             }
 
-            context.autoFrame = (result.autoFrame === "true" || result.autoFrame === true);
+
             context.urlFiltersArr = context.urlFilters.split(";");
+            console.log("*SNOW TOOL BELT BG* urlFilters:", context.urlFilters);
+            console.log("*SNOW TOOL BELT BG* urlFiltersArr after split:", context.urlFiltersArr);
             context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
             if (context.extraDomains && context.urlFiltersArr.length) {
                 context.urlFiltersArr.forEach(filter => {
                     if (filter && filter.length) {
                         try {
-                            // For Chrome, this uses the content-script-register-polyfill
-                            chrome.contentScripts.register({
-                                matches: ['https://' + filter + '/*','https://*.' + filter + '/*'],
-                                js: [{file: "content-script/snowbelt-cs.js"}]
-                            });
-                        } catch(e) {
+                            // Use modern chrome.scripting API with Firefox compatibility
+                            registerContentScript(filter);
+                        } catch (e) {
                             console.error("*SNOW TOOL BELT BG* Could not register content script for > " + filter);
                             console.error(e);
                         }
@@ -80,7 +120,13 @@ const getOptions = () => {
                 for (var i = 0; i < tabs.length; ++i) {
                     let instance = new URL(tabs[i].url).hostname;
                     if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
-                        chrome.tabs.sendMessage(tabs[i].id, {"command": "updateFavicon", "color": context.instanceOptions[instance]["color"]});
+                        chrome.tabs.sendMessage(tabs[i].id, { "command": "updateFavicon", "color": context.instanceOptions[instance]["color"] }, (response) => {
+                            // Handle the case where content script is not loaded
+                            if (chrome.runtime.lastError) {
+                                // Silently ignore - content script may not be loaded yet
+                                console.log("*SNOW TOOL BELT BG* Content script not ready for favicon update:", chrome.runtime.lastError.message);
+                            }
+                        });
                     }
                 }
             });
@@ -94,24 +140,14 @@ const getOptions = () => {
  * @param {Object} changeInfo contains the informations that changed
  * @param {Tab} tab the Tab object itself
  */
-function tabUpdated (tabId, changeInfo, tab) {
+function tabUpdated(tabId, changeInfo, tab) {
     let url = new URL(tab.url);
     let instance = url.hostname;
     if (context.instanceOptions[instance] === undefined) {
         return false;
     }
 
-    let exceptions = ["/navpage.do", "/stats.do", "/nav_to.do", "/cache.do", "/login.do", "/workflow_ide.do", "/hi_login.do", "/auth_redirect.do", "/ssologin.do", "/profile_update.do"];
-    if (context.autoFrame && changeInfo.url !== undefined
-         && url.pathname.substring(url.pathname.length - 3) === ".do"
-         && exceptions.indexOf(url.pathname) === -1
-         && url.pathname.substring(1,2) !== "$"
-         ) {
-        // url was changed, check if we should move it to the servicenow frame
-        // in this version we consider that any .do page other than one in the exceptions array is out of the iframe and is not a portal or workspace page
-        let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
-        chrome.tabs.update(tab.id, {url: newUrl});
-    }
+
 }
 
 /**
@@ -120,11 +156,11 @@ function tabUpdated (tabId, changeInfo, tab) {
  */
 const popIn = (tabid) => {
     tabid = parseInt(tabid);
-    chrome.tabs.get(tabid, (tab) => {
+    chromeAPI.tabs.get(tabid, (tab) => {
         let url = new URL(tab.url);
         if (url.pathname !== "/nav_to.do") {
             let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
-            chrome.tabs.update(tab.id, {url: newUrl});
+            chromeAPI.tabs.update(tab.id, { url: newUrl });
         } else {
             displayMessage("Already in a frame");
         }
@@ -142,12 +178,12 @@ const openVersions = (tab) => {
         // this is a framed nav window, get the base uri
         url = new URL("https://" + url.host + url.searchParams.get("uri"));
     }
-    var tableName = url.pathname.replace("/","").replace(".do","");
+    var tableName = url.pathname.replace("/", "").replace(".do", "");
     var sysId = url.searchParams.get("sys_id");
     if (url.pathname.startsWith("/now/nav/ui/classic/params/target")) {
         // this the "new" ui management
-        tableName = tableName.replace("now/nav/ui/classic/params/target/","").split("%3F")[0];
-        sysId = url.pathname.split("%3D")[1]
+        tableName = tableName.replace("now/nav/ui/classic/params/target/", "").split("%3F")[0];
+        sysId = url.pathname.split("%3D")[1].split("%26")[0];
     }
     // console.log("*SNOW TOOL BELT BG* tableName: " + tableName);
     // console.log("*SNOW TOOL BELT BG* sysId: " + sysId);
@@ -172,7 +208,7 @@ const openBackgroundScriptWindow = (tab) => {
     let url = new URL(tab.url);
     let createData = {
         type: "popup",
-        url: "https://" + url.host + "/sys.scripts.do",
+        url: "https://" + url.host + "/sys.scripts.modern.do",
         width: 700,
         height: 850
     };
@@ -184,7 +220,7 @@ const openBackgroundScriptWindow = (tab) => {
  * @param {Object} objChanged an object that contains the items that changed with newValue and oldValue
  * @param {String} area Storage area (should be "sync")
  */
-function storageEvent (objChanged, area) {
+function storageEvent(objChanged, area) {
     // FF doesn't check if there is an actual change between new and old values
     if ((objChanged.instanceOptions && objChanged.instanceOptions.newValue === objChanged.instanceOptions.oldValue) || (objChanged.knownInstances && objChanged.knownInstances.newValue === objChanged.knownInstances.oldValue)) {
         return false;
@@ -201,7 +237,7 @@ const cmdListener = (command) => {
     console.log("*SNOW TOOL BELT BG* received command " + command);
     let currentTab = {};
     // What is the current tab when the user pressed the keyboard combination?
-    chrome.tabs.query({currentWindow: true, active: true}, (tabs) => {
+    chromeAPI.tabs.query({ currentWindow: true, active: true }, (tabs) => {
         currentTab = tabs[0];
         let hostname;
         try {
@@ -220,7 +256,11 @@ const cmdListener = (command) => {
         } else if (command === "execute-openversions") {
             openVersions(currentTab);
         } else if (command === "execute-fieldnames") {
-            chrome.tabs.sendMessage(currentTab.id, { "command": command });
+            chrome.tabs.sendMessage(currentTab.id, { "command": command }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.log("*SNOW TOOL BELT BG* Could not execute field names command:", chrome.runtime.lastError.message);
+                }
+            });
         } else if (command === "execute-backgroundscript") {
             openBackgroundScriptWindow(currentTab);
         }
@@ -232,18 +272,24 @@ const cmdListener = (command) => {
  * @param {String} FQDN of the current calling tab
  */
 const isServiceNow = (hostname) => {
-    console.log("isServiceNow? hostname=" + hostname);
+    console.log("*SNOW TOOL BELT BG* isServiceNow? hostname=" + hostname);
+    console.log("*SNOW TOOL BELT BG* urlFiltersArr:", context.urlFiltersArr);
     let matchFound = false;
     let response = { "isServiceNow": false };
-    // console.log(context.urlFiltersArr);
+
+    if (!context.urlFiltersArr || context.urlFiltersArr.length === 0) {
+        console.log("*SNOW TOOL BELT BG* urlFiltersArr is empty or undefined");
+        return response;
+    }
+
     context.urlFiltersArr.forEach(function (filter) {
         // console.log("matchFound=" + matchFound);
         // console.log("filter=" + filter);
         // console.log("hostname.indexOf(filter)=" + hostname.indexOf(filter));
-        
+
         if (filter.trim() === "") return false;
         if (matchFound) return true;
-        matchFound = ( hostname.indexOf(filter)>0 ? true : false );
+        matchFound = (hostname.indexOf(filter) > 0 ? true : false);
         if (matchFound) {
             let color = "";
             let hidden = false;
@@ -291,10 +337,10 @@ const msgListener = (message, sender, sendResponse) => {
     }
     if (message.command === "removeCookie" && message.instance) {
         let targetInstance = message.instance;
-        chrome.cookies.getAll({"url": "https://" + targetInstance}, function (cookiesArray) {
+        chrome.cookies.getAll({ "url": "https://" + targetInstance }, function (cookiesArray) {
             cookiesArray.forEach(function (cookie) {
                 if (cookie.name.indexOf("BIGipServerpool") > -1 || cookie.name.indexOf("JSESSIONID") > -1 || cookie.name.indexOf("X-Mapping") > -1) {
-                    chrome.cookies.remove({"url": "https://" + targetInstance, "name": cookie.name});
+                    chrome.cookies.remove({ "url": "https://" + targetInstance, "name": cookie.name });
                 }
             });
         });
@@ -306,129 +352,12 @@ const msgListener = (message, sender, sendResponse) => {
     sendResponse("");
 };
 
-chrome.runtime.onMessage.addListener(msgListener);
-chrome.tabs.onUpdated.addListener(tabUpdated);
-chrome.storage.onChanged.addListener(storageEvent);
-chrome.commands.onCommand.addListener(cmdListener);
+chromeAPI.runtime.onMessage.addListener(msgListener);
+chromeAPI.tabs.onUpdated.addListener(tabUpdated);
+chromeAPI.storage.onChanged.addListener(storageEvent);
+chromeAPI.commands.onCommand.addListener(cmdListener);
+
+// Firefox-specific: Add initialization logging
+console.log("*SNOW TOOL BELT BG* Background script initializing, browser:", isChromium ? "Chrome" : "Firefox");
 getOptions();
 
-/* https://github.com/fregante/content-scripts-register-polyfill @ v2.1.0 */
-
-(function () {
-	'use strict';
-
-	function NestedProxy(target) {
-		return new Proxy(target, {
-			get(target, prop) {
-				if (typeof target[prop] !== 'function') {
-					return new NestedProxy(target[prop]);
-				}
-				return (...arguments_) =>
-					new Promise((resolve, reject) => {
-						target[prop](...arguments_, result => {
-							if (chrome.runtime.lastError) {
-								reject(new Error(chrome.runtime.lastError.message));
-							} else {
-								resolve(result);
-							}
-						});
-					});
-			}
-		});
-	}
-	const chromeP =
-		typeof window === 'object' &&
-		(window.browser || new NestedProxy(window.chrome));
-
-	const patternValidationRegex = /^(https?|wss?|file|ftp|\*):\/\/(\*|\*\.[^*/]+|[^*/]+)\/.*$|^file:\/\/\/.*$|^resource:\/\/(\*|\*\.[^*/]+|[^*/]+)\/.*$|^about:/;
-	const isFirefox = typeof navigator === 'object' && navigator.userAgent.includes('Firefox/');
-	function getRawRegex(matchPattern) {
-	    if (!patternValidationRegex.test(matchPattern)) {
-	        throw new Error(matchPattern + ' is an invalid pattern, it must match ' + String(patternValidationRegex));
-	    }
-	    let [, protocol, host, pathname] = matchPattern.split(/(^[^:]+:[/][/])([^/]+)?/);
-	    protocol = protocol
-	        .replace('*', isFirefox ? '(https?|wss?)' : 'https?')
-	        .replace(/[/]/g, '[/]');
-	    host = (host !== null && host !== void 0 ? host : '')
-	        .replace(/^[*][.]/, '([^/]+.)*')
-	        .replace(/^[*]$/, '[^/]+')
-	        .replace(/[.]/g, '[.]')
-	        .replace(/[*]$/g, '[^.]+');
-	    pathname = pathname
-	        .replace(/[/]/g, '[/]')
-	        .replace(/[.]/g, '[.]')
-	        .replace(/[*]/g, '.*');
-	    return '^' + protocol + host + '(' + pathname + ')?$';
-	}
-	function patternToRegex(...matchPatterns) {
-	    if (matchPatterns.includes('<all_urls>')) {
-	        return /^(https?|file|ftp):[/]+/;
-	    }
-	    return new RegExp(matchPatterns.map(getRawRegex).join('|'));
-	}
-
-	async function isOriginPermitted(url) {
-	    return chromeP.permissions.contains({
-	        origins: [new URL(url).origin + '/*']
-	    });
-	}
-	async function wasPreviouslyLoaded(tabId, loadCheck) {
-	    const result = await chromeP.tabs.executeScript(tabId, {
-	        code: loadCheck,
-	        runAt: 'document_start'
-	    });
-	    return result === null || result === void 0 ? void 0 : result[0];
-	}
-	if (typeof chrome === 'object' && !chrome.contentScripts) {
-	    chrome.contentScripts = {
-	        async register(contentScriptOptions, callback) {
-	            const { js = [], css = [], allFrames, matchAboutBlank, matches, runAt } = contentScriptOptions;
-	            const loadCheck = `document[${JSON.stringify(JSON.stringify({ js, css }))}]`;
-	            const matchesRegex = patternToRegex(...matches);
-	            const listener = async (tabId, _,
-	            { url }) => {
-	                if (!url ||
-	                    !matchesRegex.test(url) ||
-	                    !await isOriginPermitted(url) ||
-	                    await wasPreviouslyLoaded(tabId, loadCheck)
-	                ) {
-	                    return;
-	                }
-	                for (const file of css) {
-	                    chrome.tabs.insertCSS(tabId, {
-	                        ...file,
-	                        matchAboutBlank,
-	                        allFrames,
-	                        runAt: runAt !== null && runAt !== void 0 ? runAt : 'document_start'
-	                    });
-	                }
-	                for (const file of js) {
-	                    chrome.tabs.executeScript(tabId, {
-	                        ...file,
-	                        matchAboutBlank,
-	                        allFrames,
-	                        runAt
-	                    });
-	                }
-	                chrome.tabs.executeScript(tabId, {
-	                    code: `${loadCheck} = true`,
-	                    runAt: 'document_start',
-	                    allFrames
-	                });
-	            };
-	            chrome.tabs.onUpdated.addListener(listener);
-	            const registeredContentScript = {
-	                async unregister() {
-	                    chromeP.tabs.onUpdated.removeListener(listener);
-	                }
-	            };
-	            if (typeof callback === 'function') {
-	                callback(registeredContentScript);
-	            }
-	            return Promise.resolve(registeredContentScript);
-	        }
-	    };
-	}
-
-}());

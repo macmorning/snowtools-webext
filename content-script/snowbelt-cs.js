@@ -1,40 +1,522 @@
 const isChromium = (typeof browser === "undefined");
+// Firefox compatibility: use browser API if available
+const runtimeAPI = typeof browser !== "undefined" ? browser.runtime : chrome.runtime;
+const storageAPI = typeof browser !== "undefined" ? browser.storage : chrome.storage;
 const context = {
-    g_ck: ""
+    g_ck: "",
+    debugMode: false
+}
+
+/**
+ * Debug logging function - only logs when debug mode is enabled
+ * @param {...any} args - Arguments to log
+ */
+function debugLog(...args) {
+    if (context.debugMode) {
+        console.log(...args);
+    }
 }
 /**
+ * Recursively finds all elements matching a selector, including inside shadow DOM
+ * @param {Element|Document} root - The root element to search from
+ * @param {string} selector - CSS selector to match
+ * @returns {Array} Array of matching elements
+ */
+function querySelectorAllDeep(root, selector) {
+    const elements = [];
+
+    // Get elements from current root
+    try {
+        const directMatches = root.querySelectorAll(selector);
+        elements.push(...directMatches);
+    } catch (e) {
+        console.log("*SNOW TOOL BELT* Error querying root:", e);
+    }
+
+    // Recursively search shadow roots and iframes
+    try {
+        const allElements = root.querySelectorAll('*');
+        allElements.forEach(element => {
+            // Search shadow roots
+            if (element.shadowRoot) {
+                try {
+                    const shadowMatches = querySelectorAllDeep(element.shadowRoot, selector);
+                    elements.push(...shadowMatches);
+
+                    // Also check for iframes inside shadow roots
+                    const shadowIframes = element.shadowRoot.querySelectorAll('iframe');
+                    shadowIframes.forEach(iframe => {
+                        try {
+                            const iframeMatches = querySelectorAllDeep(iframe.contentWindow.document, selector);
+                            elements.push(...iframeMatches);
+                        } catch (e) {
+                            // Cross-origin or access denied - skip
+                        }
+                    });
+                } catch (e) {
+                    console.log("*SNOW TOOL BELT* Error accessing shadow root:", e);
+                }
+            }
+
+            // Search regular iframes
+            if (element.tagName === 'IFRAME') {
+                try {
+                    const iframeMatches = querySelectorAllDeep(element.contentWindow.document, selector);
+                    elements.push(...iframeMatches);
+                } catch (e) {
+                    // Cross-origin or access denied - skip
+                }
+            }
+        });
+    } catch (e) {
+        console.log("*SNOW TOOL BELT* Error in deep traversal:", e);
+    }
+
+    return elements;
+}
+
+/**
+ * Recursively finds the first element matching a selector, including inside shadow DOM
+ * @param {Element|Document} root - The root element to search from
+ * @param {string} selector - CSS selector to match
+ * @returns {Element|null} First matching element or null
+ */
+function querySelectorDeep(root, selector) {
+    // Try direct match first
+    const directMatch = root.querySelector(selector);
+    if (directMatch) return directMatch;
+
+    // Search in shadow roots
+    const allElements = root.querySelectorAll('*');
+    for (const element of allElements) {
+        if (element.shadowRoot) {
+            const shadowMatch = querySelectorDeep(element.shadowRoot, selector);
+            if (shadowMatch) return shadowMatch;
+        }
+    }
+
+    return null;
+}
+
+/**
  * Changes field labels to technical names and the other way round
+ * Now supports shadow DOM traversal for modern ServiceNow interfaces
  */
 function switchFieldNames() {
-    // console.log("*SNOW TOOL BELT* Switching field names");
-    // this is *very* DOM dependent and could break anyday if ServiceNow changes the structure of their pages
-    let doc = (document.getElementsByTagName("iframe")[0] ? document.getElementsByTagName("iframe")[0].contentWindow.document : document);
-    // for [related] lists
-    let fields = doc.querySelectorAll("[glide_field]");
-    console.log(fields);
-    [].forEach.call(fields, (el) => {
-        childEl = el.querySelector("span a");
-        childEl.innerText = (childEl.innerText === el.getAttribute("glide_field")) ? el.getAttribute("glide_label") : el.getAttribute("glide_field");
+    debugLog("*SNOW TOOL BELT* Switching field names (with shadow DOM support)");
+
+    // Global state management - check if we're currently showing technical names
+    const isCurrentlyTechnical = document.body.getAttribute("data-sntb-technical") === "true";
+    debugLog("*SNOW TOOL BELT* Current state:", isCurrentlyTechnical ? "showing technical names" : "showing labels");
+
+    // Get the document context - now with enhanced shadow DOM + iframe detection
+    let doc = document;
+    let targetDoc = document;
+
+    // First, check for traditional iframe
+    const mainIframe = document.getElementsByTagName("iframe")[0];
+    if (mainIframe) {
+        try {
+            targetDoc = mainIframe.contentWindow.document;
+            debugLog("*SNOW TOOL BELT* Found traditional iframe");
+        } catch (e) {
+            console.log("*SNOW TOOL BELT* Cannot access iframe document:", e);
+        }
+    }
+
+    // Then, check for iframe inside shadow DOM (modern ServiceNow)
+    const documentShadowHosts = Array.from(document.querySelectorAll("*")).filter(el => el.shadowRoot);
+    for (const shadowHost of documentShadowHosts) {
+        debugLog("*SNOW TOOL BELT* Checking shadow host:", shadowHost.tagName);
+        try {
+            const shadowIframe = shadowHost.shadowRoot.querySelector("iframe#gsft_main, iframe[name='gsft_main'], iframe");
+            if (shadowIframe) {
+                debugLog("*SNOW TOOL BELT* Found iframe in shadow DOM:", shadowIframe.id || shadowIframe.name || 'unnamed');
+                try {
+                    targetDoc = shadowIframe.contentWindow.document;
+                    debugLog("*SNOW TOOL BELT* Successfully accessed shadow iframe document");
+                    break;
+                } catch (e) {
+                    console.log("*SNOW TOOL BELT* Cannot access shadow iframe document:", e);
+                }
+            }
+        } catch (e) {
+            console.log("*SNOW TOOL BELT* Error accessing shadow root:", e);
+        }
+    }
+
+    doc = targetDoc;
+
+    // For [related] lists - search including shadow DOM
+    debugLog("*SNOW TOOL BELT* Processing related lists...");
+    let fields = querySelectorAllDeep(doc, "[glide_field]");
+    debugLog("*SNOW TOOL BELT* Found", fields.length, "glide_field elements");
+
+    fields.forEach((el, index) => {
+        try {
+            const childEl = el.querySelector("span a");
+            if (childEl) {
+                const currentText = childEl.innerText;
+                const glideField = el.getAttribute("glide_field");
+                const glideLabel = el.getAttribute("glide_label");
+
+                debugLog(`*SNOW TOOL BELT* List element ${index + 1}:`, {
+                    currentText,
+                    glideField,
+                    glideLabel,
+                    element: el.outerHTML.substring(0, 100)
+                });
+
+                if (isCurrentlyTechnical && glideLabel) {
+                    // Currently showing technical name, switch back to label
+                    childEl.innerText = glideLabel;
+                    debugLog(`*SNOW TOOL BELT* List: Restored "${glideLabel}" from technical name`);
+                } else if (!isCurrentlyTechnical && glideField) {
+                    // Currently showing label, switch to technical
+                    childEl.innerText = glideField;
+                    debugLog(`*SNOW TOOL BELT* List: Switched to technical "${glideField}"`);
+                }
+            }
+        } catch (e) {
+            console.log("*SNOW TOOL BELT* Error processing glide_field element:", e);
+        }
+
+        // Mark this element as processed to avoid duplicate processing
+        el.setAttribute("data-sntb-processed", "list");
     });
-    // for forms
-    fields = doc.querySelectorAll("label[for].control-label");
-    [].forEach.call(fields, (el) => {
-        childEl = el.querySelector("span.label-text");
-        if (el.getAttribute("data-sntb-name") && el.getAttribute("data-sntb-name") !== childEl.innerText) {
-            childEl.innerText = el.getAttribute("data-sntb-name");
-        } else {
-            el.setAttribute("data-sntb-name", childEl.innerText);   // save original name into a custom attribute
-            childEl.innerText = el.getAttribute("for").replace("sys_display.","").replace("select_0","");
+
+    // For forms - search including shadow DOM with multiple selectors
+    debugLog("*SNOW TOOL BELT* Processing form labels...");
+    const formSelectors = [
+        "label[for].control-label",
+        "label[for]",
+        ".control-label",
+        ".field-label",
+        "label.control-label"
+    ];
+
+    let allFormFields = [];
+    formSelectors.forEach(selector => {
+        const foundFields = querySelectorAllDeep(doc, selector);
+        debugLog(`*SNOW TOOL BELT* Found ${foundFields.length} elements for form selector: ${selector}`);
+        allFormFields.push(...foundFields);
+    });
+
+    // Remove duplicates
+    fields = [...new Set(allFormFields)];
+    debugLog("*SNOW TOOL BELT* Total unique form label elements:", fields.length);
+
+    fields.forEach((el, index) => {
+        try {
+
+
+            // Try to find the text container - either span.label-text or direct label content
+            let textEl = el.querySelector("span.label-text");
+            let isDirectLabel = false;
+
+            if (!textEl) {
+                // For reference fields and other direct label structures
+                if (el.tagName === 'LABEL' && el.innerText && !el.querySelector("input, select, textarea")) {
+                    textEl = el;
+                    isDirectLabel = true;
+                }
+            }
+
+            if (textEl) {
+                const savedName = el.getAttribute("data-sntb-name");
+                const currentText = textEl.innerText;
+                const forAttr = el.getAttribute("for");
+
+                debugLog(`*SNOW TOOL BELT* Form element ${index + 1}:`, {
+                    currentText,
+                    savedName,
+                    forAttr,
+                    isDirectLabel,
+                    structure: isDirectLabel ? "direct label" : "span.label-text",
+                    element: el.outerHTML.substring(0, 150)
+                });
+
+                if (isCurrentlyTechnical && savedName) {
+                    // Currently showing technical name, switch back to original
+                    if (isDirectLabel) {
+                        // For direct labels, debug the structure and try multiple approaches
+                        debugLog(`*SNOW TOOL BELT* Direct label structure analysis:`, {
+                            innerHTML: el.innerHTML,
+                            childNodes: Array.from(el.childNodes).map(node => ({
+                                type: node.nodeType,
+                                content: node.textContent || node.nodeValue,
+                                tagName: node.tagName
+                            })),
+                            textContent: el.textContent,
+                            innerText: el.innerText
+                        });
+
+                        // Try multiple approaches to change the text
+                        let success = false;
+
+                        // Approach 1: Find and update text nodes
+                        const childNodes = Array.from(el.childNodes);
+                        const textNodes = childNodes.filter(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+                        if (textNodes.length > 0) {
+                            textNodes.forEach(node => {
+                                if (node.textContent.trim() === currentText.trim()) {
+                                    node.textContent = savedName;
+                                    success = true;
+                                    debugLog(`*SNOW TOOL BELT* Updated text node: "${currentText}" -> "${savedName}"`);
+                                }
+                            });
+                        }
+
+                        // Approach 2: If no specific text node found, replace all text content
+                        if (!success) {
+                            // Store child elements
+                            const childElements = Array.from(el.children);
+                            // Clear and set new text
+                            el.textContent = savedName;
+                            // Re-append child elements
+                            childElements.forEach(child => el.appendChild(child));
+                            success = true;
+                            debugLog(`*SNOW TOOL BELT* Replaced entire text content: "${currentText}" -> "${savedName}"`);
+                        }
+
+                        // Verify the change
+                        setTimeout(() => {
+                            const newText = el.innerText;
+                            debugLog(`*SNOW TOOL BELT* Verification - text is now: "${newText}" (expected: "${savedName}")`);
+                        }, 10);
+
+                    } else {
+                        textEl.innerText = savedName;
+                    }
+                    debugLog(`*SNOW TOOL BELT* Form: Restored "${savedName}" from technical name (${isDirectLabel ? 'direct' : 'span'})`);
+                } else if (!isCurrentlyTechnical && forAttr) {
+                    // Currently showing original name, switch to technical
+                    if (!savedName) {
+                        // First time - save original
+                        el.setAttribute("data-sntb-name", currentText);
+                    }
+                    const technicalName = forAttr.replace("sys_display.", "").replace("select_0", "");
+
+                    if (isDirectLabel) {
+                        // For direct labels, use the same robust approach
+                        let success = false;
+
+                        // Try to find and update specific text nodes
+                        const childNodes = Array.from(el.childNodes);
+                        const textNodes = childNodes.filter(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+                        if (textNodes.length > 0) {
+                            textNodes.forEach(node => {
+                                if (node.textContent.trim() === currentText.trim()) {
+                                    node.textContent = technicalName;
+                                    success = true;
+                                }
+                            });
+                        }
+
+                        // Fallback to replacing entire text content
+                        if (!success) {
+                            const childElements = Array.from(el.children);
+                            el.textContent = technicalName;
+                            childElements.forEach(child => el.appendChild(child));
+                        }
+                    } else {
+                        textEl.innerText = technicalName;
+                    }
+                    debugLog(`*SNOW TOOL BELT* Form: Switched to technical "${technicalName}" (saved: "${savedName || currentText}") (${isDirectLabel ? 'direct' : 'span'})`);
+                }
+            } else {
+                debugLog(`*SNOW TOOL BELT* Form element ${index + 1}: No text container found in`, el.outerHTML.substring(0, 150));
+            }
+        } catch (e) {
+            console.log("*SNOW TOOL BELT* Error processing form label element:", e);
+        }
+
+        // Mark this element as processed to avoid duplicate processing
+        el.setAttribute("data-sntb-processed", "form");
+    });
+
+    // Enhanced debugging and modern interface detection
+    debugLog("*SNOW TOOL BELT* Current URL:", window.location.href);
+    debugLog("*SNOW TOOL BELT* Using document:", doc === document ? "main document" : "iframe document");
+    debugLog("*SNOW TOOL BELT* Total elements in document:", doc.querySelectorAll("*").length);
+
+    // Check for shadow hosts
+    const shadowHosts = Array.from(doc.querySelectorAll("*")).filter(el => el.shadowRoot);
+    debugLog("*SNOW TOOL BELT* Shadow hosts found:", shadowHosts.length);
+    if (shadowHosts.length > 0) {
+        debugLog("*SNOW TOOL BELT* Shadow host tags:", shadowHosts.map(el => el.tagName).slice(0, 10));
+    }
+
+    // For modern workspace/shadow DOM elements
+    debugLog("*SNOW TOOL BELT* Processing modern workspace elements...");
+
+    // Try multiple modern selectors with comprehensive coverage
+    const modernSelectors = [
+        // ServiceNow specific components
+        "sn-form-field", "now-form-field", "sn-record-form", "now-record-form",
+        // Data attributes
+        "[data-field-name]", "[field-name]", "[data-field]", "[name*='field']",
+        // Label selectors
+        "label[for]", ".control-label", ".field-label", ".form-label",
+        // Generic form elements
+        ".form-field", ".sn-form-field", ".now-form-field",
+        // Modern UI components
+        "macroponent-f51912f4c700201072b211d4d8c26010", // ServiceNow form component
+        "now-highlighted-value", "sn-highlighted-value",
+        // Broader selectors for debugging
+        "*[class*='field']", "*[class*='label']", "*[id*='field']"
+    ];
+
+    let totalModernElements = 0;
+    modernSelectors.forEach(selector => {
+        try {
+            const elements = querySelectorAllDeep(doc, selector);
+            if (elements.length > 0) {
+                debugLog(`*SNOW TOOL BELT* Found ${elements.length} elements for selector: ${selector}`);
+                totalModernElements += elements.length;
+
+                // Process first few elements for debugging
+                elements.slice(0, 5).forEach((el, index) => {
+                    debugLog(`*SNOW TOOL BELT* Element ${index + 1}:`, {
+                        id: el.id,
+                        tag: el.tagName,
+                        classes: el.className,
+                        attributes: Array.from(el.attributes).map(attr => `${attr.name}="${attr.value}"`),
+                        text: el.innerText ? el.innerText.substring(0, 50) : 'no text'
+                    });
+                });
+            }
+
+            elements.forEach((el) => {
+                try {
+                    // Skip elements that were already processed by form or list processing
+                    if (el.getAttribute("data-sntb-processed")) {
+                        debugLog(`*SNOW TOOL BELT* Skipping already processed element (${el.getAttribute("data-sntb-processed")}):`, el.tagName);
+                        return;
+                    }
+
+                    // Multiple strategies to find labels and field names
+                    let labelEl = null;
+                    let fieldName = null;
+
+                    // Strategy 1: Direct label elements
+                    if (el.tagName === 'LABEL') {
+                        labelEl = el;
+                        fieldName = el.getAttribute('for') || el.getAttribute('data-field-name') || el.getAttribute('field-name');
+                    }
+
+                    // Strategy 2: Find label within element
+                    if (!labelEl) {
+                        labelEl = el.querySelector("label, .label, [role='label'], .field-label, .control-label, span, div");
+                    }
+
+                    // Strategy 3: Check if element itself has text content
+                    if (!labelEl && el.innerText && el.innerText.trim()) {
+                        labelEl = el;
+                    }
+
+                    // Get field name from various attributes
+                    if (!fieldName) {
+                        fieldName = el.getAttribute("data-field-name") ||
+                            el.getAttribute("field-name") ||
+                            el.getAttribute("data-field") ||
+                            el.getAttribute("name");
+
+                        // For modern workspace, try to find the actual field name from associated input/select elements
+                        if (!fieldName || fieldName.startsWith("form-field-")) {
+                            const forAttr = el.getAttribute("for");
+                            if (forAttr) {
+                                // Look for the actual input/select element this label is for
+                                const targetElement = doc.getElementById(forAttr) || doc.querySelector(`[id="${forAttr}"]`);
+                                if (targetElement) {
+                                    fieldName = targetElement.getAttribute("data-field-name") ||
+                                        targetElement.getAttribute("field-name") ||
+                                        targetElement.getAttribute("data-field") ||
+                                        targetElement.getAttribute("name") ||
+                                        targetElement.getAttribute("data-ref-field") ||
+                                        targetElement.getAttribute("data-table-field");
+                                }
+                            }
+                        }
+
+                        // If still no good field name, try parent elements
+                        if (!fieldName || fieldName.startsWith("form-field-")) {
+                            let parent = el.parentElement;
+                            for (let i = 0; i < 5 && parent; i++) {
+                                const parentFieldName = parent.getAttribute("data-field-name") ||
+                                    parent.getAttribute("field-name") ||
+                                    parent.getAttribute("data-field") ||
+                                    parent.getAttribute("name") ||
+                                    parent.getAttribute("data-ref-field") ||
+                                    parent.getAttribute("data-table-field");
+                                if (parentFieldName && !parentFieldName.startsWith("form-field-")) {
+                                    fieldName = parentFieldName;
+                                    break;
+                                }
+                                parent = parent.parentElement;
+                            }
+                        }
+
+                        // Last resort: use for/id but clean it up
+                        if (!fieldName || fieldName.startsWith("form-field-")) {
+                            fieldName = el.getAttribute("for") || el.id;
+                        }
+                    }
+
+
+
+                    if (labelEl && fieldName && labelEl.innerText) {
+                        // Clean up the field name
+                        let cleanFieldName = fieldName.replace("sys_display.", "").replace("select_0", "");
+
+                        const savedName = el.getAttribute("data-sntb-original");
+                        const currentText = labelEl.innerText.trim();
+
+                        debugLog(`*SNOW TOOL BELT* Modern field detection:`, {
+                            element: el.tagName,
+                            originalFieldName: fieldName,
+                            cleanFieldName: cleanFieldName,
+                            currentText: currentText,
+                            savedName: savedName,
+                            isGenerated: fieldName.startsWith("form-field-")
+                        });
+
+                        if (isCurrentlyTechnical && savedName) {
+                            // Currently showing technical name, switch back to original
+                            labelEl.innerText = savedName;
+                            debugLog(`*SNOW TOOL BELT* Modern: Restored "${savedName}" from technical name`);
+                        } else if (!isCurrentlyTechnical && currentText && currentText !== cleanFieldName && !cleanFieldName.startsWith("form-field-")) {
+                            // Currently showing original name, switch to technical
+                            if (!savedName) {
+                                // First time - save original
+                                el.setAttribute("data-sntb-original", currentText);
+                            }
+                            labelEl.innerText = cleanFieldName;
+                            debugLog(`*SNOW TOOL BELT* Modern: Switched to technical "${cleanFieldName}" (saved: "${savedName || currentText}")`);
+                        }
+                    }
+                } catch (e) {
+                    console.log("*SNOW TOOL BELT* Error processing modern element:", e);
+                }
+            });
+        } catch (e) {
+            debugLog(`*SNOW TOOL BELT* Error with selector ${selector}:`, e);
         }
     });
-    // for workspace?
-    // much harder because of shadow-roots; would it be useful anyway? Admins can just use classic UI form and display workspace view.
+
+    debugLog("*SNOW TOOL BELT* Total modern elements found:", totalModernElements);
+
+    // Toggle global state
+    document.body.setAttribute("data-sntb-technical", isCurrentlyTechnical ? "false" : "true");
+    debugLog("*SNOW TOOL BELT* New state:", isCurrentlyTechnical ? "showing labels" : "showing technical names");
+
+    debugLog("*SNOW TOOL BELT* Field name switching completed");
 }
 /**
  * Parses the stats page and extracts the node name
  * @param {string} text The text to extract the node name from
  */
-function getNameFromStatsPage (text) {
+function getNameFromStatsPage(text) {
     let instanceName = "";
     try {
         instanceName = text.split("<br/>")[1].split(": ")[1];
@@ -53,7 +535,7 @@ function getNameFromStatsPage (text) {
  * Gets informations about current tab
  * @returns {Object} containing informations about current tab
  */
-function getTabInfo () {
+function getTabInfo() {
     let response = {
         "type": "other", // workspace / ...
         "details": "", // app name / ...
@@ -86,7 +568,13 @@ function getTabInfo () {
  * @param {object} options the response object that was sent by the background script
  * @returns {boolean} true if work was done
  */
-function initScript (options) {
+function initScript(options) {
+    // Load debug mode setting
+    storageAPI.local.get("debugMode", (data) => {
+        context.debugMode = data.debugMode === true;
+        debugLog("*SNOW TOOL BELT* Debug mode:", context.debugMode ? "enabled" : "disabled");
+    });
+
     let frame = document.getElementById("gsft_main");
     let targetWindow = frame ? frame.contentWindow : window;
     if (options.favIconColor !== undefined) {
@@ -94,7 +582,7 @@ function initScript (options) {
     }
 
     // get session identifier "g_ck" from page
-    window.addEventListener("message", function(event) {
+    window.addEventListener("message", function (event) {
         if (event.source == window &&
             event.data.direction &&
             event.data.direction == "from-snow-page-script") {
@@ -103,47 +591,327 @@ function initScript (options) {
     });
     // inject the getSession script to get the g_ck token
     let getSessionJS = window.document.createElement("script");
-    getSessionJS.setAttribute("src",chrome.runtime.getURL("/content-script/getSession.js"));
+    getSessionJS.setAttribute("src", runtimeAPI.getURL("/content-script/getSession.js"));
     window.document.head.appendChild(getSessionJS);
 
     let title = document.querySelector("title");
-    if (!title) { 
+    if (!title) {
         title = document.createElement("title");
         document.head.appendChild(title);
     }
 
     // Handle the background script popup case
     let url = new URL(window.location);
-    if (url.pathname == "/sys.scripts.do") {
-        document.title = "Background script popup";
-        let textareaEl = document.querySelector("textarea");
-
+    if (url.pathname.includes("/sys.scripts.do")) {
+        // We are on the execution summary page, show the back button
         // load the Heisenberg css file
         let cssFile = window.document.createElement("link");
         cssFile.setAttribute("rel", "stylesheet");
-        cssFile.setAttribute("href",chrome.runtime.getURL("/css/snowbelt.css"));
+        cssFile.setAttribute("href", chrome.runtime.getURL("/css/snowbelt.css"));
+        window.document.head.appendChild(cssFile);
+        const content = backgroundScriptAddonTemplate2();
+        document.body.insertAdjacentHTML("afterbegin", content);
+        let backBtnEl = document.querySelector("#historyBackButton");
+        backBtnEl.onclick = (evt) => { window.history.back(); }
+    } else if (url.pathname.includes("/sys.scripts.modern.do")) {
+        debugLog("*SNOW TOOL BELT* Background script " + url.pathname);
+        document.title = "Background script popup";
+
+        // load the CSS file
+        let cssFile = window.document.createElement("link");
+        cssFile.setAttribute("rel", "stylesheet");
+        cssFile.setAttribute("href", runtimeAPI.getURL("/css/snowbelt.css"));
         window.document.head.appendChild(cssFile);
 
-        if (textareaEl) {
-            // We are on the initial background script page
+        // Wait for Monaco Editor to be available
+        const waitForMonaco = () => {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                const maxAttempts = 100; // 10 seconds max wait
+
+                const checkMonaco = () => {
+                    attempts++;
+                    debugLog(`*SNOW TOOL BELT* Checking for Monaco (attempt ${attempts}/${maxAttempts})`);
+
+                    // Check for ServiceNow's Monaco implementation
+                    const hasMonaco = window.monaco && window.monaco.editor;
+                    const hasGlideEditor = window.GlideEditorMonaco;
+                    let hasScriptEditor = false;
+                    try {
+                        hasScriptEditor = window.script_editor && typeof window.script_editor === 'object' && window.script_editor.editor;
+                    } catch (e) {
+                        // Ignore errors when checking script_editor
+                    }
+                    const editorElements = document.querySelectorAll('.monaco-editor');
+
+                    try {
+                        debugLog("*SNOW TOOL BELT* Monaco check:", {
+                            monacoExists: !!window.monaco,
+                            editorAPI: !!(window.monaco && window.monaco.editor),
+                            glideEditorMonaco: !!window.GlideEditorMonaco,
+                            scriptEditor: !!window.script_editor,
+                            scriptEditorType: typeof window.script_editor,
+                            scriptEditorReady: !!(window.script_editor && typeof window.script_editor === 'object' && window.script_editor.editor),
+                            editorElements: editorElements.length
+                        });
+                    } catch (e) {
+                        debugLog("*SNOW TOOL BELT* Error in Monaco check debug:", e.message);
+                    }
+
+                    // Check if we have enough to work with - be less strict about ServiceNow objects
+                    if ((hasMonaco || editorElements.length > 0) && document.getElementById('div_script')) {
+                        debugLog("*SNOW TOOL BELT* Monaco editor environment detected!");
+                        resolve(true);
+                        return;
+                    }
+
+                    // Alternative: if we have the Monaco DOM but not the objects, try to proceed anyway
+                    if (editorElements.length > 0 && attempts > 20) {
+                        debugLog("*SNOW TOOL BELT* Monaco DOM found, proceeding without full API access");
+                        resolve(true);
+                        return;
+                    }
+
+                    if (attempts >= maxAttempts) {
+                        console.log("*SNOW TOOL BELT* Monaco editor not found after maximum attempts");
+                        reject(new Error("Monaco editor not found"));
+                        return;
+                    }
+
+                    setTimeout(checkMonaco, 100);
+                };
+                checkMonaco();
+            });
+        };
+
+        // Function to get Monaco editor instance
+        const getMonacoEditor = () => {
+            // Try multiple approaches to get the editor
+
+            // Method 1: ServiceNow's script_editor global
+            try {
+                if (window.script_editor && window.script_editor.editor) {
+                    return window.script_editor.editor;
+                }
+            } catch (e) {
+                debugLog("*SNOW TOOL BELT* Error accessing script_editor:", e.message);
+            }
+
+            // Method 2: Standard Monaco API
+            try {
+                if (window.monaco && window.monaco.editor) {
+                    const editors = window.monaco.editor.getEditors();
+                    if (editors && editors.length > 0) {
+                        return editors[0];
+                    }
+                }
+            } catch (e) {
+                debugLog("*SNOW TOOL BELT* Error accessing monaco.editor:", e.message);
+            }
+
+            // Method 3: Try to find via GlideEditorMonaco if available
+            try {
+                if (window.GlideEditorMonaco && window.GlideEditorMonaco.get) {
+                    const editor = window.GlideEditorMonaco.get('script');
+                    if (editor && editor.editor) {
+                        return editor.editor;
+                    }
+                }
+            } catch (e) {
+                debugLog("*SNOW TOOL BELT* Error accessing GlideEditorMonaco:", e.message);
+            }
+
+            return null;
+        };
+
+        // Function to set Monaco editor content
+        const setMonacoContent = (content) => {
+            debugLog("*SNOW TOOL BELT* Using clipboard approach for Monaco content");
+            
+            // Copy content to clipboard and show user-friendly notification
+            try {
+                navigator.clipboard.writeText(content).then(() => {
+                    debugLog("*SNOW TOOL BELT* Content copied to clipboard");
+                    
+                    // Show a helpful notification using theme colors
+                    const notification = document.createElement('div');
+                    notification.innerHTML = `
+                        <div style="
+                            position: fixed;
+                            top: 20px;
+                            right: 20px;
+                            background: var(--btn-hover-color, #81B5A1);
+                            color: var(--main-bg-color, #F7F7F7);
+                            padding: 15px 20px;
+                            border-radius: 8px;
+                            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+                            z-index: 10000;
+                            font-family: 'Helvetica', sans-serif;
+                            font-size: 14px;
+                            max-width: 400px;
+                            border: 1px solid var(--muted-color, #81B5A1);
+                            transition: opacity 0.3s ease-out;
+                        ">
+                            <strong>✓ Script copied to clipboard!</strong><br>
+                            Click in the Monaco editor and press <strong>Ctrl+V</strong> to paste.
+                        </div>
+                    `;
+                    document.body.appendChild(notification);
+                    
+                    // Auto-remove after 2 seconds with fade out
+                    setTimeout(() => {
+                        if (notification.parentElement) {
+                            const notificationDiv = notification.firstElementChild;
+                            notificationDiv.style.opacity = '0';
+                            setTimeout(() => {
+                                if (notification.parentElement) {
+                                    notification.remove();
+                                }
+                            }, 300);
+                        }
+                    }, 2000);
+                    
+                    // Try to focus the Monaco editor to make pasting easier
+                    const monacoTextarea = document.querySelector('.monaco-editor textarea.inputarea');
+                    if (monacoTextarea) {
+                        monacoTextarea.focus();
+                        debugLog("*SNOW TOOL BELT* Monaco editor focused for pasting");
+                    }
+                    
+                }).catch(err => {
+                    debugLog("*SNOW TOOL BELT* Clipboard failed, showing modal:", err.message);
+                    showContentModal(content);
+                });
+                
+                return true;
+            } catch (e) {
+                debugLog("*SNOW TOOL BELT* Clipboard not supported, showing modal:", e.message);
+                showContentModal(content);
+                return true;
+            }
+        };
+        
+        // Helper function to show content in a modal for manual copying
+        const showContentModal = (content) => {
+            const modal = document.createElement('div');
+            modal.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.6);
+                    z-index: 10000;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                ">
+                    <div style="
+                        background: var(--main-bg-color, #F7F7F7);
+                        color: var(--main-color, #293E40);
+                        padding: 20px;
+                        border-radius: 8px;
+                        max-width: 80%;
+                        max-height: 80%;
+                        overflow: auto;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                        font-family: 'Helvetica', sans-serif;
+                        border: 1px solid var(--muted-color, #81B5A1);
+                    ">
+                        <h3 style="margin-top: 0; color: var(--highlight, #d66419);">📋 Copy Script Content</h3>
+                        <p>Select all the text below and copy it (<strong>Ctrl+C</strong>), then paste it into the Monaco editor:</p>
+                        <textarea readonly style="
+                            width: 100%;
+                            height: 300px;
+                            font-family: 'Courier New', monospace;
+                            font-size: 12px;
+                            border: 1px solid var(--disabled-color, #cecece);
+                            padding: 10px;
+                            resize: vertical;
+                            background: var(--alt-bg-color, #e7e7e7);
+                            color: var(--main-color, #293E40);
+                        " onclick="this.select()">${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+                        <div style="margin-top: 15px; text-align: right;">
+                            <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" style="
+                                background: var(--highlight, #d66419);
+                                color: var(--main-bg-color, #F7F7F7);
+                                border: none;
+                                padding: 10px 20px;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                transition: background-color 0.2s ease;
+                            " onmouseover="this.style.background='var(--btn-hover-color, #81B5A1)'" onmouseout="this.style.background='var(--highlight, #d66419)'">Close</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        };
+
+        // Wait for the Monaco editor DOM elements to appear first
+        const waitForMonacoDOM = () => {
+            return new Promise((resolve) => {
+                let attempts = 0;
+                const maxAttempts = 50; // 5 seconds
+
+                const checkDOM = () => {
+                    attempts++;
+                    const monacoEditor = document.querySelector('.monaco-editor');
+                    const scriptDiv = document.getElementById('div_script');
+
+                    debugLog(`*SNOW TOOL BELT* Waiting for Monaco DOM (attempt ${attempts}/${maxAttempts})`, {
+                        monacoEditor: !!monacoEditor,
+                        scriptDiv: !!scriptDiv,
+                        readyState: document.readyState
+                    });
+
+                    if (monacoEditor && scriptDiv) {
+                        debugLog("*SNOW TOOL BELT* Monaco DOM elements found!");
+                        resolve();
+                        return;
+                    }
+
+                    if (attempts >= maxAttempts) {
+                        console.log("*SNOW TOOL BELT* Monaco DOM elements not found, proceeding anyway");
+                        resolve();
+                        return;
+                    }
+
+                    setTimeout(checkDOM, 100);
+                };
+                checkDOM();
+            });
+        };
+
+        waitForMonacoDOM().then(() => {
+            // Wait a bit more for ServiceNow's scripts to initialize
+            return new Promise(resolve => setTimeout(resolve, 2000));
+        }).then(() => {
+            return waitForMonaco();
+        }).then(() => {
+            console.log("*SNOW TOOL BELT* Monaco editor ready, initializing background script enhancements");
+            // We are on the background script page with Monaco editor
             // retrieves execution history for the current user
+            debugLog("*SNOW TOOL BELT* Fetching execution history");
             let historyUrl = new Request(url.origin + "/sys_script_execution_history_list.do?JSONv2&sysparm_action=getRecords&sysparm_query=executed_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe^ORDERBYDESCstarted");
             let headers = new Headers();
             headers.append('Content-Type', 'application/json');
             headers.append('Accept', 'application/json');
             headers.append('Cache-Control', 'no-cache');
 
-            fetch(historyUrl, {headers: headers})
+            fetch(historyUrl, { headers: headers })
                 .then((response) => {
+                    debugLog(response);
                     if (response.ok && response.status === 200) {
-                        // we got a response, return the result
                         return response.json();
                     } else {
-                        // there was an error while fetching the data, stop here
+                        console.log("*SNOW TOOL BELT* Error fetching execution history");
                     }
                 }).then((data) => {
-                    if (data.records && data.records.length > 0) {
-                        let uniqueRecords = data.records.filter(function({script}) {
+                    if (data && data.records && data.records.length > 0) {
+                        let uniqueRecords = data.records.filter(function ({ script }) {
                             return !this[script] && (this[script] = script)
                         }, {})
                         context.history = {
@@ -155,13 +923,18 @@ function initScript (options) {
                         document.body.insertAdjacentHTML("afterbegin", table);
                         let tableEl = document.getElementById("execution_history_table");
                         let tableContent = "";
-                        context.history.records.forEach((record, index)=>{
+                        context.history.records.forEach((record, index) => {
                             tableContent += backgroundScriptAddonRowTemplate(record, index);
                         });
                         tableEl.innerHTML += tableContent;
+
                         const displayHistoryRecord = (index) => {
-                            textareaEl.innerText = context.history.records[index].script;
+                            const script = context.history.records[index].script;
+                            if (!setMonacoContent(script)) {
+                                console.log("*SNOW TOOL BELT* Could not set Monaco editor content");
+                            }
                         }
+
                         elements = document.querySelectorAll(".history_table tr");
                         [].forEach.call(elements, (el) => {
                             el.onclick = (evt) => {
@@ -170,14 +943,13 @@ function initScript (options) {
                             }
                         });
                     }
+                }).catch((error) => {
+                    console.log("*SNOW TOOL BELT* Error in background script enhancement:", error);
                 });
-        } else {
-            // We are on the execution summary page, show the back button
-            const content = backgroundScriptAddonTemplate2();
-            document.body.insertAdjacentHTML("afterbegin", content);
-            let backBtnEl = document.querySelector("#historyBackButton");
-            backBtnEl.onclick = (evt) => { window.history.back(); }
-        }    
+        }).catch((error) => {
+            console.log("*SNOW TOOL BELT* Monaco editor not found:", error);
+            console.log("*SNOW TOOL BELT* Background script enhancements will not be available");
+        });
     }
 }
 
@@ -218,7 +990,7 @@ function backgroundScriptAddonTableTemplate() {
  */
 function backgroundScriptAddonRowTemplate(row, index) {
     let safeRow = {};
-    Object.keys(row).forEach(function(key) {
+    Object.keys(row).forEach(function (key) {
         safeRow[key] = DOMPurify.sanitize(row[key]);
     });
 
@@ -243,7 +1015,7 @@ function backgroundScriptAddonRowTemplate(row, index) {
  * @param {string} color value
  * @returns {boolean} true if work was done
  */
-function updateFavicon (color) {
+function updateFavicon(color) {
     // console.log("*SNOW TOOL BELT* update favicon color to: " + color);
     if (color === undefined || color === "") {
         return true;
@@ -277,188 +1049,222 @@ function updateFavicon (color) {
 
 
 (function () {
-    console.log("*SNOW TOOL BELT* Content script loaded");
-    // ask background script if this tab must be considered as a ServiceNow instance, and get the favicon color
-    chrome.runtime.sendMessage({"command": "isServiceNow"}, function (response) {
-        if (response === undefined || response.isServiceNow === false) {
-            console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
-        } else {
-            initScript(response);
+    console.log("*SNOW TOOL BELT* Content script loaded on:", window.location.href);
+    console.log("*SNOW TOOL BELT* Browser:", typeof browser !== "undefined" ? "Firefox" : "Chrome");
 
-            // Defining how to react to messages coming from the background script or the browser action
-            chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-                console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
-                let instanceName = window.location.hostname;
-                let host = window.location.host;
-                let statsUrl = new Request(window.location.origin + "/stats.do");
-
-                if (request.command === "updateFavicon") {
-                    /**
-                    *  change Favicon color
-                    */
-                    updateFavicon(request.color);
-                } else if (request.command === "getTabInfo") {
-                    /**
-                     *  retrieve content informations
-                     */
-                    let response = getTabInfo();
-                    sendResponse(response);
-                } else if (request.command === "execute-fieldnames") {
-                    /**
-                     *  switch fieldnames/labels
-                     */
-                    sendResponse(true);
-                    switchFieldNames();
-                } else if (request.command === "getUpdateSet") {
-                    // console.log("*SNOW TOOL BELT* getting update set informations");
-                    if (!context.g_ck) {
-                        sendResponse({"updateSet": "", "current": "", "status": 200});
-                        return false;
+    // Firefox-specific: Add a delay to ensure background script is ready
+    const initializeExtension = () => {
+        // ask background script if this tab must be considered as a ServiceNow instance, and get the favicon color
+        try {
+            runtimeAPI.sendMessage({ "command": "isServiceNow" }, function (response) {
+                console.log("*SNOW TOOL BELT* isServiceNow response:", response);
+                if (runtimeAPI.lastError) {
+                    console.error("*SNOW TOOL BELT* Runtime error:", runtimeAPI.lastError);
+                    // Firefox fallback: if background script fails, check if this looks like ServiceNow
+                    if (window.location.hostname.includes("service-now.com")) {
+                        console.log("*SNOW TOOL BELT* Fallback: Detected ServiceNow domain, initializing...");
+                        initScript({ isServiceNow: true, favIconColor: "", hidden: false });
                     }
-                    let concourseUrl = new Request(window.location.origin + "/api/now/ui/concoursepicker/updateset");
-                    let headers = new Headers();
-                    headers.append('Content-Type', 'application/json');
-                    headers.append('Accept', 'application/json');
-                    headers.append('Cache-Control', 'no-cache');
-                    headers.append('X-UserToken', context.g_ck);
+                    return;
+                }
+                if (response === undefined || response.isServiceNow === false) {
+                    console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
+                } else {
+                    console.log("*SNOW TOOL BELT* ServiceNow instance detected, initializing...");
+                    initScript(response);
 
-                    // fetch(concourseUrl, {headers: headers})
-                    fetch(concourseUrl, {headers: headers})
-                        .then(function(response) {
-                            if (response.ok && response.status === 200) {
-                                return response.text().then(function (txt) {
-                                        try {
-                                            let parsed = JSON.parse(txt).result;
-                                            sendResponse({"updateSet": parsed.updateSet, "current": parsed.current, "status": 200});
-                                        } catch(e) {
-                                            // console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
-                                            sendResponse({"updateSet": "", "current": "", "status": 200});
-                                        }
-                                });
-                            } else {
-                                // there was an error while fetching xmlstats, stop here
-                                // console.log("*SNOW TOOL BELT* there was an error while fetching concourse API, stopping now: " + response.status);
-                                sendResponse({"updateset": "", "current": "", "status": response.status});
+                    // Defining how to react to messages coming from the background script or the browser action
+                    runtimeAPI.onMessage.addListener(function (request, sender, sendResponse) {
+                        console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
+                        let instanceName = window.location.hostname;
+                        let host = window.location.host;
+                        let statsUrl = new Request(window.location.origin + "/stats.do");
+
+                        if (request.command === "updateFavicon") {
+                            /**
+                            *  change Favicon color
+                            */
+                            updateFavicon(request.color);
+                        } else if (request.command === "getTabInfo") {
+                            /**
+                             *  retrieve content informations
+                             */
+                            let response = getTabInfo();
+                            sendResponse(response);
+                        } else if (request.command === "execute-fieldnames") {
+                            /**
+                             *  switch fieldnames/labels
+                             */
+                            sendResponse(true);
+                            switchFieldNames();
+                        } else if (request.command === "getUpdateSet") {
+                            // console.log("*SNOW TOOL BELT* getting update set informations");
+                            if (!context.g_ck) {
+                                sendResponse({ "updateSet": "", "current": "", "status": 200 });
+                                return false;
                             }
-                        });
-                    return true;
-                } else if (request.command === "scanNodes") {
-                    /**
-                    *  scanNodes
-                    */
-                    console.log("*SNOW TOOL BELT* Using this tab to search for nodes");
-                    // let scans = 0;
-                    // let maxScans = 50;
-                    let nodes = [];
-                    fetch(statsUrl, {credentials: "same-origin"})
-                        .then(function (response) {
-                            if (response.ok && response.status === 200) {
-                                return response.text().then(function (text) {
-                                    if (text === undefined || !text) {
-                                        return false;
-                                    }
-                                    let current = getNameFromStatsPage(text);
-                                    // console.log("*SNOW TOOL BELT* current: " + current);
+                            let concourseUrl = new Request(window.location.origin + "/api/now/ui/concoursepicker/updateset");
+                            let headers = new Headers();
+                            headers.append('Content-Type', 'application/json');
+                            headers.append('Accept', 'application/json');
+                            headers.append('Cache-Control', 'no-cache');
+                            headers.append('X-UserToken', context.g_ck);
 
-                                    let xmlStatsURL = new Request("https://" + host + "/xmlstats.do");
-                                    fetch(xmlStatsURL, {credentials: "same-origin"})
-                                        .then(function (response) {
-                                            if (response.ok && response.status === 200) {
-                                                return response.text().then(function (txt) {
-                                                    let parser = new DOMParser();
-                                                    let xmlDoc = parser.parseFromString(txt, "text/xml");
-                                                    let nodesList = xmlDoc.querySelectorAll("node system_id");
-                                                    nodesList.forEach(function (node) {
-                                                        nodes.push(node.textContent.split(":")[1]);
-                                                    });
-                                                    // console.log("*SNOW TOOL BELT* nodes: ");
-                                                    // console.log(nodes);
-
-                                                    sendResponse({"nodes": nodes, "current": current, "status": 200});
-                                                });
-                                            } else {
-                                                // there was an error while fetching xmlstats, stop here
-                                                console.log("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now: " + response.status);
-                                                sendResponse({"nodes": [], "current": "", "status": response.status});
+                            // fetch(concourseUrl, {headers: headers})
+                            fetch(concourseUrl, { headers: headers })
+                                .then(function (response) {
+                                    if (response.ok && response.status === 200) {
+                                        return response.text().then(function (txt) {
+                                            try {
+                                                let parsed = JSON.parse(txt).result;
+                                                sendResponse({ "updateSet": parsed.updateSet, "current": parsed.current, "status": 200 });
+                                            } catch (e) {
+                                                // console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
+                                                sendResponse({ "updateSet": "", "current": "", "status": 200 });
                                             }
-                                        })
-                                        .catch(function (err) {
-                                            console.log("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now");
-                                            console.log(err);
-                                            sendResponse({"nodes": [], "current": "", "status": 500});
                                         });
+                                    } else {
+                                        // there was an error while fetching xmlstats, stop here
+                                        // console.log("*SNOW TOOL BELT* there was an error while fetching concourse API, stopping now: " + response.status);
+                                        sendResponse({ "updateset": "", "current": "", "status": response.status });
+                                    }
                                 });
-                            } else {
-                                // there was an error with this first fetch, stop here
-                                console.log("*SNOW TOOL BELT* there was an error with the first fetch, stopping now: " + response.status);
-                                sendResponse({"nodes": [], "current": "", "status": response.status});
-                            }
-                        })
-                        .catch(function (err) {
-                            console.log("*SNOW TOOL BELT* there was an error with the first scan, stopping now");
-                            console.log(err);
-                            sendResponse({"nodes": [], "current": "", "status": 500});
-                        });
-                    return true;
-                } else if (request.command === "switchNode") {
-                    /**
-                    *  switchNode
-                    */
-                    console.log("*SNOW TOOL BELT* using this tab to switch to node " + request.node);
-                    let targetNode = request.node.toString();
-                    let maxTries = 20;
-                    let tries = 0;
-                    let tryAgain = function () {
-                        fetch(statsUrl, {credentials: "same-origin"})
-                            .then(function (response) {
-                                if (response.ok && response.status === 200) {
-                                    return response.text();
-                                } else {
-                                    // there was an error with this first fetch, stop here
-                                    console.log("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
-                                    sendResponse({"status": response.status});
-                                }
-                            })
-                            .then(function (text) {
-                                let current = getNameFromStatsPage(text);
-                                // console.log("*SNOW TOOL BELT* node name: " + current);
-                                if (current === targetNode) {
-                                    sendResponse({"status": 200, "current": current});
-                                } else if (tries < maxTries) {
-                                    tries++;
-                                    // send the removeCookie command to background script, then try again
-                                    chrome.runtime.sendMessage({"command": "removeCookie", "instance": instanceName}, tryAgain);
-                                } else {
-                                    console.log("*SNOW TOOL BELT* maximum number of tries reached without success");
-                                    sendResponse({"status": 500, "message": "Maximum number of tries reached", "current": current});
-                                }
-                            });
-                    };
+                            return true;
+                        } else if (request.command === "scanNodes") {
+                            /**
+                            *  scanNodes
+                            */
+                            console.log("*SNOW TOOL BELT* Using this tab to search for nodes");
+                            // let scans = 0;
+                            // let maxScans = 50;
+                            let nodes = [];
+                            fetch(statsUrl, { credentials: "same-origin" })
+                                .then(function (response) {
+                                    if (response.ok && response.status === 200) {
+                                        return response.text().then(function (text) {
+                                            if (text === undefined || !text) {
+                                                return false;
+                                            }
+                                            let current = getNameFromStatsPage(text);
+                                            // console.log("*SNOW TOOL BELT* current: " + current);
 
-                    fetch(statsUrl, {credentials: "same-origin"})
-                        .then(function (response) {
-                            if (response.ok && response.status === 200) {
-                                return response.text();
-                            } else {
-                                // there was an error with this first fetch, stop here
-                                console.log("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
-                                sendResponse({"status": response.status});
-                            }
-                        })
-                        .then(function (text) {
-                            let current = getNameFromStatsPage(text);
-                            if (current === targetNode) {
-                                console.log("*SNOW TOOL BELT* teeeheee we are already on target node");
-                                sendResponse({"status": 200, "current": current});
-                            } else {
-                                // send the removeCookie command to background script, then try again
-                                chrome.runtime.sendMessage({"command": "removeCookie", "instance": instanceName}, tryAgain);
-                            }
-                        });
-                    return true;
+                                            let xmlStatsURL = new Request("https://" + host + "/xmlstats.do");
+                                            fetch(xmlStatsURL, { credentials: "same-origin" })
+                                                .then(function (response) {
+                                                    if (response.ok && response.status === 200) {
+                                                        return response.text().then(function (txt) {
+                                                            let parser = new DOMParser();
+                                                            let xmlDoc = parser.parseFromString(txt, "text/xml");
+                                                            let nodesList = xmlDoc.querySelectorAll("node system_id");
+                                                            nodesList.forEach(function (node) {
+                                                                nodes.push(node.textContent.split(":")[1]);
+                                                            });
+                                                            // console.log("*SNOW TOOL BELT* nodes: ");
+                                                            // console.log(nodes);
+
+                                                            sendResponse({ "nodes": nodes, "current": current, "status": 200 });
+                                                        });
+                                                    } else {
+                                                        // there was an error while fetching xmlstats, stop here
+                                                        console.log("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now: " + response.status);
+                                                        sendResponse({ "nodes": [], "current": "", "status": response.status });
+                                                    }
+                                                })
+                                                .catch(function (err) {
+                                                    console.log("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now");
+                                                    console.log(err);
+                                                    sendResponse({ "nodes": [], "current": "", "status": 500 });
+                                                });
+                                        });
+                                    } else {
+                                        // there was an error with this first fetch, stop here
+                                        console.log("*SNOW TOOL BELT* there was an error with the first fetch, stopping now: " + response.status);
+                                        sendResponse({ "nodes": [], "current": "", "status": response.status });
+                                    }
+                                })
+                                .catch(function (err) {
+                                    console.log("*SNOW TOOL BELT* there was an error with the first scan, stopping now");
+                                    console.log(err);
+                                    sendResponse({ "nodes": [], "current": "", "status": 500 });
+                                });
+                            return true;
+                        } else if (request.command === "switchNode") {
+                            /**
+                            *  switchNode
+                            */
+                            console.log("*SNOW TOOL BELT* using this tab to switch to node " + request.node);
+                            let targetNode = request.node.toString();
+                            let maxTries = 20;
+                            let tries = 0;
+                            let tryAgain = function () {
+                                fetch(statsUrl, { credentials: "same-origin" })
+                                    .then(function (response) {
+                                        if (response.ok && response.status === 200) {
+                                            return response.text();
+                                        } else {
+                                            // there was an error with this first fetch, stop here
+                                            console.log("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
+                                            sendResponse({ "status": response.status });
+                                        }
+                                    })
+                                    .then(function (text) {
+                                        let current = getNameFromStatsPage(text);
+                                        // console.log("*SNOW TOOL BELT* node name: " + current);
+                                        if (current === targetNode) {
+                                            sendResponse({ "status": 200, "current": current });
+                                        } else if (tries < maxTries) {
+                                            tries++;
+                                            // send the removeCookie command to background script, then try again
+                                            runtimeAPI.sendMessage({ "command": "removeCookie", "instance": instanceName }, tryAgain);
+                                        } else {
+                                            console.log("*SNOW TOOL BELT* maximum number of tries reached without success");
+                                            sendResponse({ "status": 500, "message": "Maximum number of tries reached", "current": current });
+                                        }
+                                    });
+                            };
+
+                            fetch(statsUrl, { credentials: "same-origin" })
+                                .then(function (response) {
+                                    if (response.ok && response.status === 200) {
+                                        return response.text();
+                                    } else {
+                                        // there was an error with this first fetch, stop here
+                                        console.log("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
+                                        sendResponse({ "status": response.status });
+                                    }
+                                })
+                                .then(function (text) {
+                                    let current = getNameFromStatsPage(text);
+                                    if (current === targetNode) {
+                                        console.log("*SNOW TOOL BELT* teeeheee we are already on target node");
+                                        sendResponse({ "status": 200, "current": current });
+                                    } else {
+                                        // send the removeCookie command to background script, then try again
+                                        runtimeAPI.sendMessage({ "command": "removeCookie", "instance": instanceName }, tryAgain);
+                                    }
+                                });
+                            return true;
+                        }
+                    });
                 }
             });
+        } catch (error) {
+            console.error("*SNOW TOOL BELT* Content script error:", error);
+            // Firefox fallback: if there's an error, check if this looks like ServiceNow
+            if (window.location.hostname.includes("service-now.com")) {
+                console.log("*SNOW TOOL BELT* Error fallback: Detected ServiceNow domain, initializing...");
+                initScript({ isServiceNow: true, favIconColor: "", hidden: false });
+            }
         }
-    });
+    };
+
+    // Firefox-specific: Add delay for background script readiness
+    if (typeof browser !== "undefined") {
+        // Firefox: wait a bit for background script to be ready
+        setTimeout(initializeExtension, 100);
+    } else {
+        // Chrome: initialize immediately
+        initializeExtension();
+    }
 })();
 

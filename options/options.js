@@ -5,32 +5,137 @@ const context = {
     useSync: false,
     storageArea: {}
 };
-chrome.commands.getAll((result) => { 
+chrome.commands.getAll((result) => {
     context.commands = result;
 });
 /**
- * Displays a message for a short time.
+ * Displays a message using a modern notification toast.
  * @param {String} txt Message to display.
+ * @param {String} details Optional details to show in a modal if provided.
  */
 const displayMessage = (txt, details) => {
     if (txt === undefined) { return false; }
     if (details === undefined) { details = ""; }
 
-    let messages = document.getElementById("messages");
-    let messagesDetails = document.getElementById("messages_details");
+    // If there are details, show a modal for error messages
+    if (details) {
+        showDetailsModal(txt, details);
+        return;
+    }
 
-    messages.innerHTML = "&nbsp;";
-    messagesDetails.innerText = "&nbsp;";
-    messagesDetails.style.visibility = "hidden";
+    // Show a toast notification for simple messages
+    showToastNotification(txt);
+};
 
-    window.setTimeout(() => {
-        messages.innerHTML = txt;
-        location.hash = "messagePopin";
-        if (details) {
-            messagesDetails.innerText = details;
-            messagesDetails.style.visibility = "visible";
+/**
+ * Shows a toast notification with theme colors
+ * @param {String} message The message to display
+ */
+const showToastNotification = (message) => {
+    // Remove any existing notifications
+    const existingNotifications = document.querySelectorAll('.sntb-toast-notification');
+    existingNotifications.forEach(notification => notification.remove());
+
+    const notification = document.createElement('div');
+    notification.className = 'sntb-toast-notification';
+    notification.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--btn-hover-color, #81B5A1);
+            color: var(--main-bg-color, #F7F7F7);
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+            z-index: 10000;
+            font-family: 'Helvetica', sans-serif;
+            font-size: 14px;
+            max-width: 400px;
+            border: 1px solid var(--muted-color, #81B5A1);
+            transition: opacity 0.3s ease-out;
+        ">
+            ${message}
+        </div>
+    `;
+    document.body.appendChild(notification);
+
+    // Auto-remove after 2 seconds with fade out
+    setTimeout(() => {
+        if (notification.parentElement) {
+            const notificationDiv = notification.firstElementChild;
+            notificationDiv.style.opacity = '0';
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 300);
         }
-    }, 100);
+    }, 2000);
+};
+
+/**
+ * Shows a modal for error messages with details
+ * @param {String} message The main error message
+ * @param {String} details The error details
+ */
+const showDetailsModal = (message, details) => {
+    const modal = document.createElement('div');
+    modal.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        ">
+            <div style="
+                background: var(--main-bg-color, #F7F7F7);
+                color: var(--main-color, #293E40);
+                padding: 20px;
+                border-radius: 8px;
+                max-width: 80%;
+                max-height: 80%;
+                overflow: auto;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                font-family: 'Helvetica', sans-serif;
+                border: 1px solid var(--muted-color, #81B5A1);
+            ">
+                <h3 style="margin-top: 0; color: var(--highlight, #d66419);">⚠️ Error</h3>
+                <p>${message}</p>
+                <textarea readonly style="
+                    width: 100%;
+                    height: 150px;
+                    font-family: 'Courier New', monospace;
+                    font-size: 12px;
+                    border: 1px solid var(--disabled-color, #cecece);
+                    padding: 10px;
+                    resize: vertical;
+                    background: var(--alt-bg-color, #e7e7e7);
+                    color: var(--main-color, #293E40);
+                    margin-top: 10px;
+                " onclick="this.select()">${details}</textarea>
+                <div style="margin-top: 15px; text-align: right;">
+                    <button onclick="this.closest('div[style*=\"position: fixed\"]').remove()" style="
+                        background: var(--highlight, #d66419);
+                        color: var(--main-bg-color, #F7F7F7);
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        transition: background-color 0.2s ease;
+                    " onmouseover="this.style.background='var(--btn-hover-color, #81B5A1)'" onmouseout="this.style.background='var(--highlight, #d66419)'">Close</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
 };
 
 /**
@@ -121,21 +226,25 @@ const restoreOptions = () => {
         document.getElementById("useSync").checked = context.useSync;
         // load options from storage area depending on the useSync setting
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets"], (result) => {
             context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
             context.urlFilters = result.urlFilters || "service-now.com;";
             rebuildDomainsList();
-            
+
             document.getElementById("extraDomains").checked = context.extraDomains;
             // document.getElementById("urlFilters").value = context.urlFilters;
-            document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
+
             document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
-            
-            // Load theme preference
-            chrome.storage.local.get("themePreference", (themeResult) => {
-                const themePreference = themeResult.themePreference || "auto";
+
+            // Load theme preference and debug mode
+            chrome.storage.local.get(["themePreference", "debugMode"], (localResult) => {
+                const themePreference = localResult.themePreference || "auto";
                 document.getElementById("themePreference").value = themePreference;
                 context.themePreference = themePreference;
+                
+                const debugMode = localResult.debugMode === true;
+                document.getElementById("debugMode").checked = debugMode;
+                context.debugMode = debugMode;
             });
             try {
                 if (result.knownInstances !== undefined) { context.knownInstances = JSON.parse(result.knownInstances); }
@@ -167,7 +276,7 @@ const restoreOptions = () => {
                     let label = document.createElement("label");
                     label.className = "instance-label";
                     label.setAttribute("for", input.id);
-                    label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key + 
+                    label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key +
                         " <span class='pull-right'>" +
                         "<label class='switch'  title=\"show or hide this instance\"><input name='showOrHide' type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
                         " <a class=\"no_underline button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
@@ -194,7 +303,7 @@ const restoreOptions = () => {
                 [].forEach.call(elements, (el) => {
                     el.addEventListener("change", saveOptions);
                 });
-                
+
                 // add close tab actions
                 elements = document.querySelectorAll("a[title=\"pick a color\"]");
                 [].forEach.call(elements, (el) => {
@@ -204,9 +313,9 @@ const restoreOptions = () => {
                         color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "");
                     }
                     if (color) {
-                        el.style.color = color;
+                        el.style.backgroundColor = color;
                     } else {
-                        el.style.color = "black";
+                        el.style.backgroundColor = "black";
                     }
                     el.addEventListener("click", (e) => {
                         context.clicked = e.target;
@@ -223,7 +332,7 @@ const restoreOptions = () => {
                     let elements = document.getElementById("knownInstancesList").querySelectorAll("input[type='text']");
                     [].forEach.call(elements, (el) => {
                         if (el.value !== "" && el.value.toLowerCase().indexOf(ev.target.value.toLowerCase()) === -1
-                                && el.id.toLowerCase().indexOf(ev.target.value.toLowerCase()) === -1) {
+                            && el.id.toLowerCase().indexOf(ev.target.value.toLowerCase()) === -1) {
                             el.style.display = "none";
                             document.getElementById("knownInstancesList").querySelector("label[for='" + el.id + "']").style.display = "none";
                         } else {
@@ -283,7 +392,7 @@ const sortProperties = (obj, isNumericSort) => {
 const saveColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    context.clicked.style.color = document.getElementById("colorPickerColor").value;
+    context.clicked.style.backgroundColor = document.getElementById("colorPickerColor").value;
     location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
@@ -299,7 +408,7 @@ const saveColor = (evt) => {
 const saveNoColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    context.clicked.style.color = "#000000";
+    context.clicked.style.backgroundColor = "#000000";
     location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
@@ -330,7 +439,7 @@ const deleteInstance = (evt) => {
  * Saves the domain filters
  */
 const saveFilters = () => {
-    context.storageArea.set({ "urlFilters": context.urlFilters }, () => {});
+    context.storageArea.set({ "urlFilters": context.urlFilters }, () => { });
 }
 /**
  * Saves the instances checked states
@@ -352,7 +461,7 @@ const saveInstanceOptions = () => {
 async function register(hosts, code) {
     return await chrome.contentScripts.register({
         matches: [hosts],
-        js: [{code}],
+        js: [{ code }],
         runAt: "document_idle"
     });
 }
@@ -364,12 +473,9 @@ async function register(hosts, code) {
 const saveOptions = (evt) => {
     evt.preventDefault();
     try {
-        if (evt.target.id === "autoFrame") {
-            context.autoFrame = evt.target.checked;
-            context.storageArea.set({ "autoFrame": context.autoFrame }, () => {});
-        } else if (evt.target.id === "showUpdatesets") {
+        if (evt.target.id === "showUpdatesets") {
             context.showUpdatesets = evt.target.checked;
-            context.storageArea.set({ "showUpdatesets": context.showUpdatesets }, () => {});
+            context.storageArea.set({ "showUpdatesets": context.showUpdatesets }, () => { });
         } else if (evt.target.id === "themePreference") {
             context.themePreference = evt.target.value;
             chrome.storage.local.set({ "themePreference": context.themePreference }, () => {
@@ -378,6 +484,9 @@ const saveOptions = (evt) => {
                     ThemeManager.saveThemePreference(context.themePreference);
                 }
             });
+        } else if (evt.target.id === "debugMode") {
+            context.debugMode = evt.target.checked;
+            chrome.storage.local.set({ "debugMode": context.debugMode }, () => {});
         } else if (evt.target.id === "extraDomains") {
             console.log(evt.target.checked);
             context.extraDomains = evt.target.checked;
@@ -411,7 +520,7 @@ const saveOptions = (evt) => {
                 chrome.permissions.remove({
                     origins: ["https://*/*"]
                 });
-                context.storageArea.set({ "extraDomains": context.extraDomains }, () => { 
+                context.storageArea.set({ "extraDomains": context.extraDomains }, () => {
                     rebuildDomainsList();
                 });
             }
@@ -422,7 +531,7 @@ const saveOptions = (evt) => {
                     context.instanceOptions[key] = {};
                 }
                 context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
-            }    
+            }
             context.storageArea.set({
                 "knownInstances": JSON.stringify(context.knownInstances),
                 "instanceOptions": JSON.stringify(context.instanceOptions),
@@ -444,12 +553,12 @@ const exportOptions = (evt) => {
         permissions: ['downloads']
     }, (granted) => {
         if (granted) {
-            context.storageArea.get(["extraDomains","urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
+            context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets"], (result) => {
                 // Also get theme preference from local storage
                 chrome.storage.local.get("themePreference", (themeResult) => {
                     result.themePreference = themeResult.themePreference;
                     // let string = encodeURIComponent(JSON.stringify(result));
-                    var blob = new Blob([JSON.stringify(result)], {type: "application/json;charset=utf-8"});
+                    var blob = new Blob([JSON.stringify(result)], { type: "application/json;charset=utf-8" });
                     try {
                         chrome.downloads.download({
                             filename: "snow-toolbelt-backup.json",
@@ -487,13 +596,13 @@ const importOptions = (evt) => {
                 // verify json integrity
                 JSON.parse(obj.knownInstances);
                 JSON.parse(obj.instanceOptions);
-                
+
                 context.storageArea.set({
                     "knownInstances": obj.knownInstances,
                     "instanceOptions": obj.instanceOptions,
                     "extraDomains": false, // always set to false by default to request the all_urls permission again if required
                     "urlFilters": obj.urlFilters,
-                    "autoFrame": obj.autoFrame,
+
                     "showUpdatesets": obj.showUpdatesets
                 }, () => {
                     // Also restore theme preference if present
@@ -529,13 +638,13 @@ const toggleSync = (evt) => {
     context.useSync = evt.target.checked;
     context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
     try {
-        context.storageArea.get(["urlFilters"],(result) => {
+        context.storageArea.get(["urlFilters"], (result) => {
             chrome.storage.local.set({
-                "useSync" : context.useSync
+                "useSync": context.useSync
             });
             restoreOptions();
         });
-    } catch(e) {
+    } catch (e) {
         console.error(e);
         displayMessage("There was an error accessing the desired storage area.", e);
         evt.target.checked = !context.useSync;
@@ -545,10 +654,11 @@ const toggleSync = (evt) => {
 document.addEventListener("DOMContentLoaded", restoreOptions);
 document.querySelector("form").addEventListener("submit", saveOptions);
 document.getElementById("useSync").addEventListener("change", toggleSync);
-document.getElementById("autoFrame").addEventListener("change", saveOptions);
+
 document.getElementById("extraDomains").addEventListener("change", saveOptions);
 document.getElementById("showUpdatesets").addEventListener("change", saveOptions);
 document.getElementById("themePreference").addEventListener("change", saveOptions);
+document.getElementById("debugMode").addEventListener("change", saveOptions);
 document.getElementById("export").addEventListener("click", exportOptions);
 document.getElementById("import").addEventListener("click", openFileSelect);
 document.getElementById("importFile").style.display = "none";

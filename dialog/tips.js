@@ -7,52 +7,64 @@ const shortcutsURL = (isChromium ? "chrome://extensions/shortcuts" : "about:addo
 
 let tips;
 context.lastTipNumber = -1;
-context.currentVersion = "6.1.0";
-document.getElementById("help").title = "current version: " + context.currentVersion;
+context.currentVersion = "7.0.0";
+try {
+    document.getElementById("help").title = "current version: " + context.currentVersion;
+} catch (e) {
+    // ignore errors here;
+}
 
 const whatsnew = [
-    { 
+    {
+        version: '7.0.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>" +
+            "<li>Light and Dark themes</li>" +
+            "<li>Background script popup is now using the new UI</li>" +
+            "<li>Display technical field names now works inside the navigation frame</li>" +
+            "</ul>"
+    }, {
         version: '6.1.0',
         msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>Corrected a few issues following the manifest version upgrade.</li>"+
+            "<ul>" +
+            "<li>Corrected a few issues following the manifest version upgrade.</li>" +
             "</ul>"
-    },{ 
+    }, {
         version: '6.0.0',
         msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>Upgraded manifest to v3. Not a big change from a user point of view but it was such a pain I thought it deserved its own major release.</li>"+
-            "<li>Not much more, to be honest. Please create issues on github if you see the extension misbehaving.</li>"+
-            "<li>If you are using extra-service-now.com domains, you may have to re-enable the option, so the extension requests the new, renamed authorization to access all urls.</li>"+
+            "<ul>" +
+            "<li>Upgraded manifest to v3. Not a big change from a user point of view but it was such a pain I thought it deserved its own major release.</li>" +
+            "<li>Not much more, to be honest. Please create issues on github if you see the extension misbehaving.</li>" +
+            "<li>If you are using extra-service-now.com domains, you may have to re-enable the option, so the extension requests the new, renamed authorization to access all urls.</li>" +
             "</ul>"
-    },{ 
+    }, {
         version: '5.1.0',
         msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>Finally made some updates required by the recent ServiceNow UI changes.</li>"+
-            "<li>Updated the documentation search link.</li>"+
+            "<ul>" +
+            "<li>Finally made some updates required by the recent ServiceNow UI changes.</li>" +
+            "<li>Updated the documentation search link.</li>" +
             "</ul>"
-    },{ 
+    }, {
         version: '5.0.0',
         msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>Removed the broadest default permissions for the extension.</li>"+
-            "</ul>"+
+            "<ul>" +
+            "<li>Removed the broadest default permissions for the extension.</li>" +
+            "</ul>" +
             "<b>important:</b> You now have to <b>explicitly</b> allow the extension to be used outside of the service-now.com domain. \"Enable extra domains for content script\" in the options page if you want to use this feature. <br/>" +
             "Just to be safe, remember you can use the export button in the options page to save your settings into a JSON file. You can import it back later in case of a bug or an issue with sync storage, or to copy your settings accross browsers."
-    },{ 
+    }, {
         version: '4.7.1',
         msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>The previous background scripts are now selectable from a list.</li>"+
-            "<li>Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
+            "<ul>" +
+            "<li>The previous background scripts are now selectable from a list.</li>" +
+            "<li>Make sure you configure your shortcuts in " + shortcutsURL + ".</li>" +
             "</ul>"
-    },{ 
+    }, {
         version: '4.7.0',
         msg: "Most notable changes:<br/>" +
-            "<ul>"+
-            "<li>Enhanced the background script popup window with an execution history!</li>"+
-            "<li>Make sure you configure your shortcuts in " + shortcutsURL + ".</li>"+
+            "<ul>" +
+            "<li>Enhanced the background script popup window with an execution history!</li>" +
+            "<li>Make sure you configure your shortcuts in " + shortcutsURL + ".</li>" +
             "</ul>"
     }
 ];
@@ -64,7 +76,7 @@ const getWhatsNew = (whatsNewJSON) => {
     if (whatsNewJSON !== undefined) {
         try {
             whatsNewArr = JSON.parse(whatsNewJSON);
-        } catch(e) {
+        } catch (e) {
             console.error(e);
         }
     }
@@ -74,7 +86,7 @@ const getWhatsNew = (whatsNewJSON) => {
     let whatsnewText = "";
     whatsnew.forEach((item) => {
         if (whatsNewArr.indexOf(item.version) === -1) {
-            whatsnewText += "<h3>version " + item.version 
+            whatsnewText += "<h3>version " + item.version
                 + "</h3>" + item.msg;
         }
     });
@@ -100,13 +112,13 @@ const rememberWhatsNew = () => {
  */
 const getCommands = () => {
     if (context && context.commands) {
-        let result = 'The following commands are currently configured for your browser:<ul>';
+        let result = 'The following commands are currently <a href="' + shortcutsURL + '">configured for your browser</a>:<ul>';
         context.commands.forEach((command) => {
-                result += '<li>' + (command.name === '_execute_browser_action' ? 'Open tools popup' : command.description) + ': <b>' + command.shortcut + '</b></li>';
+            result += '<li>' + (command.name === '_execute_action' ? 'Open tools popup' : command.description) + ': <b>' + command.shortcut + '</b></li>';
         });
         result += "</ul>";
         result += "See " + shortcutsURL + " for configuration";
-        return result;    
+        return result;
     }
 }
 
@@ -151,7 +163,7 @@ const getTip = () => {
 
 // If there is a "shortcuts" element, like on the options page, add the shortcuts list
 if (document.querySelector("span#shortcuts")) {
-    chrome.commands.getAll((result) => { 
+    chrome.commands.getAll((result) => {
         context.commands = result;
         document.querySelector("span#shortcuts").insertAdjacentHTML("afterend", getCommands());
     });

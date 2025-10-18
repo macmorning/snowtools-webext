@@ -9,7 +9,7 @@
     "128": "icons/tools-128.png"
   },
   "commands": {
-    "_execute_browser_action": {
+    "_execute_action": {
       "suggested_key": {
         "default": "Alt+C"
       },
@@ -50,8 +50,9 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://*/*"],
-      "js": ["content-script/purify.js","content-script/snowbelt-cs.js"]
+      "matches": ["https://*.service-now.com/*"],
+      "js": ["content-script/purify.js","content-script/snowbelt-cs.js"],
+      "run_at": "document_end"
     }
   ],
   "options_ui": {
@@ -61,7 +62,8 @@
   "permissions": [
     "tabs", 
     "storage", 
-    "cookies"
+    "cookies",
+    "scripting"
   ],
   "optional_permissions": [
       "downloads"
