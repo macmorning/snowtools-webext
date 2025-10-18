@@ -477,6 +477,12 @@ const getOptions = () => {
 
             document.getElementById("config").addEventListener("click", openOptions);
             document.getElementById("open_in_panel").addEventListener("click", openInPanel);
+            document.getElementById("theme-toggle").addEventListener("click", () => {
+                if (typeof ThemeManager !== "undefined") {
+                    ThemeManager.toggleTheme();
+                }
+            });
+            
             document.getElementById("new_tab").addEventListener("change", newTab);
             document.getElementById("search_custom").addEventListener("click", searchNow);
             document.getElementById("search_doc").addEventListener("click", searchNow);

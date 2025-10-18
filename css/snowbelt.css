@@ -9,6 +9,21 @@
     --btn-hover-color:#81B5A1;
     --highlight:#d66419;
 }
+
+/* Dark theme variables */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --main-bg-color: #1e1e1e;
+        --main-color: #e0e0e0;
+        --secondary-color: #ffffff;
+        --muted-color: #81B5A1;
+        --alt-bg-color: #2d2d2d;
+        --disabled-color: #666666;
+        --btn-color: #4a4a4a;
+        --btn-hover-color: #81B5A1;
+        --highlight: #ff8c42;
+    }
+}
 @keyframes rotation {
     from { transform: rotate(0deg); }
     to { transform: rotate(359deg); }
@@ -304,6 +319,7 @@ input[type=text], select {
     border: 1px solid var(--main-color);
     box-sizing: border-box;
     color: var(--main-color);
+    background-color: var(--main-bg-color);
 }
 select.select-instance {
     margin-bottom: 15px;
@@ -418,6 +434,17 @@ input#colorPickerColor {
     transition: .2s;
 }
 
+/* Dark theme slider adjustments */
+@media (prefers-color-scheme: dark) {
+    .slider {
+        background-color: #555;
+    }
+    
+    .slider:before {
+        background-color: #f0f0f0;
+    }
+}
+
 input:checked + .slider {
     background-color: var(--main-color);
 }
@@ -461,6 +488,13 @@ input:checked + .slider:before {
     -ms-transition: all 0.4s ease;
     -o-transition: all 0.4s ease;
     transition: all 0.4s ease;
+}
+
+/* Dark theme popup overlay */
+@media (prefers-color-scheme: dark) {
+    .smart-popin {
+        background-color: rgba(0,0,0,0.8);
+    }
 }
 .smart-popin:target {
     opacity: 1;
@@ -556,4 +590,144 @@ input:checked + .slider:before {
 #newFilter {
     max-width: 25em;
     margin-left: 20px;
+}
+/*
+ Manual theme overrides */
+body.theme-dark,
+body.theme-auto.theme-dark-detected {
+    --main-bg-color: #1e1e1e;
+    --main-color: #e0e0e0;
+    --secondary-color: #ffffff;
+    --muted-color: #81B5A1;
+    --alt-bg-color: #2d2d2d;
+    --disabled-color: #666666;
+    --btn-color: #4a4a4a;
+    --btn-hover-color: #81B5A1;
+    --highlight: #ff8c42;
+}
+
+body.theme-light,
+body.theme-auto.theme-light-detected {
+    --main-bg-color: #F7F7F7;
+    --main-color: #293E40;
+    --secondary-color: #000000;
+    --muted-color: #81B5A1;
+    --alt-bg-color: #e7e7e7;
+    --disabled-color: #cecece;
+    --btn-color: var(--main-color);
+    --btn-hover-color: #81B5A1;
+    --highlight: #d66419;
+}
+
+/* Dark theme specific adjustments */
+body.theme-dark .slider,
+body.theme-auto.theme-dark-detected .slider {
+    background-color: #555;
+}
+
+body.theme-dark .slider:before,
+body.theme-auto.theme-dark-detected .slider:before {
+    background-color: #f0f0f0;
+}
+
+body.theme-dark .smart-popin,
+body.theme-auto.theme-dark-detected .smart-popin {
+    background-color: rgba(0,0,0,0.8);
+}
+
+/* Theme toggle icon positioning */
+#theme-toggle {
+    right: 150px;
+}/* Dark th
+eme icon adjustments */
+body.theme-dark img.top-commands,
+body.theme-auto.theme-dark-detected img.top-commands,
+body.theme-dark img.whatsnew,
+body.theme-auto.theme-dark-detected img.whatsnew,
+body.theme-dark .tips img,
+body.theme-auto.theme-dark-detected .tips img,
+body.theme-dark .updateset img,
+body.theme-auto.theme-dark-detected .updateset img {
+    filter: invert(1) brightness(0.8);
+}
+
+/* Specific adjustments for different icon types */
+body.theme-dark img[src*="question.png"],
+body.theme-auto.theme-dark-detected img[src*="question.png"] {
+    filter: invert(1) brightness(0.9);
+}
+
+body.theme-dark img[src*="bulb.png"],
+body.theme-auto.theme-dark-detected img[src*="bulb.png"] {
+    filter: invert(1) hue-rotate(45deg) brightness(1.1);
+}
+
+body.theme-dark img[src*="newspaper.png"],
+body.theme-auto.theme-dark-detected img[src*="newspaper.png"] {
+    filter: invert(1) brightness(0.85);
+}/
+* Alternative approach using dark-theme-icons class */
+body.dark-theme-icons img.top-commands,
+body.dark-theme-icons img.whatsnew,
+body.dark-theme-icons .tips img,
+body.dark-theme-icons .updateset img {
+    filter: invert(1) brightness(0.8) contrast(1.2);
+}
+
+body.dark-theme-icons img[src*="question.png"] {
+    filter: invert(1) brightness(0.9) contrast(1.1);
+}
+
+body.dark-theme-icons img[src*="bulb.png"] {
+    filter: invert(1) hue-rotate(45deg) brightness(1.1) contrast(1.1);
+}
+
+body.dark-theme-icons img[src*="newspaper.png"] {
+    filter: invert(1) brightness(0.85) contrast(1.2);
+}
+
+/* Ensure icons remain visible on hover */
+body.dark-theme-icons img.top-commands:hover {
+    filter: invert(1) brightness(1) contrast(1.3);
+}/* Opti
+ons page icon support for dark theme */
+body.options-body.theme-dark img[src*="question.png"],
+body.options-body.theme-auto.theme-dark-detected img[src*="question.png"],
+body.options-body.dark-theme-icons img[src*="question.png"] {
+    filter: invert(1) brightness(0.9) contrast(1.1);
+}
+
+/* General icon support for any page in dark theme */
+body.theme-dark img[width="15px"],
+body.theme-auto.theme-dark-detected img[width="15px"],
+body.dark-theme-icons img[width="15px"] {
+    filter: invert(1) brightness(0.9) contrast(1.1);
+}
+
+/* Theme toggle icon - ensure it follows the same pattern as other icons */
+body.theme-dark #theme-toggle,
+body.theme-auto.theme-dark-detected #theme-toggle,
+body.dark-theme-icons #theme-toggle {
+    filter: invert(1) brightness(0.8) contrast(1.2);
+}
+
+body.theme-light #theme-toggle,
+body.theme-auto.theme-light-detected #theme-toggle {
+    filter: none;
+}
+
+#theme-toggle:hover {
+    opacity: 0.8;
+}
+
+/* Theme preference layout styling */
+label[for="themePreference"].instance-label {
+    display: block;
+    margin-bottom: 5px;
+}
+
+select.select-theme {
+    width: 200px;
+    display: block;
+    margin-bottom: 15px;
 }

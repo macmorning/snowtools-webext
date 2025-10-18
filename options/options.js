@@ -130,6 +130,13 @@ const restoreOptions = () => {
             // document.getElementById("urlFilters").value = context.urlFilters;
             document.getElementById("autoFrame").checked = (result.autoFrame === "true" || result.autoFrame === true);
             document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
+            
+            // Load theme preference
+            chrome.storage.local.get("themePreference", (themeResult) => {
+                const themePreference = themeResult.themePreference || "auto";
+                document.getElementById("themePreference").value = themePreference;
+                context.themePreference = themePreference;
+            });
             try {
                 if (result.knownInstances !== undefined) { context.knownInstances = JSON.parse(result.knownInstances); }
                 else { context.knownInstances = {}; }
@@ -363,6 +370,14 @@ const saveOptions = (evt) => {
         } else if (evt.target.id === "showUpdatesets") {
             context.showUpdatesets = evt.target.checked;
             context.storageArea.set({ "showUpdatesets": context.showUpdatesets }, () => {});
+        } else if (evt.target.id === "themePreference") {
+            context.themePreference = evt.target.value;
+            chrome.storage.local.set({ "themePreference": context.themePreference }, () => {
+                // Notify ThemeManager if available
+                if (typeof ThemeManager !== "undefined") {
+                    ThemeManager.saveThemePreference(context.themePreference);
+                }
+            });
         } else if (evt.target.id === "extraDomains") {
             console.log(evt.target.checked);
             context.extraDomains = evt.target.checked;
@@ -430,18 +445,22 @@ const exportOptions = (evt) => {
     }, (granted) => {
         if (granted) {
             context.storageArea.get(["extraDomains","urlFilters", "knownInstances", "instanceOptions", "autoFrame", "showUpdatesets"], (result) => {
-                // let string = encodeURIComponent(JSON.stringify(result));
-                var blob = new Blob([JSON.stringify(result)], {type: "application/json;charset=utf-8"});
-                try {
-                    chrome.downloads.download({
-                        filename: "snow-toolbelt-backup.json",
-                        saveAs: true,
-                        url: URL.createObjectURL(blob)
-                    });
-                } catch (e) {
-                    displayMessage("Sorry, there was a browser error. Please report it with the details below.", e);
-                    console.log(e);
-                }
+                // Also get theme preference from local storage
+                chrome.storage.local.get("themePreference", (themeResult) => {
+                    result.themePreference = themeResult.themePreference;
+                    // let string = encodeURIComponent(JSON.stringify(result));
+                    var blob = new Blob([JSON.stringify(result)], {type: "application/json;charset=utf-8"});
+                    try {
+                        chrome.downloads.download({
+                            filename: "snow-toolbelt-backup.json",
+                            saveAs: true,
+                            url: URL.createObjectURL(blob)
+                        });
+                    } catch (e) {
+                        displayMessage("Sorry, there was a browser error. Please report it with the details below.", e);
+                        console.log(e);
+                    }
+                });
             });
         } else {
             displayMessage("Sorry, the extension can only export your data if you approved the requested permission.");
@@ -477,6 +496,10 @@ const importOptions = (evt) => {
                     "autoFrame": obj.autoFrame,
                     "showUpdatesets": obj.showUpdatesets
                 }, () => {
+                    // Also restore theme preference if present
+                    if (obj.themePreference) {
+                        chrome.storage.local.set({ "themePreference": obj.themePreference });
+                    }
                     displayMessage("Options restored from file");
                     restoreOptions();
                 });
@@ -525,6 +548,7 @@ document.getElementById("useSync").addEventListener("change", toggleSync);
 document.getElementById("autoFrame").addEventListener("change", saveOptions);
 document.getElementById("extraDomains").addEventListener("change", saveOptions);
 document.getElementById("showUpdatesets").addEventListener("change", saveOptions);
+document.getElementById("themePreference").addEventListener("change", saveOptions);
 document.getElementById("export").addEventListener("click", exportOptions);
 document.getElementById("import").addEventListener("click", openFileSelect);
 document.getElementById("importFile").style.display = "none";
