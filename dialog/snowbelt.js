@@ -1,5 +1,16 @@
 let isChromium = (typeof browser === "undefined");
 
+/**
+ * Debug logging function
+ */
+const debugLog = (...args) => {
+    if (context && context.debugMode) {
+        console.log(...args);
+    }
+};
+
+
+
 const context = {
     windowId: 1,
     tabCount: 0,
@@ -43,8 +54,228 @@ const switchTab = (evt) => {
     // evt target could be the span containing the tab title instead of the list item
     let id = (evt.target.id ? evt.target.id : evt.target.parentNode.id);
 
-    chrome.tabs.update(parseInt(id.replace("tab", "")), {active: true});
+    chrome.tabs.update(parseInt(id.replace("tab", "")), { active: true });
 };
+
+/**
+ * Finds an existing tab group for a specific instance
+ * @param {string} instance - The instance hostname
+ * @param {number} windowId - The window ID
+ * @returns {Promise<number|null>} The group ID if found, null otherwise
+ */
+const findExistingGroupForInstance = async (instance, windowId) => {
+    // Only works in Chrome with tabGroups API
+    if (!chrome.tabs.group || !chrome.tabGroups || typeof browser !== "undefined") {
+        return null; // Return null immediately if not Chrome
+    }
+
+    try {
+        // Get all tabs for this instance in the specified window
+        const allTabs = await chrome.tabs.query({ windowId: windowId });
+        const instanceTabs = allTabs.filter(tab => {
+            if (!tab.url) return false;
+            try {
+                const url = new URL(tab.url);
+                return url.hostname === instance;
+            } catch (e) {
+                return false;
+            }
+        });
+
+        // Check if any instance tab is in a group
+        for (const tab of instanceTabs) {
+            if (tab.groupId && tab.groupId !== -1) {
+                return tab.groupId;
+            }
+        }
+
+        return null;
+    } catch (error) {
+        debugLog("*SNOW TOOL BELT* Error finding existing group:", error);
+        return null;
+    }
+};
+
+/**
+ * Maps instance colors to Chrome tab group colors
+ * @param {string} instanceColor - The hex color for the instance
+ * @returns {string} Chrome tab group color name
+ */
+const mapInstanceColorToTabGroupColor = (instanceColor) => {
+    if (!instanceColor) return 'grey';
+
+    // Convert hex to RGB for color matching
+    const hex = instanceColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+
+    // Map to closest Chrome tab group color
+    // Chrome supports: grey, blue, red, yellow, green, pink, purple, cyan, orange
+    const colors = [
+        { name: 'red', r: 244, g: 67, b: 54 },
+        { name: 'orange', r: 255, g: 152, b: 0 },
+        { name: 'yellow', r: 255, g: 235, b: 59 },
+        { name: 'green', r: 76, g: 175, b: 80 },
+        { name: 'cyan', r: 0, g: 188, b: 212 },
+        { name: 'blue', r: 33, g: 150, b: 243 },
+        { name: 'purple', r: 156, g: 39, b: 176 },
+        { name: 'pink', r: 233, g: 30, b: 99 },
+        { name: 'grey', r: 158, g: 158, b: 158 }
+    ];
+
+    // Find closest color by Euclidean distance
+    let closestColor = 'grey';
+    let minDistance = Infinity;
+
+    colors.forEach(color => {
+        const distance = Math.sqrt(
+            Math.pow(r - color.r, 2) +
+            Math.pow(g - color.g, 2) +
+            Math.pow(b - color.b, 2)
+        );
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestColor = color.name;
+        }
+    });
+
+    return closestColor;
+};
+
+/**
+ * Context menu handler for grouping tabs
+ * @param {object} evt - The event object
+ */
+const groupTabs = (evt) => {
+    const instance = context.clicked.getAttribute("data-instance");
+    if (instance) {
+        // Test API availability first
+        debugLog("*SNOW TOOL BELT* Testing tab groups API availability");
+        debugLog("*SNOW TOOL BELT* chrome.tabs.group exists:", !!(chrome.tabs && chrome.tabs.group));
+        debugLog("*SNOW TOOL BELT* chrome.tabGroups exists:", !!chrome.tabGroups);
+        debugLog("*SNOW TOOL BELT* chrome.tabGroups.update exists:", !!(chrome.tabGroups && chrome.tabGroups.update));
+        debugLog("*SNOW TOOL BELT* Browser type (isChromium):", isChromium);
+        debugLog("*SNOW TOOL BELT* typeof browser:", typeof browser);
+
+        groupInstanceTabs(instance);
+    }
+};
+
+/**
+ * Groups tabs for a specific instance (Chrome only)
+ * @param {string} instance - The instance hostname
+ */
+const groupInstanceTabs = async (instance) => {
+    // Only works in Chrome with tabGroups API
+    if (!chrome.tabs.group || !chrome.tabGroups || typeof browser !== "undefined") {
+        displayMessage("Tab groups are only supported in Chrome", true);
+        debugLog("*SNOW TOOL BELT* Tab groups not available - chrome.tabs.group:", !!chrome.tabs.group, "chrome.tabGroups:", !!chrome.tabGroups, "browser type:", typeof browser);
+        return;
+    }
+
+    try {
+        debugLog("*SNOW TOOL BELT* Starting tab grouping for instance:", instance);
+
+        // Get all tabs for this instance in current window
+        const allTabs = await chrome.tabs.query({ currentWindow: true });
+        debugLog("*SNOW TOOL BELT* Found", allTabs.length, "total tabs in window");
+
+        const instanceTabs = allTabs.filter(tab => {
+            if (!tab.url) return false;
+            try {
+                const url = new URL(tab.url);
+                return url.hostname === instance;
+            } catch (e) {
+                return false;
+            }
+        });
+
+        debugLog("*SNOW TOOL BELT* Found", instanceTabs.length, "tabs for instance", instance);
+
+        if (instanceTabs.length === 0) {
+            displayMessage("No tabs found for this instance", true);
+            return;
+        }
+
+        if (instanceTabs.length === 1) {
+            displayMessage("Only one tab found - grouping requires multiple tabs", true);
+            return;
+        }
+
+        // Check if any of the instance tabs are already in a group
+        let existingGroupId = null;
+
+        for (const tab of instanceTabs) {
+            if (tab.groupId && tab.groupId !== -1) {
+                existingGroupId = tab.groupId;
+                debugLog("*SNOW TOOL BELT* Found existing group:", existingGroupId);
+                break;
+            }
+        }
+
+        let targetGroupId = existingGroupId;
+
+        // If no existing group, create a new one
+        if (!existingGroupId) {
+            debugLog("*SNOW TOOL BELT* No existing group found, creating new group");
+
+            // Extract instance name (first part before first dot)
+            const instanceName = instance.split('.')[0];
+            debugLog("*SNOW TOOL BELT* Instance name for group:", instanceName);
+
+            // Get instance color for tab group
+            const instanceColor = (context.instanceOptions && context.instanceOptions[instance] && context.instanceOptions[instance].color) || '#4285f4'; // Default to blue
+            const groupColor = mapInstanceColorToTabGroupColor(instanceColor);
+            debugLog("*SNOW TOOL BELT* Instance color:", instanceColor, "-> Group color:", groupColor);
+
+            // Create new group with all tabs
+            const tabIds = instanceTabs.map(tab => tab.id);
+            debugLog("*SNOW TOOL BELT* Creating group with tab IDs:", tabIds);
+
+            targetGroupId = await chrome.tabs.group({
+                tabIds: tabIds
+            });
+
+            debugLog("*SNOW TOOL BELT* Created group with ID:", targetGroupId);
+
+            // Configure the group
+            await chrome.tabGroups.update(targetGroupId, {
+                title: instanceName,
+                color: groupColor,
+                collapsed: false
+            });
+
+            debugLog("*SNOW TOOL BELT* Updated group with title and color");
+
+            displayMessage(`Created "${instanceName}" group with ${instanceTabs.length} tabs`, true);
+        } else {
+            // Move remaining tabs to existing group
+            const tabsToGroup = instanceTabs.filter(tab => tab.groupId !== targetGroupId).map(tab => tab.id);
+
+            if (tabsToGroup.length === 0) {
+                displayMessage(`All ${instanceTabs.length} tabs are already grouped`, true);
+                return;
+            }
+
+            debugLog("*SNOW TOOL BELT* Adding tabs to existing group:", tabsToGroup);
+
+            await chrome.tabs.group({
+                groupId: targetGroupId,
+                tabIds: tabsToGroup
+            });
+
+            displayMessage(`Added ${tabsToGroup.length} tabs to existing group (${instanceTabs.length} total)`, true);
+        }
+
+    } catch (error) {
+        debugLog("*SNOW TOOL BELT* Error grouping instance tabs:", error);
+        console.error("*SNOW TOOL BELT* Full error details:", error);
+        displayMessage("Error grouping tabs: " + error.message, true);
+    }
+};
+
+
 
 /**
  * Creates a new tab and opens the url stored in the value of the event target or the url parameter
@@ -52,10 +283,10 @@ const switchTab = (evt) => {
  * @param {string} url url that should be opened
  * @param {Integer} windowId Id of the window in which the new tab should be opened
  */
-const newTab = (evt, url, windowId) => {
+const newTab = async (evt, url, windowId) => {
     let targetUrl;
     let instance;
-    if (windowId === undefined) { 
+    if (windowId === undefined) {
         windowId = (evt.target.getAttribute("data-window-id") ? parseInt(evt.target.getAttribute("data-window-id")) : context.windowId);
     }
 
@@ -66,14 +297,40 @@ const newTab = (evt, url, windowId) => {
         instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
         targetUrl = "https://" + instance + "/now/nav/ui/classic/params/target/blank.do";
     }
+
+    // Create tab options
+    const tabOptions = { url: targetUrl, windowId: windowId };
+
     // is there an open tab for this instance ? if yes, insert the new tab after the last one
     if (context.tabs[instance] !== undefined && context.tabs[instance][windowId] !== undefined) {
         let lastTab = context.tabs[instance][windowId][context.tabs[instance][windowId].length - 1];
-        let index = lastTab.index + 1;
-        chrome.tabs.create({ index: index, windowId: windowId, url: targetUrl });
-    } else {
-        chrome.tabs.create({ url: targetUrl, windowId: windowId });
+        tabOptions.index = lastTab.index + 1;
     }
+
+    // Create the new tab
+    const newTabResult = await chrome.tabs.create(tabOptions);
+
+    // Try to add to existing group if Chrome supports tab groups
+    if (chrome.tabs.group && chrome.tabGroups && typeof browser === "undefined") {
+        try {
+            // Find existing group for this instance
+            const existingGroupId = await findExistingGroupForInstance(instance, windowId);
+
+            if (existingGroupId) {
+                debugLog("*SNOW TOOL BELT* Adding new tab to existing group:", existingGroupId);
+                await chrome.tabs.group({
+                    groupId: existingGroupId,
+                    tabIds: [newTabResult.id]
+                });
+                debugLog("*SNOW TOOL BELT* Successfully added tab to group");
+            }
+        } catch (error) {
+            debugLog("*SNOW TOOL BELT* Error adding new tab to group:", error);
+            // Don't show error to user, just log it - tab creation still succeeded
+        }
+    }
+
+    return newTabResult;
 };
 
 /**
@@ -113,7 +370,7 @@ const popIn = (evt) => {
     chrome.tabs.get(tabid, (tab) => {
         let url = new URL(tab.url);
         if (url.pathname !== "/nav_to.do") {
-            chrome.runtime.sendMessage({command: "execute-reframe", tabid: tabid});
+            chrome.runtime.sendMessage({ command: "execute-reframe", tabid: tabid });
         } else {
             displayMessage("Already in a frame");
         }
@@ -150,7 +407,7 @@ const hideInstance = (evt) => {
 
     elements = document.querySelectorAll("li[data-instance=\"" + targetInstance + "\"");
     [].forEach.call(elements, (el) => {
-        el.style.display = "none";
+        el.classList.add("hidden");
     });
     context.instanceOptions[targetInstance]["hidden"] = true;
     saveInstanceOptions();
@@ -182,6 +439,257 @@ const renameInstance = (evt) => {
     // range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
+};
+
+/**
+ * Opens the search dialog for system ID lookup
+ * @param {object} evt the event that triggered the action
+ */
+const openSearchDialog = (evt) => {
+    let targetInstance = "";
+    let windowId = context.windowId;
+    if (evt.target.getAttribute("data-instance")) {
+        targetInstance = evt.target.getAttribute("data-instance");
+        windowId = evt.target.getAttribute("data-window-id");
+    } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
+        targetInstance = context.clicked.getAttribute("data-instance");
+        windowId = context.clicked.getAttribute("data-window-id");
+    }
+
+    // Store the target instance for the search
+    context.searchTargetInstance = targetInstance;
+    context.searchWindowId = windowId;
+
+    // Clear previous search results
+    const systemIdInput = document.getElementById("systemIdInput");
+    const searchResults = document.getElementById("searchResults");
+    if (systemIdInput) systemIdInput.value = "";
+    if (searchResults) searchResults.innerHTML = "Enter a system ID and press Enter or click the search button.";
+
+    // Show the search dialog
+    location.hash = "searchDialog";
+
+    // Focus the input field after a short delay to ensure the dialog is visible
+    setTimeout(() => {
+        if (systemIdInput) systemIdInput.focus();
+    }, 100);
+};
+
+/**
+ * Performs the system ID search
+ */
+/**
+ * Validate if a string looks like a valid ServiceNow sys_id
+ * @param {string} sysId - The string to validate
+ * @returns {boolean} True if it looks like a valid sys_id
+ */
+const isValidSysId = (sysId) => {
+    // ServiceNow sys_id should be exactly 32 alphanumeric characters
+    const sysIdPattern = /^[a-fA-F0-9]{32}$/;
+    return sysIdPattern.test(sysId);
+};
+
+const performSearch = () => {
+    const systemIdInput = document.getElementById("systemIdInput");
+    const searchResults = document.getElementById("searchResults");
+
+    if (!systemIdInput || !searchResults) return;
+
+    const systemId = systemIdInput.value.trim();
+
+    if (!systemId) {
+        searchResults.innerHTML = "Please enter a system ID to search.";
+        return;
+    }
+
+    // Validate sys_id format
+    if (!isValidSysId(systemId)) {
+        searchResults.innerHTML = `
+            <div class="search-error">
+                ❌ Invalid sys_id format
+            </div>
+            <div class="search-error-details">
+                A valid sys_id must be exactly 32 hexadecimal characters (0-9, a-f).
+                <br>Example: a1b2c3d4e5f6789012345678901234ab
+            </div>
+        `;
+        return;
+    }
+
+    const targetInstance = context.searchTargetInstance;
+    const windowId = context.searchWindowId;
+
+    // Find a non-discarded tab for the instance to run the search
+    let tabId = -1;
+    if (context.tabs[targetInstance]) {
+        for (var winkey in context.tabs[targetInstance]) {
+            for (var i = 0; i < context.tabs[targetInstance][winkey].length; i++) {
+                if (tabId < 0 && !context.tabs[targetInstance][winkey][i].discarded) {
+                    tabId = context.tabs[targetInstance][winkey][i].id;
+                }
+            }
+        }
+    }
+
+    if (tabId < 0) {
+        searchResults.innerHTML = "No active tab available for this instance to perform the search.";
+        return;
+    }
+
+    // Disable UI elements during search
+    systemIdInput.disabled = true;
+    const searchButton = document.getElementById("searchButton");
+    if (searchButton) searchButton.disabled = true;
+
+    // Show loading animation
+    showSearchLoader(true);
+
+    // Send message to content script
+    chrome.tabs.sendMessage(tabId, {
+        "command": "searchSystemId",
+        "systemId": systemId,
+        "instance": targetInstance
+    }, (response) => {
+        showSearchLoader(false);
+
+        // Re-enable UI elements
+        systemIdInput.disabled = false;
+        const searchButton = document.getElementById("searchButton");
+        if (searchButton) searchButton.disabled = false;
+
+        if (chrome.runtime.lastError) {
+            searchResults.innerHTML = `Error: ${chrome.runtime.lastError.message}`;
+            return;
+        }
+
+        if (response && response.status === 200) {
+            displaySearchResults(response);
+        } else if (response && response.status !== 200) {
+            searchResults.innerHTML = `Search failed with status: ${response.status}`;
+        } else {
+            searchResults.innerHTML = "No response from the tab. Try refreshing the page.";
+        }
+    });
+};
+
+/**
+ * Shows or hides the search loading animation
+ * @param {boolean} show - Whether to show the loading animation
+ */
+const showSearchLoader = (show) => {
+    const searchResults = document.getElementById("searchResults");
+    if (!searchResults) return;
+
+    if (show) {
+        let dotIndex = 0;
+        searchResults.innerHTML = `
+            <div>Searching<span id='searchDots'><span class='dot1'>.</span><span class='dot2'>.</span><span class='dot3'>.</span></span></div>
+            <div class="search-reminder">
+                ⚠️ Please keep this popup open until the search completes
+            </div>
+        `;
+
+        // Animate the dots by cycling their opacity
+        const animateDots = () => {
+            const dotsElement = document.getElementById("searchDots");
+            if (dotsElement) {
+                const dots = dotsElement.querySelectorAll('span');
+
+                // Reset all dots to low opacity
+                dots.forEach(dot => {
+                    dot.classList.remove('dot-active');
+                    dot.classList.add('dot-inactive');
+                });
+
+                // Show dots progressively: 0 dots, 1 dot, 2 dots, 3 dots, then repeat
+                for (let i = 0; i < dotIndex; i++) {
+                    if (dots[i]) {
+                        dots[i].classList.remove('dot-inactive');
+                        dots[i].classList.add('dot-active');
+                    }
+                }
+
+                dotIndex = (dotIndex + 1) % 4; // 0, 1, 2, 3, then back to 0
+                context.searchAnimation = setTimeout(animateDots, 400);
+            }
+        };
+
+        context.searchAnimation = setTimeout(animateDots, 500);
+    } else {
+        // Clear the animation
+        if (context.searchAnimation) {
+            clearTimeout(context.searchAnimation);
+            context.searchAnimation = null;
+        }
+    }
+};
+
+/**
+ * Displays the search results
+ * @param {object} response - The response from the content script
+ */
+const displaySearchResults = (response) => {
+    const searchResults = document.getElementById("searchResults");
+    if (!searchResults) return;
+
+    if (response.found) {
+        // Record found - show success message with link
+        let resultHtml = `
+            <div class="search-success">
+                ✓ Record found: <strong>${response.displayValue}</strong>
+            </div>
+            <div class="search-details">
+                <strong>Table:</strong> ${response.actualClass || response.table}<br>
+                <strong>sys_id:</strong> <a href="#" class="sys-id-link" data-url="${response.directUrl}">${response.systemId}</a><br>
+                <strong>Instance:</strong> ${response.instance}
+            </div>
+            <div class="search-actions">
+                <a href="#" class="search-result-link" data-url="${response.directUrl}">Open Record</a>
+            </div>
+        `;
+        searchResults.innerHTML = resultHtml;
+
+        // Add click handler for the sys_id link
+        const sysIdLink = searchResults.querySelector('.sys-id-link');
+        if (sysIdLink) {
+            sysIdLink.addEventListener('click', function (e) {
+                e.preventDefault();
+                const url = this.getAttribute('data-url');
+                // Use the same newTab function that the extension uses for opening tabs
+                newTab({ target: { getAttribute: () => null } }, url, context.windowId);
+            });
+        }
+
+        // Add click handler for the Open Record button
+        const openRecordButton = searchResults.querySelector('.search-result-link');
+        if (openRecordButton) {
+            openRecordButton.addEventListener('click', function (e) {
+                e.preventDefault();
+                const url = this.getAttribute('data-url');
+                // Use the same newTab function that the extension uses for opening tabs
+                newTab({ target: { getAttribute: () => null } }, url, context.windowId);
+            });
+        }
+    } else {
+        // Record not found
+        let resultHtml = `
+            <div class="search-not-found">
+                ❌ Record not found: <strong>${response.systemId}</strong>
+            </div>
+            <div class="search-not-found-details">
+                <strong>Instance:</strong> ${response.instance}<br>
+        `;
+
+        if (response.searchedTables) {
+            resultHtml += `<strong>Tables searched:</strong> ${response.searchedTables}<br>`;
+        }
+
+        resultHtml += `
+                The sys_id was not found in any accessible table on this instance.
+            </div>
+        `;
+        searchResults.innerHTML = resultHtml;
+    }
 };
 
 /**
@@ -241,7 +749,7 @@ const scanNodes = (evt) => {
 
     if (context.tempInformations[targetInstance] === undefined || context.tempInformations[targetInstance].nodes === undefined || context.tempInformations[targetInstance].nodes.length === 0) {
         showLoader(targetInstance, windowId, true);
-        chrome.tabs.sendMessage(id, {"command": "scanNodes"}, (response) => {
+        chrome.tabs.sendMessage(id, { "command": "scanNodes" }, (response) => {
             showLoader(targetInstance, windowId, false);
             if (response !== undefined && response && response.status !== undefined && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
                 let nodes = response.nodes;
@@ -300,7 +808,7 @@ const switchNode = (targetInstance, targetNode) => {
 
     console.log("*switchNode* Switching " + targetInstance + " to " + targetNode);
     showLoader(targetInstance, windowId, true);
-    chrome.tabs.sendMessage(id, {"command": "switchNode", "node": targetNode}, (response) => {
+    chrome.tabs.sendMessage(id, { "command": "switchNode", "node": targetNode }, (response) => {
         showLoader(targetInstance, windowId, false);
         if (response && response.status === 200) {
             context.tempInformations[targetInstance].currentNode = response.current;
@@ -441,7 +949,7 @@ const updateColor = (instance) => {
  */
 const getOptions = () => {
 
-    chrome.commands.getAll((result) => { 
+    chrome.commands.getAll((result) => {
         context.commands = result;
     });
     context.urlFilters = "service-now.com";
@@ -449,14 +957,14 @@ const getOptions = () => {
     context.extraDomains = false;
     context.knownInstances = {};
     context.instanceOptions = {};
-    chrome.storage.local.get("useSync",(result1) => {
+    chrome.storage.local.get("useSync", (result1) => {
         context.useSync = result1.useSync;
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["extraDomains","urlFilters", "knownInstances", "instanceOptions","showUpdatesets"], (result) => {
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets"], (result) => {
             context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
             if (context.extraDomains) {
                 context.urlFilters = result.urlFilters || "service-now.com";
-                context.urlFiltersArr = context.urlFilters.split(";");    
+                context.urlFiltersArr = context.urlFilters.split(";");
             }
             context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
             try {
@@ -483,7 +991,7 @@ const getOptions = () => {
                     ThemeManager.toggleTheme();
                 }
             });
-            
+
             document.getElementById("new_tab").addEventListener("change", newTab);
             document.getElementById("search_custom").addEventListener("click", searchNow);
             document.getElementById("search_doc").addEventListener("click", searchNow);
@@ -495,12 +1003,51 @@ const getOptions = () => {
                 }
             });
             document.getElementById("searchInput").focus();
+
+            // Search dialog event listeners
+            const systemIdInput = document.getElementById("systemIdInput");
+            const searchButton = document.getElementById("searchButton");
+
+            if (searchButton) {
+                searchButton.addEventListener("click", performSearch);
+            }
+
+            if (systemIdInput) {
+                systemIdInput.addEventListener("keyup", function (event) {
+                    if (event.key === "Enter") {
+                        performSearch();
+                    }
+                });
+
+                // Add real-time validation feedback
+                systemIdInput.addEventListener("input", function (event) {
+                    const value = event.target.value.trim();
+                    const searchButton = document.getElementById("searchButton");
+
+                    if (value === "") {
+                        // Empty input - neutral state
+                        event.target.classList.remove("valid", "invalid");
+                        if (searchButton) searchButton.disabled = false;
+                    } else if (isValidSysId(value)) {
+                        // Valid sys_id - green border
+                        event.target.classList.remove("invalid");
+                        event.target.classList.add("valid");
+                        if (searchButton) searchButton.disabled = false;
+                    } else {
+                        // Invalid sys_id - red border
+                        event.target.classList.remove("valid");
+                        event.target.classList.add("invalid");
+                        if (searchButton) searchButton.disabled = true;
+                    }
+                });
+            }
+
             // listen to tabs events
             chrome.tabs.onUpdated.addListener(tabUpdated);
             chrome.tabs.onRemoved.addListener(tabRemoved);
             chrome.tabs.onAttached.addListener(tabAttached);
             chrome.tabs.onActivated.addListener(tabActivated);
-        });        
+        });
     });
 };
 /**
@@ -549,7 +1096,7 @@ const refreshList = () => {
             } else {
                 checked = (context.tabs[key].length <= context.collapseThreshold ? "" : "checked");
             }
-            let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{windowId\}\}/g, winkey).replace(/\{\{windowIdLabel\}\}/g, (winkey != 1 ? " ["+winkey+"]":"")).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
+            let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{windowId\}\}/g, winkey).replace(/\{\{windowIdLabel\}\}/g, (winkey != 1 ? " [" + winkey + "]" : "")).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
 
             // get the html template structure for the tab row
             let templateLI = document.getElementById("tab-row");
@@ -566,7 +1113,7 @@ const refreshList = () => {
     }
     saveKnownInstances();
     saveInstanceOptions();
-    
+
     if (context.tabCount === 0) {
         window.setTimeout(function () {
             getTip();
@@ -574,7 +1121,7 @@ const refreshList = () => {
             document.getElementById("nextTip").addEventListener("click", nextTip);
         }, 300);
     } else {
-        document.getElementById("tipsContainer").style.display = "none";
+        document.getElementById("tipsContainer").classList.add("hidden");
         setActiveTab();
 
         // add close tab actions
@@ -600,8 +1147,8 @@ const refreshList = () => {
                 Object.keys(context.knownInstances).forEach((instance) => {
                     if (context.instanceOptions !== undefined &&
                         (context.instanceOptions[instance] === undefined ||
-                        context.instanceOptions[instance].hidden === undefined ||
-                        context.instanceOptions[instance].hidden === false)) {
+                            context.instanceOptions[instance].hidden === undefined ||
+                            context.instanceOptions[instance].hidden === false)) {
                         items.push({
                             title: "<span class='small-instance-label" + (context.tabs[instance] !== undefined ? " enhanced" : "") + "'>" + context.knownInstances[instance] + "</span>",
                             fn: () => {
@@ -645,7 +1192,9 @@ const refreshList = () => {
                     { title: "&#8681; Nodes", fn: scanNodes },
                     { title: "&#10000; Script", fn: openBackgroundScriptWindow },
                     { title: "&#9088; Rename", fn: renameInstance },
-                    { title: "&#128065; Hide", fn: hideInstance }
+                    { title: "&#128065; Hide", fn: hideInstance },
+                    { title: "⌕ Search", fn: openSearchDialog },
+                    { title: "&#9776; Group", fn: groupTabs }
                 ];
                 basicContext.show(items, e);
             });
@@ -696,7 +1245,7 @@ const refreshList = () => {
                 let instanceElArray = document.querySelectorAll("div.instance-label[data-instance='" + el.getAttribute("data-instance") + "']");
                 [].forEach.call(instanceElArray, (instanceEl) => {
                     instanceEl.innerText = newText;
-                });                
+                });
                 saveKnownInstances();
                 refreshKnownInstances();
             });
@@ -730,9 +1279,9 @@ const refreshList = () => {
         if (context.showUpdatesets) {
             elements = document.querySelectorAll(".updateset");
             [].forEach.call(elements, (el) => {
-                el.style.display = "block";
-            });        
-        }    
+                el.classList.add("show");
+            });
+        }
     }
 };
 
@@ -784,7 +1333,7 @@ const refreshNodes = (instance, evt) => {
     let currentNode = context.tempInformations[instance].currentNode;
     let listEl = document.getElementById("nodeList");
     removeChildren(listEl);
-    
+
     context.tempInformations[instance].nodes.forEach((item) => {
         let liEl = document.createElement("li");
         if (item == currentNode) {
@@ -824,7 +1373,7 @@ const tabCreated = (tab) => {
     let url;
     try {
         url = new URL(tab.url);
-    } catch(e) {
+    } catch (e) {
         displayMessage("Error accessing tab definition. Do we have the tabs permission?");
         return false;
     }
@@ -838,7 +1387,7 @@ const tabCreated = (tab) => {
         let filter = context.urlFiltersArr[i].trim();
         if (filter !== "") {
             // each filter can match a pattern seach as equant.com or service-now.com
-            let regex = new RegExp(filter.replace("*","(.*)"));
+            let regex = new RegExp(filter.replace("*", "(.*)"));
             matchFound = (tab.instance.match(regex) ? true : false);
         }
     }
@@ -871,7 +1420,7 @@ const updateTabInfo = (instance, windowId, index) => {
     }
     let tab = context.tabs[instance][windowId][index];
     let url = new URL(tab.url);
-    chrome.tabs.sendMessage(tab.id, {"command": "getTabInfo"}, (response) => {
+    chrome.tabs.sendMessage(tab.id, { "command": "getTabInfo" }, (response) => {
         if (!response && chrome.runtime.lastError) {
             // console.warn("tab " + index + " > " + chrome.runtime.lastError.message);
             tab.snt_type = "non responsive";
@@ -879,12 +1428,12 @@ const updateTabInfo = (instance, windowId, index) => {
             tab.snt_type = response.type;
             tab.snt_details = response.details;
             tab.snt_tabs = response.tabs;
-            
+
             if (context.showUpdatesets && (context.updateSets[windowId] === undefined || context.updateSets[windowId][instance] === undefined)) {
                 if (context.updateSets[windowId] === undefined) { context.updateSets[windowId] = {}; }
                 if (context.updateSets[windowId][instance] === undefined) { context.updateSets[windowId][instance] = {}; }
                 // if content script is active in this tab and we didn't get current update set yet, retrieve it
-                chrome.tabs.sendMessage(tab.id, {"command": "getUpdateSet"}, (response) => {
+                chrome.tabs.sendMessage(tab.id, { "command": "getUpdateSet" }, (response) => {
                     let current = "";
                     if (response.current && response.current.name) {
                         context.updateSets[windowId][instance] = response;
@@ -894,47 +1443,53 @@ const updateTabInfo = (instance, windowId, index) => {
                     } else {
                         // let it be
                     }
-            });
+                });
             }
         }
 
         // show/hide "reopen in frame" button
-        const shouldShowReframeButton = url.pathname.endsWith(".do") 
-            && context.frameExceptions.indexOf(url.pathname) === -1 
+        const shouldShowReframeButton = url.pathname.endsWith(".do")
+            && context.frameExceptions.indexOf(url.pathname) === -1
             && !url.pathname.startsWith("/$")
             && !url.pathname.includes("now/nav/ui/classic/params/target");
-            
+
         const reframeButton = document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]");
         if (reframeButton) {
-            reframeButton.style.display = shouldShowReframeButton ? "inline" : "none";
+            if (shouldShowReframeButton) {
+                reframeButton.classList.remove("hidden");
+                reframeButton.classList.add("visible");
+            } else {
+                reframeButton.classList.remove("visible");
+                reframeButton.classList.add("hidden");
+            }
         }
         let typeEl = document.getElementById("tab" + tab.id + "_type");
         if (typeEl) {
             switch (tab.snt_type) {
-            case "non responsive":
-                typeEl.innerText = "😴"; // sleepy face
-                typeEl.title = "Content script is not available yet";
-                // retry in 2 seconds
-                window.setTimeout(() => {
-                    updateTabInfo(instance, windowId, index);
-                }, 3000);
-                break;
-            case "portal":
-                typeEl.innerText = "⎆";
-                typeEl.title = "Service Portal";
-                break;
-            case "app studio":
-                typeEl.innerText = "✬";
-                typeEl.title = "App Studio: " + tab.snt_details;
-                break;
-            case "workspace":
-                typeEl.innerText = "⚒"; // briefcase
-                typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
-                break;
-            default:
-                typeEl.innerText = "";
-                typeEl.title = "";
-                break;
+                case "non responsive":
+                    typeEl.innerText = "😴"; // sleepy face
+                    typeEl.title = "Content script is not available yet";
+                    // retry in 2 seconds
+                    window.setTimeout(() => {
+                        updateTabInfo(instance, windowId, index);
+                    }, 3000);
+                    break;
+                case "portal":
+                    typeEl.innerText = "⎆";
+                    typeEl.title = "Service Portal";
+                    break;
+                case "app studio":
+                    typeEl.innerText = "✬";
+                    typeEl.title = "App Studio: " + tab.snt_details;
+                    break;
+                case "workspace":
+                    typeEl.innerText = "⚒"; // briefcase
+                    typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
+                    break;
+                default:
+                    typeEl.innerText = "";
+                    typeEl.title = "";
+                    break;
             }
         } else {
             console.warn("tab type element " + "tab" + tab.id + "_type" + " is not available yet");
@@ -962,7 +1517,7 @@ const tabUpdated = (tabId, changeInfo, tab) => {
             for (let tabSearch in context.tabs[instance][tab.windowId]) {
                 if (context.tabs[instance][tab.windowId][tabSearch].id == tab.id) {
                     context.tabs[instance][tab.windowId][tabSearch].url = tab.url;
-                    updateTabInfo(instance,tab.windowId,tabSearch);
+                    updateTabInfo(instance, tab.windowId, tabSearch);
                     break;
                 }
             }
@@ -1010,7 +1565,7 @@ const tabActivated = (activeInfo) => {
  * Shows the current active tabs
  */
 const setActiveTab = () => {
-    chrome.tabs.query({highlighted: true}, (tabs) => {
+    chrome.tabs.query({ highlighted: true }, (tabs) => {
         let elems = document.querySelectorAll("li.selectedTab");
         [].forEach.call(elems, (el) => {
             el.classList.remove("selectedTab");
@@ -1018,7 +1573,7 @@ const setActiveTab = () => {
         tabs.forEach((tab) => {
             try {
                 document.getElementById("tab" + tab.id).classList.add("selectedTab");
-            } catch (e) {}
+            } catch (e) { }
         });
     });
 };
@@ -1064,7 +1619,102 @@ const openOptions = (elt) => {
     } else {
         window.open(chrome.runtime.getURL("options.html"));
     }
- 
+
+};
+
+const whatsnew = [
+    {
+        version: '7.0.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>" +
+            "<li>Search by sys_id, from the instance contextual menu</li>" +
+            "<li>In Chromium, put tabs inside a group</li>" +
+            "<li>Light and Dark themes</li>" +
+            "<li>Background script popup is now using the new UI</li>" +
+            "<li>Display technical field names now works better</li>" +
+            "<li>Removed the auto-frame feature because it's implemented by SN now</li>" +
+            "</ul>"
+    }, {
+        version: '6.1.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>" +
+            "<li>Corrected a few issues following the manifest version upgrade.</li>" +
+            "</ul>"
+    }, {
+        version: '6.0.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>" +
+            "<li>Upgraded manifest to v3. Not a big change from a user point of view but it was such a pain I thought it deserved its own major release.</li>" +
+            "<li>Not much more, to be honest. Please create issues on github if you see the extension misbehaving.</li>" +
+            "<li>If you are using extra-service-now.com domains, you may have to re-enable the option, so the extension requests the new, renamed authorization to access all urls.</li>" +
+            "</ul>"
+    }, {
+        version: '5.1.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>" +
+            "<li>Finally made some updates required by the recent ServiceNow UI changes.</li>" +
+            "<li>Updated the documentation search link.</li>" +
+            "</ul>"
+    }, {
+        version: '5.0.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>" +
+            "<li>Removed the broadest default permissions for the extension.</li>" +
+            "</ul>" +
+            "<b>important:</b> You now have to <b>explicitly</b> allow the extension to be used outside of the service-now.com domain. \"Enable extra domains for content script\" in the options page if you want to use this feature. <br/>" +
+            "Just to be safe, remember you can use the export button in the options page to save your settings into a JSON file. You can import it back later in case of a bug or an issue with sync storage, or to copy your settings accross browsers."
+    }, {
+        version: '4.7.1',
+        msg: "Most notable changes:<br/>" +
+            "<ul>" +
+            "<li>The previous background scripts are now selectable from a list.</li>" +
+            "<li>Make sure you configure your shortcuts in the <a href='#' class='shortcuts-config-link'>shortcuts configuration</a>.</li>" +
+            "</ul>"
+    }, {
+        version: '4.7.0',
+        msg: "Most notable changes:<br/>" +
+            "<ul>" +
+            "<li>Enhanced the background script popup window with an execution history!</li>" +
+            "<li>Make sure you configure your shortcuts in the <a href='#' class='shortcuts-config-link'>shortcuts configuration</a>.</li>" +
+            "</ul>"
+    }
+];
+
+const getWhatsNew = (whatsNewJSON) => {
+    // whatsNewArr contains an array of keys for "whats new" messages previously marked as read
+    let whatsNewArr = [];
+    if (whatsNewJSON !== undefined) {
+        try {
+            whatsNewArr = JSON.parse(whatsNewJSON);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+    if (whatsNewArr === undefined) {
+        whatsNewArr = [];
+    }
+    let whatsnewText = "";
+    whatsnew.forEach((item) => {
+        if (whatsNewArr.indexOf(item.version) === -1) {
+            whatsnewText += "<h3>version " + item.version
+                + "</h3>" + item.msg;
+        }
+    });
+    return whatsnewText;
+};
+
+/**
+ * Stores the messages that were already displayed and acknowledged by the user
+ */
+const rememberWhatsNew = () => {
+    location.hash = "";
+    let whatsNewArr = [];
+    whatsnew.forEach((item) => {
+        whatsNewArr.push(item.version);
+    });
+    chrome.storage.local.set({
+        'whatsnew': JSON.stringify(whatsNewArr)
+    })
 };
 
 /**
@@ -1089,7 +1739,7 @@ const bootStrap = () => {
     chrome.windows.getCurrent((wi) => {
         context.windowType = wi.type;
         if (context.windowType == "popup") {
-            document.getElementById("open_in_panel").style.display = "none";
+            document.getElementById("open_in_panel").classList.add("hidden");
         }
         if (wi.type == "popup") {
             context.windowId = 1;
@@ -1098,17 +1748,17 @@ const bootStrap = () => {
         }
     });
     let getWindows = (windows) => {
-        windows.forEach((window) => {            
+        windows.forEach((window) => {
             if (window.incognito) {
                 let elements = document.querySelectorAll("span[data-window-id='" + window.id + "'].incognito");
                 if (elements.length > 0) {
                     [].forEach.call(elements, (el) => {
-                        el.style.display = "inline";
+                        el.classList.add("inline-visible");
                     });
                 }
             }
         });
-    }; 
+    };
     let getTabs = (tabs) => {
         if (document.getElementById("opened_tabs")) {
             removeChildren(document.getElementById("opened_tabs"));
@@ -1119,7 +1769,7 @@ const bootStrap = () => {
         });
         refreshList();
         refreshKnownInstances();
-        chrome.windows.getAll({windowTypes: ["normal"]}, getWindows);
+        chrome.windows.getAll({ windowTypes: ["normal"] }, getWindows);
     };
     chrome.tabs.query({}, getTabs);
 };

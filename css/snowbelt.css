@@ -14,14 +14,14 @@
 @media (prefers-color-scheme: dark) {
     :root {
         --main-bg-color: #1e1e1e;
-        --main-color: #81B5A1;
+        --main-color: #e0f2f1;
         --secondary-color: #ffffff;
-        --muted-color: #293E40;
+        --muted-color: #a5d6a7;
         --alt-bg-color: #2d2d2d;
-        --disabled-color: #b6b6b6;
+        --disabled-color: #757575;
         --btn-color: var(--main-color);
-        --btn-hover-color: #81B5A1;
-        --highlight: #ff8c42;
+        --btn-hover-color: #4db6ac;
+        --highlight: #ffab40;
     }
 }
 
@@ -672,6 +672,10 @@ input:checked+.slider:before {
     text-decoration: none;
 }
 
+.smart-popin .sp-close:hover {
+    text-decoration: none;
+}
+
 .history {
     padding: 0 10px;
     margin-bottom: 10px;
@@ -770,6 +774,18 @@ body.theme-auto.theme-dark-detected input:checked+.slider:before {
 body.theme-dark input:focus+.slider,
 body.theme-auto.theme-dark-detected input:focus+.slider {
     box-shadow: 0 0 1px var(--btn-hover-color, #81B5A1);
+}
+
+/* Dark theme close button styling */
+body.theme-dark .smart-popin .sp-close,
+body.theme-auto.theme-dark-detected .smart-popin .sp-close {
+    color: var(--main-color, #e0e0e0);
+}
+
+body.theme-dark .smart-popin .sp-close:hover,
+body.theme-auto.theme-dark-detected .smart-popin .sp-close:hover {
+    color: var(--btn-hover-color, #81B5A1);
+    text-decoration: none;
 }
 
 body.theme-dark .smart-popin,
@@ -898,7 +914,6 @@ body.theme-dark .color-indicator,
 body.theme-auto.theme-dark-detected .color-indicator,
 body.dark-theme-icons .color-indicator {
     border-color: var(--main-color);
-    background-color: var(--main-bg-color);
 }
 
 body.theme-dark .color-indicator:hover,
@@ -926,4 +941,350 @@ Override button padding for color indicators in options page */
     margin-left: 0;
     margin-right: 4px;
     font-size: 0;
+}
+
+/* Sys_id input validation styles */
+#systemIdInput {
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+    border: 1px solid var(--disabled-color);
+    padding: 8px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#systemIdInput:focus {
+    outline: none;
+    border-color: var(--btn-hover-color);
+}
+
+/* Dark mode input styling */
+@media (prefers-color-scheme: dark) {
+    #systemIdInput {
+        background-color: #2d2d2d;
+        color: #e0f2f1;
+        border-color: #555;
+    }
+
+    #systemIdInput:focus {
+        border-color: #4db6ac;
+        background-color: #333;
+    }
+
+    #systemIdInput::placeholder {
+        color: #999;
+    }
+}
+
+/* Search button disabled state */
+#searchButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: var(--disabled-color);
+}
+
+/* Dark mode search button */
+@media (prefers-color-scheme: dark) {
+    #searchButton {
+        background-color: #4db6ac;
+        color: #1e1e1e;
+        border: 1px solid #4db6ac;
+    }
+
+    #searchButton:hover:not(:disabled) {
+        background-color: #80cbc4;
+        border-color: #80cbc4;
+    }
+
+    #searchButton:disabled {
+        background-color: #555;
+        color: #999;
+        border-color: #555;
+    }
+}
+
+/* Search results link styling */
+.search-result-link {
+    display: inline-block;
+    padding: 6px 12px;
+    background-color: var(--btn-hover-color);
+    color: white !important;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    transition: background-color 0.3s ease;
+}
+
+.search-result-link:hover {
+    background-color: var(--main-color);
+    text-decoration: none;
+}
+
+/* Sy
+s_id link styling */
+.sys-id-link {
+    font-family: monospace;
+    font-size: 10px;
+    transition: color 0.3s ease;
+}
+
+.sys-id-link:hover {
+    color: var(--main-color) !important;
+    text-decoration: none !important;
+}
+
+/* Searc
+h animation dots */
+#searchDots {
+    display: inline-block;
+    width: 24px;
+    /* Fixed width to prevent text shifting */
+}
+
+#searchDots span {
+    transition: opacity 0.3s ease;
+    opacity: 0.3;
+}
+
+#searchDots span.dot-active {
+    opacity: 1;
+}
+
+#searchDots span.dot-inactive {
+    opacity: 0.3;
+}
+
+#searchDots .dot1,
+#searchDots .dot2,
+#searchDots .dot3 {
+    display: inline;
+}
+
+/* Disa
+bled input styling */
+#systemIdInput:disabled {
+    background-color: var(--alt-bg-color);
+    color: var(--disabled-color);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Shortcuts configuration links */
+.shortcuts-config-link,
+#shortcutsLink {
+    color: var(--btn-hover-color, #81B5A1) !important;
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.shortcuts-config-link:hover,
+#shortcutsLink:hover {
+    color: var(--main-color, #293E40) !important;
+    text-decoration: none;
+}
+
+/* 
+Search validation and results styling */
+.search-error {
+    color: #d32f2f;
+    margin-bottom: 8px;
+}
+
+.search-error-details {
+    color: var(--main-color, #293E40);
+    font-size: 11px;
+}
+
+.search-success {
+    color: var(--btn-hover-color, #81B5A1);
+    margin-bottom: 8px;
+}
+
+.search-details {
+    color: var(--main-color, #293E40);
+    font-size: 11px;
+    margin-bottom: 8px;
+}
+
+.search-not-found {
+    color: #d32f2f;
+    margin-bottom: 8px;
+}
+
+.search-not-found-details {
+    color: var(--main-color, #293E40);
+    font-size: 11px;
+}
+
+.search-actions {
+    margin-top: 8px;
+}
+
+.search-reminder {
+    color: var(--muted-color, #81B5A1);
+    font-size: 10px;
+    margin-top: 8px;
+    font-style: italic;
+}
+
+/* Input validation states */
+#systemIdInput.valid {
+    border-color: #4caf50;
+    background-color: #f1f8e9;
+}
+
+#systemIdInput.invalid {
+    border-color: #f44336;
+    background-color: #ffebee;
+}
+
+/* Dark theme overrides for validation and search */
+@media (prefers-color-scheme: dark) {
+    #systemIdInput.valid {
+        background-color: #1b5e20;
+        border-color: #66bb6a;
+        color: #e8f5e8;
+    }
+
+    #systemIdInput.invalid {
+        background-color: #d32f2f;
+        border-color: #f44336;
+        color: #ffebee;
+    }
+
+    .search-error,
+    .search-not-found {
+        color: #ff6b6b;
+    }
+
+    .search-error-details,
+    .search-not-found-details {
+        color: #e0f2f1;
+    }
+
+    .search-success {
+        color: #66bb6a;
+    }
+
+    .search-details {
+        color: #e0f2f1;
+    }
+
+    .search-reminder {
+        color: #ffcc02;
+        font-weight: 500;
+    }
+
+    /* Improve sys_id link contrast */
+    .sys-id-link {
+        color: #4db6ac !important;
+    }
+
+    .sys-id-link:hover {
+        color: #80cbc4 !important;
+    }
+
+    /* Improve shortcuts links contrast */
+    .shortcuts-config-link,
+    #shortcutsLink {
+        color: #4db6ac !important;
+    }
+
+    .shortcuts-config-link:hover,
+    #shortcutsLink:hover {
+        color: #80cbc4 !important;
+    }
+
+    /* Improve search result button contrast */
+    .search-result-link {
+        background-color: #4db6ac;
+        color: #1e1e1e !important;
+    }
+
+    .search-result-link:hover {
+        background-color: #80cbc4;
+        color: #1e1e1e !important;
+    }
+}
+
+/* Dynami
+c visibility and display classes */
+.hidden {
+    display: none !important;
+}
+
+.visible {
+    display: block !important;
+}
+
+.inline-visible {
+    display: inline !important;
+}
+
+/* Animation opacity classes */
+.dot-active {
+    opacity: 1 !important;
+}
+
+.dot-inactive {
+    opacity: 0.3 !important;
+}
+
+
+
+/* Tips container fade effect */
+.fade {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+/* Update set display */
+.updateset.show {
+    display: block !important;
+}
+
+/* Reframe button visibility */
+.reframe-button.hidden {
+    display: none !important;
+}
+
+.reframe-button.visible {
+    display: inline !important;
+}/* Ta
+b layout fixes to prevent wrapping */
+.link-to-tab {
+    white-space: nowrap;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    min-width: 0; /* Allow flex items to shrink */
+}
+
+.link-to-tab span {
+    display: inline-block;
+}
+
+/* Make the title span flexible to take available space */
+.link-to-tab span[id*="_title"] {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+/* Ensure tab commands stay inline */
+.tab-commands {
+    flex-shrink: 0; /* Don't shrink the buttons */
+    display: inline-block;
+}
+
+/* Ensure type indicator doesn't wrap */
+.link-to-tab span[id*="_type"] {
+    flex-shrink: 0;
+    display: inline-block;
 }

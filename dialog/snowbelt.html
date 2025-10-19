@@ -1,107 +1,141 @@
 <!DOCTYPE html>
 
 <html>
-    <head>
-        <meta charset="utf-8">
-        <link rel="stylesheet" href="../css/snowbelt.css"/>
-        <script src="basicContext.js"></script>
-        <link rel="stylesheet" href="basicContext.min.css"/>
-        <script async src="autocomplete.js"></script>
-    </head>
-    <body>
-        <img src="../icons/options.png" id="config" class="top-commands" title="options"/>
-        <img src="../icons/external.png" id="open_in_panel" class="top-commands" title="open in a panel"/>
-        <img src="../icons/theme-toggle.svg" id="theme-toggle" class="top-commands" title="Toggle theme"/>
-        <a href="https://github.com/macmorning/snowtools-webext/issues" title="get some help or post a request on github" target="_blank"><img id="help" src="../icons/question.png" class="top-commands"/></a>
-        <div id="container">
-            <div id="search">
-                    <input placeholder="enter search terms" type="text" id="searchInput" list="words"/>
-                    <button id="search_custom">search</button><button class="btn-secondary" id="search_doc">doc</button><button id="search_api" class="btn-secondary">api</button>
-            </div>
-            <datalist id="words"></datalist>
-            <select class="select-instance" id="new_tab">
-            </select>
-            <div id="messages" class="fade">&nbsp;</div>
-            <ul class="firstLvlUL" id="opened_tabs"></ul>
-        </div>
 
-        <script src="theme.js"></script>
-        <script src="snowbelt.js"></script>
-        <script src="tips.js"></script>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="../css/snowbelt.css" />
+    <script src="basicContext.js"></script>
+    <link rel="stylesheet" href="basicContext.min.css" />
+    <script async src="autocomplete.js"></script>
+</head>
 
-        <template id="instance-row">
-            <li data-instance="{{instance}}" data-window-id="{{windowId}}">
-                <input id="{{instance}}{{windowId}}" class="instance-checkbox" data-instance="{{instance}}" data-window-id="{{windowId}}" type="checkbox" {{checked}}></input>
-                <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline color-indicator" title="current color">&#9632;</div>
-                <label for="{{instance}}{{windowId}}" class="instance-label">
-                    <div data-instance="{{instance}}" data-window-id="{{windowId}}" contenteditable="false" class="instance-label">{{instanceName}}</div>
-                    <!--span>{{windowIdLabel}}</span-->
-                    <span title="incognito window" data-window-id="{{windowId}}" class="incognito"> &#128526;</span>
-                </label>
-                <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline button-muted instance-commands" title="other options">&#133;</a> <!-- … -->
-                <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline button-muted instance-commands" title="close tabs">&#10006;</a> <!-- ✖ -->
-                <a data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline button-muted instance-commands" title="open a new tab">&#10010;</a> <!-- ✚ -->
-                <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="updateset">US: <span title="make sure content script is active in a tab and you are logged in as an admin">unknown <img src="../icons/question.png" width="8px"/></span></div>
-                <ul class="links-to-tabs">{{linksToTabs}}</ul>
-            </li>
-        </template>
-        <template id="tab-row">
-            <li id="tab{{tabid}}" class="link-to-tab" data-instance="{{instance}}" data-window-id="{{windowId}}">
-                <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="no_underline button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
-                <a data-id="{{tabid}}" class="no_underline button-muted tab-commands" title="open on...">&#10010;</a> <!-- ✚ -->
-                <span id="tab{{tabid}}_type"></span>
-                <span id="tab{{tabid}}_title">{{title}}</span>
-                <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}" class="no_underline button-muted tab-commands" title="reopen in a frame">&#8690;</a>
-            </li>
-        </template>
+<body>
+    <img src="../icons/options.png" id="config" class="top-commands" title="options" />
+    <img src="../icons/external.png" id="open_in_panel" class="top-commands" title="open in a panel" />
+    <img src="../icons/theme-toggle.svg" id="theme-toggle" class="top-commands" title="Toggle theme" />
+    <a href="https://github.com/macmorning/snowtools-webext/issues" title="get some help or post a request on github"
+        target="_blank"><img id="help" src="../icons/question.png" class="top-commands" /></a>
+    <div id="container">
+        <div id="search">
+            <input placeholder="enter search terms" type="text" id="searchInput" list="words" />
+            <button id="search_custom">search</button><button class="btn-secondary" id="search_doc">doc</button><button
+                id="search_api" class="btn-secondary">api</button>
+        </div>
+        <datalist id="words"></datalist>
+        <select class="select-instance" id="new_tab">
+        </select>
+        <div id="messages" class="fade">&nbsp;</div>
+        <ul class="firstLvlUL" id="opened_tabs"></ul>
+    </div>
 
-        <div class="smart-popin" id="colorPicker">
-            <div class="sp-table">
-                <div class="sp-cell">
-        
-                    <div class="sp-body">
-                        <p>Select a color for <span name="instanceName"></span></p>
-                        <input id="colorPickerColor" type="color"/>
-                        <button class="thin" id="popin_color" title="save color">use this color</button>
-                        <button class="thin btn-secondary" id="popin_no_color" title="no color">no color</button>
-                        <a href="#" class="sp-close">×</a>
-                    </div>
-        
-                    <a href="#" class="sp-back"></a>
-        
+    <script src="theme.js"></script>
+    <script src="snowbelt.js"></script>
+    <script src="tips.js"></script>
+
+    <template id="instance-row">
+        <li data-instance="{{instance}}" data-window-id="{{windowId}}">
+            <input id="{{instance}}{{windowId}}" class="instance-checkbox" data-instance="{{instance}}"
+                data-window-id="{{windowId}}" type="checkbox" {{checked}}></input>
+            <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="no_underline color-indicator"
+                title="current color">&#9632;</div>
+            <label for="{{instance}}{{windowId}}" class="instance-label">
+                <div data-instance="{{instance}}" data-window-id="{{windowId}}" contenteditable="false"
+                    class="instance-label">{{instanceName}}</div>
+                <!--span>{{windowIdLabel}}</span-->
+                <span title="incognito window" data-window-id="{{windowId}}" class="incognito"> &#128526;</span>
+            </label>
+            <a data-instance="{{instance}}" data-window-id="{{windowId}}"
+                class="no_underline button-muted instance-commands" title="other options">&#133;</a> <!-- … -->
+            <a data-instance="{{instance}}" data-window-id="{{windowId}}"
+                class="no_underline button-muted instance-commands" title="close tabs">&#10006;</a> <!-- ✖ -->
+            <a data-instance="{{instance}}" data-window-id="{{windowId}}"
+                class="no_underline button-muted instance-commands" title="open a new tab">&#10010;</a> <!-- ✚ -->
+            <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="updateset">US: <span
+                    title="make sure content script is active in a tab and you are logged in as an admin">unknown <img
+                        src="../icons/question.png" width="8px" /></span></div>
+            <ul class="links-to-tabs">{{linksToTabs}}</ul>
+        </li>
+    </template>
+    <template id="tab-row">
+        <li id="tab{{tabid}}" class="link-to-tab" data-instance="{{instance}}" data-window-id="{{windowId}}">
+            <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}"
+                class="no_underline button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
+            <a data-id="{{tabid}}" class="no_underline button-muted tab-commands" title="open on...">&#10010;</a>
+            <!-- ✚ -->
+            <span id="tab{{tabid}}_type"></span>
+            <span id="tab{{tabid}}_title">{{title}}</span>
+            <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}"
+                class="no_underline button-muted tab-commands" title="reopen in a frame">&#8690;</a>
+        </li>
+    </template>
+
+    <div class="smart-popin" id="colorPicker">
+        <div class="sp-table">
+            <div class="sp-cell">
+
+                <div class="sp-body">
+                    <p>Select a color for <span name="instanceName"></span></p>
+                    <input id="colorPickerColor" type="color" />
+                    <button class="thin" id="popin_color" title="save color">use this color</button>
+                    <button class="thin btn-secondary" id="popin_no_color" title="no color">no color</button>
+                    <a href="#" class="sp-close">×</a>
                 </div>
+
+                <a href="#" class="sp-back"></a>
+
             </div>
         </div>
-        <div class="smart-popin" id="nodePicker">
-            <div class="sp-table">
-                <div class="sp-cell">
-                    <div class="sp-body">
-                        <ul id="nodeList" class="firstLvlUL">
-                        </ul>
-                        <a href="#" class="sp-close">×</a>
-                    </div>
-                    <a href="#" class="sp-back"></a>
+    </div>
+    <div class="smart-popin" id="nodePicker">
+        <div class="sp-table">
+            <div class="sp-cell">
+                <div class="sp-body">
+                    <ul id="nodeList" class="firstLvlUL">
+                    </ul>
+                    <a href="#" class="sp-close">×</a>
                 </div>
+                <a href="#" class="sp-back"></a>
             </div>
         </div>
-        <div class="smart-popin" id="whatsnewPopup">
-            <div class="sp-table">
-                <div class="sp-cell">
-                    <div class="sp-body">
-                        <img class='whatsnew' title="What's new?" src='../icons/newspaper.png'/>
-                        <div class='whatsnew'>
-                            <span id="whatsnewText"></span> 
-                        </div>
-                        <button id="whatsnewRemember" class="thin btn-secondary">Ok, do not display again</button>
-                        <a href="#" class="sp-close">×</a>
+    </div>
+    <div class="smart-popin" id="searchDialog">
+        <div class="sp-table">
+            <div class="sp-cell">
+                <div class="sp-body">
+                    <h3>Search by sys_id</h3>
+                    <div>
+                        <input type="text" id="systemIdInput" placeholder="Enter system ID...">
+                        <button id="searchButton" class="search-btn">⌕</button>
                     </div>
-                    <a href="#" class="sp-back"></a>
+                    <div id="searchResults" style="min-height: 5em;">
+                        Enter a system ID and press Enter or click the search button.
+                    </div>
+                    <a href="#" class="sp-close">×</a>
                 </div>
+                <a href="#" class="sp-back"></a>
             </div>
         </div>
-        <div class='tips' id='tipsContainer' title='cool tip'>
-            <img src='../icons/bulb.png'/><br/>
-            <p id='tip'></p>
-            <img id="nextTip" title="show me another cool tip" src='../icons/next.png'/>
-    </body>
-</html>       
+    </div>
+    <div class="smart-popin" id="whatsnewPopup">
+        <div class="sp-table">
+            <div class="sp-cell">
+                <div class="sp-body">
+                    <img class='whatsnew' title="What's new?" src='../icons/newspaper.png' />
+                    <div class='whatsnew'>
+                        <span id="whatsnewText"></span>
+                    </div>
+                    <button id="whatsnewRemember" class="thin btn-secondary">Ok, do not display again</button>
+                    <a href="#" class="sp-close">×</a>
+                </div>
+                <a href="#" class="sp-back"></a>
+            </div>
+        </div>
+    </div>
+    <div class='tips' id='tipsContainer' title='cool tip'>
+        <img src='../icons/bulb.png' /><br />
+        <p id='tip'></p>
+        <img id="nextTip" title="show me another cool tip" src='../icons/next.png' />
+</body>
+
+</html>

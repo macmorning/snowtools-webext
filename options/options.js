@@ -60,7 +60,7 @@ const showToastNotification = (message) => {
     `;
     document.body.appendChild(notification);
 
-    // Auto-remove after 2 seconds with fade out
+    // Auto-remove after 4 seconds with fade out
     setTimeout(() => {
         if (notification.parentElement) {
             const notificationDiv = notification.firstElementChild;
@@ -71,7 +71,7 @@ const showToastNotification = (message) => {
                 }
             }, 300);
         }
-    }, 2000);
+    }, 4000);
 };
 
 /**

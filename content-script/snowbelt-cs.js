@@ -30,7 +30,7 @@ function querySelectorAllDeep(root, selector) {
         const directMatches = root.querySelectorAll(selector);
         elements.push(...directMatches);
     } catch (e) {
-        console.log("*SNOW TOOL BELT* Error querying root:", e);
+        debugLog("*SNOW TOOL BELT* Error querying root:", e);
     }
 
     // Recursively search shadow roots and iframes
@@ -54,7 +54,7 @@ function querySelectorAllDeep(root, selector) {
                         }
                     });
                 } catch (e) {
-                    console.log("*SNOW TOOL BELT* Error accessing shadow root:", e);
+                    debugLog("*SNOW TOOL BELT* Error accessing shadow root:", e);
                 }
             }
 
@@ -69,7 +69,7 @@ function querySelectorAllDeep(root, selector) {
             }
         });
     } catch (e) {
-        console.log("*SNOW TOOL BELT* Error in deep traversal:", e);
+        debugLog("*SNOW TOOL BELT* Error in deep traversal:", e);
     }
 
     return elements;
@@ -120,7 +120,7 @@ function switchFieldNames() {
             targetDoc = mainIframe.contentWindow.document;
             debugLog("*SNOW TOOL BELT* Found traditional iframe");
         } catch (e) {
-            console.log("*SNOW TOOL BELT* Cannot access iframe document:", e);
+            debugLog("*SNOW TOOL BELT* Cannot access iframe document:", e);
         }
     }
 
@@ -137,11 +137,11 @@ function switchFieldNames() {
                     debugLog("*SNOW TOOL BELT* Successfully accessed shadow iframe document");
                     break;
                 } catch (e) {
-                    console.log("*SNOW TOOL BELT* Cannot access shadow iframe document:", e);
+                    debugLog("*SNOW TOOL BELT* Cannot access shadow iframe document:", e);
                 }
             }
         } catch (e) {
-            console.log("*SNOW TOOL BELT* Error accessing shadow root:", e);
+            debugLog("*SNOW TOOL BELT* Error accessing shadow root:", e);
         }
     }
 
@@ -178,7 +178,7 @@ function switchFieldNames() {
                 }
             }
         } catch (e) {
-            console.log("*SNOW TOOL BELT* Error processing glide_field element:", e);
+            debugLog("*SNOW TOOL BELT* Error processing glide_field element:", e);
         }
 
         // Mark this element as processed to avoid duplicate processing
@@ -328,7 +328,7 @@ function switchFieldNames() {
                 debugLog(`*SNOW TOOL BELT* Form element ${index + 1}: No text container found in`, el.outerHTML.substring(0, 150));
             }
         } catch (e) {
-            console.log("*SNOW TOOL BELT* Error processing form label element:", e);
+            debugLog("*SNOW TOOL BELT* Error processing form label element:", e);
         }
 
         // Mark this element as processed to avoid duplicate processing
@@ -496,7 +496,7 @@ function switchFieldNames() {
                         }
                     }
                 } catch (e) {
-                    console.log("*SNOW TOOL BELT* Error processing modern element:", e);
+                    debugLog("*SNOW TOOL BELT* Error processing modern element:", e);
                 }
             });
         } catch (e) {
@@ -673,7 +673,7 @@ function initScript(options) {
                     }
 
                     if (attempts >= maxAttempts) {
-                        console.log("*SNOW TOOL BELT* Monaco editor not found after maximum attempts");
+                        debugLog("*SNOW TOOL BELT* Monaco editor not found after maximum attempts");
                         reject(new Error("Monaco editor not found"));
                         return;
                     }
@@ -727,12 +727,12 @@ function initScript(options) {
         // Function to set Monaco editor content
         const setMonacoContent = (content) => {
             debugLog("*SNOW TOOL BELT* Using clipboard approach for Monaco content");
-            
+
             // Copy content to clipboard and show user-friendly notification
             try {
                 navigator.clipboard.writeText(content).then(() => {
                     debugLog("*SNOW TOOL BELT* Content copied to clipboard");
-                    
+
                     // Show a helpful notification using theme colors
                     const notification = document.createElement('div');
                     notification.innerHTML = `
@@ -757,7 +757,7 @@ function initScript(options) {
                         </div>
                     `;
                     document.body.appendChild(notification);
-                    
+
                     // Auto-remove after 2 seconds with fade out
                     setTimeout(() => {
                         if (notification.parentElement) {
@@ -770,19 +770,19 @@ function initScript(options) {
                             }, 300);
                         }
                     }, 2000);
-                    
+
                     // Try to focus the Monaco editor to make pasting easier
                     const monacoTextarea = document.querySelector('.monaco-editor textarea.inputarea');
                     if (monacoTextarea) {
                         monacoTextarea.focus();
                         debugLog("*SNOW TOOL BELT* Monaco editor focused for pasting");
                     }
-                    
+
                 }).catch(err => {
                     debugLog("*SNOW TOOL BELT* Clipboard failed, showing modal:", err.message);
                     showContentModal(content);
                 });
-                
+
                 return true;
             } catch (e) {
                 debugLog("*SNOW TOOL BELT* Clipboard not supported, showing modal:", e.message);
@@ -790,7 +790,7 @@ function initScript(options) {
                 return true;
             }
         };
-        
+
         // Helper function to show content in a modal for manual copying
         const showContentModal = (content) => {
             const modal = document.createElement('div');
@@ -874,7 +874,7 @@ function initScript(options) {
                     }
 
                     if (attempts >= maxAttempts) {
-                        console.log("*SNOW TOOL BELT* Monaco DOM elements not found, proceeding anyway");
+                        debugLog("*SNOW TOOL BELT* Monaco DOM elements not found, proceeding anyway");
                         resolve();
                         return;
                     }
@@ -891,7 +891,7 @@ function initScript(options) {
         }).then(() => {
             return waitForMonaco();
         }).then(() => {
-            console.log("*SNOW TOOL BELT* Monaco editor ready, initializing background script enhancements");
+            debugLog("*SNOW TOOL BELT* Monaco editor ready, initializing background script enhancements");
             // We are on the background script page with Monaco editor
             // retrieves execution history for the current user
             debugLog("*SNOW TOOL BELT* Fetching execution history");
@@ -907,7 +907,7 @@ function initScript(options) {
                     if (response.ok && response.status === 200) {
                         return response.json();
                     } else {
-                        console.log("*SNOW TOOL BELT* Error fetching execution history");
+                        debugLog("*SNOW TOOL BELT* Error fetching execution history");
                     }
                 }).then((data) => {
                     if (data && data.records && data.records.length > 0) {
@@ -931,7 +931,7 @@ function initScript(options) {
                         const displayHistoryRecord = (index) => {
                             const script = context.history.records[index].script;
                             if (!setMonacoContent(script)) {
-                                console.log("*SNOW TOOL BELT* Could not set Monaco editor content");
+                                debugLog("*SNOW TOOL BELT* Could not set Monaco editor content");
                             }
                         }
 
@@ -944,11 +944,11 @@ function initScript(options) {
                         });
                     }
                 }).catch((error) => {
-                    console.log("*SNOW TOOL BELT* Error in background script enhancement:", error);
+                    debugLog("*SNOW TOOL BELT* Error in background script enhancement:", error);
                 });
         }).catch((error) => {
-            console.log("*SNOW TOOL BELT* Monaco editor not found:", error);
-            console.log("*SNOW TOOL BELT* Background script enhancements will not be available");
+            debugLog("*SNOW TOOL BELT* Monaco editor not found:", error);
+            debugLog("*SNOW TOOL BELT* Background script enhancements will not be available");
         });
     }
 }
@@ -1016,7 +1016,7 @@ function backgroundScriptAddonRowTemplate(row, index) {
  * @returns {boolean} true if work was done
  */
 function updateFavicon(color) {
-    // console.log("*SNOW TOOL BELT* update favicon color to: " + color);
+    debugLog("*SNOW TOOL BELT* update favicon color to: " + color);
     if (color === undefined || color === "") {
         return true;
     }
@@ -1047,35 +1047,140 @@ function updateFavicon(color) {
     img.src = faviconUrl;
 }
 
+/**
+ * Search through multiple tables to find a record with the given sys_id
+ * @param {Array} tableNames - Array of table names to search
+ * @param {string} systemId - The sys_id to search for
+ * @param {string} host - The ServiceNow instance host
+ * @param {string} token - Authentication token
+ * @returns {Promise} Promise that resolves with search result
+ */
+async function searchThroughTables(tableNames, systemId, host, token) {
+    // Filter out ts_ tables
+    const filteredTables = tableNames.filter(tableName => !tableName.startsWith("ts_"));
+    debugLog("*SNOW TOOL BELT* Starting search through", filteredTables.length, "tables for sys_id:", systemId, "(filtered from", tableNames.length, "total tables)");
+
+    for (let i = 0; i < filteredTables.length; i++) {
+        const tableName = filteredTables[i];
+        debugLog("*SNOW TOOL BELT* Searching in table:", tableName, `(${i + 1}/${filteredTables.length})`);
+        try {
+            // Use direct record access - single API call with display values
+            const tableApiUrl = `https://${host}/api/now/table/${tableName}/${systemId}?sysparm_display_value=all`;
+            debugLog("*SNOW TOOL BELT* Fetching URL:", tableApiUrl);
+
+            const response = await fetch(tableApiUrl, {
+                method: "GET",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-UserToken": token
+                },
+                credentials: "same-origin"
+            });
+
+            if (response.status === 200) {
+                debugLog("*SNOW TOOL BELT* Found record in table:", tableName);
+
+                let data;
+                try {
+                    data = await response.json();
+                    debugLog("*SNOW TOOL BELT* Record data:", data);
+                } catch (jsonError) {
+                    debugLog("*SNOW TOOL BELT* Failed to parse JSON:", jsonError);
+                    continue; // Skip this table if we can't parse the response
+                }
+
+                if (data.result) {
+                    const record = data.result;
+                    debugLog("*SNOW TOOL BELT* Raw record data:", record);
+
+                    // Get the actual class name from sys_class_name field
+                    let actualClass = tableName;
+                    if (record.sys_class_name) {
+                        debugLog("*SNOW TOOL BELT* sys_class_name field:", record.sys_class_name, "type:", typeof record.sys_class_name);
+                        // Handle both string and object formats
+                        actualClass = typeof record.sys_class_name === 'string'
+                            ? record.sys_class_name
+                            : (record.sys_class_name.value || record.sys_class_name.display_value || tableName);
+                    }
+                    debugLog("*SNOW TOOL BELT* Final actualClass:", actualClass);
+
+                    // Try to get a meaningful display value, handling both string and object formats
+                    const getDisplayValue = (field) => {
+                        if (!field) return null;
+                        return typeof field === 'string' ? field : (field.display_value || field.value);
+                    };
+
+                    const displayValue = getDisplayValue(record.number) ||
+                        getDisplayValue(record.name) ||
+                        getDisplayValue(record.short_description) ||
+                        getDisplayValue(record.title) ||
+                        getDisplayValue(record.sys_id) ||
+                        systemId;
+
+                    return {
+                        status: 200,
+                        systemId: systemId,
+                        table: tableName,
+                        actualClass: actualClass,
+                        displayValue: displayValue,
+                        directUrl: `https://${host}/${actualClass}.do?sys_id=${systemId}`,
+                        instance: host,
+                        found: true
+                    };
+                }
+            } else if (response.status === 404) {
+                debugLog("*SNOW TOOL BELT* Record not found in table:", tableName);
+                // Continue to next table
+            } else {
+                debugLog("*SNOW TOOL BELT* Unexpected response status:", response.status, "for table:", tableName);
+            }
+        } catch (error) {
+            debugLog("*SNOW TOOL BELT* Error searching table", tableName, ":", error);
+            // Continue to next table
+        }
+    }
+
+    // If we get here, the sys_id was not found in any table
+    return {
+        status: 404,
+        systemId: systemId,
+        table: "not_found",
+        displayValue: "Record not found",
+        instance: host,
+        found: false,
+        searchedTables: filteredTables.length
+    };
+}
 
 (function () {
-    console.log("*SNOW TOOL BELT* Content script loaded on:", window.location.href);
-    console.log("*SNOW TOOL BELT* Browser:", typeof browser !== "undefined" ? "Firefox" : "Chrome");
+    debugLog("*SNOW TOOL BELT* Content script loaded on:", window.location.href);
+    debugLog("*SNOW TOOL BELT* Browser:", typeof browser !== "undefined" ? "Firefox" : "Chrome");
 
     // Firefox-specific: Add a delay to ensure background script is ready
     const initializeExtension = () => {
         // ask background script if this tab must be considered as a ServiceNow instance, and get the favicon color
         try {
             runtimeAPI.sendMessage({ "command": "isServiceNow" }, function (response) {
-                console.log("*SNOW TOOL BELT* isServiceNow response:", response);
+                debugLog("*SNOW TOOL BELT* isServiceNow response:", response);
                 if (runtimeAPI.lastError) {
                     console.error("*SNOW TOOL BELT* Runtime error:", runtimeAPI.lastError);
                     // Firefox fallback: if background script fails, check if this looks like ServiceNow
                     if (window.location.hostname.includes("service-now.com")) {
-                        console.log("*SNOW TOOL BELT* Fallback: Detected ServiceNow domain, initializing...");
+                        debugLog("*SNOW TOOL BELT* Fallback: Detected ServiceNow domain, initializing...");
                         initScript({ isServiceNow: true, favIconColor: "", hidden: false });
                     }
                     return;
                 }
                 if (response === undefined || response.isServiceNow === false) {
-                    console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
+                    debugLog("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
                 } else {
-                    console.log("*SNOW TOOL BELT* ServiceNow instance detected, initializing...");
+                    debugLog("*SNOW TOOL BELT* ServiceNow instance detected, initializing...");
                     initScript(response);
 
                     // Defining how to react to messages coming from the background script or the browser action
                     runtimeAPI.onMessage.addListener(function (request, sender, sendResponse) {
-                        console.log("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
+                        debugLog("*SNOW TOOL BELT* received message: " + JSON.stringify(request));
                         let instanceName = window.location.hostname;
                         let host = window.location.host;
                         let statsUrl = new Request(window.location.origin + "/stats.do");
@@ -1134,9 +1239,7 @@ function updateFavicon(color) {
                             /**
                             *  scanNodes
                             */
-                            console.log("*SNOW TOOL BELT* Using this tab to search for nodes");
-                            // let scans = 0;
-                            // let maxScans = 50;
+                            debugLog("*SNOW TOOL BELT* Using this tab to search for nodes");
                             let nodes = [];
                             fetch(statsUrl, { credentials: "same-origin" })
                                 .then(function (response) {
@@ -1156,45 +1259,114 @@ function updateFavicon(color) {
                                                             let parser = new DOMParser();
                                                             let xmlDoc = parser.parseFromString(txt, "text/xml");
                                                             let nodesList = xmlDoc.querySelectorAll("node system_id");
+                                                            debugLog("*SNOW TOOL BELT* nodesList: ", nodesList);
                                                             nodesList.forEach(function (node) {
-                                                                nodes.push(node.textContent.split(":")[1]);
+                                                                if (node.textContent.includes(":")) nodes.push(node.textContent.split(":")[1]);
                                                             });
-                                                            // console.log("*SNOW TOOL BELT* nodes: ");
-                                                            // console.log(nodes);
-
+                                                            debugLog("*SNOW TOOL BELT* nodes: ", nodes);
                                                             sendResponse({ "nodes": nodes, "current": current, "status": 200 });
                                                         });
                                                     } else {
                                                         // there was an error while fetching xmlstats, stop here
-                                                        console.log("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now: " + response.status);
+                                                        debugLog("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now: " + response.status);
                                                         sendResponse({ "nodes": [], "current": "", "status": response.status });
                                                     }
                                                 })
                                                 .catch(function (err) {
-                                                    console.log("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now");
-                                                    console.log(err);
+                                                    debugLog("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now");
+                                                    debugLog(err);
                                                     sendResponse({ "nodes": [], "current": "", "status": 500 });
                                                 });
                                         });
                                     } else {
                                         // there was an error with this first fetch, stop here
-                                        console.log("*SNOW TOOL BELT* there was an error with the first fetch, stopping now: " + response.status);
+                                        debugLog("*SNOW TOOL BELT* there was an error with the first fetch, stopping now: " + response.status);
                                         sendResponse({ "nodes": [], "current": "", "status": response.status });
                                     }
                                 })
                                 .catch(function (err) {
-                                    console.log("*SNOW TOOL BELT* there was an error with the first scan, stopping now");
-                                    console.log(err);
+                                    debugLog("*SNOW TOOL BELT* there was an error with the first scan, stopping now");
+                                    debugLog(err);
                                     sendResponse({ "nodes": [], "current": "", "status": 500 });
                                 });
+                            return true;
+                        } else if (request.command === "searchSystemId") {
+                            /**
+                             * Search for a system ID
+                             */
+                            debugLog("*SNOW TOOL BELT* Searching for system ID:", request.systemId);
+
+                            // Check if we have the authentication token
+                            if (!context.g_ck) {
+                                debugLog("*SNOW TOOL BELT* No authentication token available");
+                                sendResponse({
+                                    status: 401,
+                                    systemId: request.systemId,
+                                    table: "error",
+                                    displayValue: "Authentication token not available",
+                                    instance: request.instance || window.location.hostname,
+                                    found: false
+                                });
+                                return true;
+                            }
+
+                            // First, get all table names from sys_db_object where super_class is empty
+                            const tableApiUrl = new Request(window.location.origin + "/api/now/table/sys_db_object?sysparm_query=super_class=NULL^sys_update_name!=NULL^sys_class_name=sys_db_object^nameNOT LIKE00%5EORDERBYDESCsys_updated_on&sysparm_fields=name");
+
+                            const headers = new Headers();
+                            headers.append('Content-Type', 'application/json');
+                            headers.append('Accept', 'application/json');
+                            headers.append('Cache-Control', 'no-cache');
+                            headers.append('X-UserToken', context.g_ck);
+
+                            fetch(tableApiUrl, {
+                                credentials: "same-origin",
+                                headers: headers
+                            })
+                                .then(function (response) {
+                                    if (response.ok && response.status === 200) {
+                                        return response.json();
+                                    } else {
+                                        throw new Error(`API request failed with status: ${response.status}`);
+                                    }
+                                })
+                                .then(function (data) {
+                                    debugLog("*SNOW TOOL BELT* sys_db_object query result:", data);
+                                    debugLog("*SNOW TOOL BELT* Found", data.result.length, "tables with empty super_class");
+
+                                    // Log the table names
+                                    const tableNames = data.result.map(record => record.name);
+                                    debugLog("*SNOW TOOL BELT* Table names:", tableNames);
+
+                                    // Now search through each table for the sys_id
+                                    return searchThroughTables(tableNames, request.systemId, host, context.g_ck);
+                                })
+                                .then(function (searchResult) {
+                                    sendResponse(searchResult);
+                                })
+                                .catch(function (error) {
+                                    debugLog("*SNOW TOOL BELT* Error querying sys_db_object:", error);
+
+                                    const errorResponse = {
+                                        status: 500,
+                                        systemId: request.systemId,
+                                        table: "error",
+                                        displayValue: "Error: " + error.message,
+                                        instance: request.instance || window.location.hostname,
+                                        found: false
+                                    };
+
+                                    sendResponse(errorResponse);
+                                });
+
                             return true;
                         } else if (request.command === "switchNode") {
                             /**
                             *  switchNode
                             */
-                            console.log("*SNOW TOOL BELT* using this tab to switch to node " + request.node);
+                            debugLog("*SNOW TOOL BELT* using this tab to switch to node " + request.node);
                             let targetNode = request.node.toString();
-                            let maxTries = 20;
+                            let maxTries = 100;
                             let tries = 0;
                             let tryAgain = function () {
                                 fetch(statsUrl, { credentials: "same-origin" })
@@ -1203,13 +1375,13 @@ function updateFavicon(color) {
                                             return response.text();
                                         } else {
                                             // there was an error with this first fetch, stop here
-                                            console.log("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
+                                            debugLog("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
                                             sendResponse({ "status": response.status });
                                         }
                                     })
                                     .then(function (text) {
                                         let current = getNameFromStatsPage(text);
-                                        // console.log("*SNOW TOOL BELT* node name: " + current);
+                                        debugLog("*SNOW TOOL BELT* node name: " + current);
                                         if (current === targetNode) {
                                             sendResponse({ "status": 200, "current": current });
                                         } else if (tries < maxTries) {
@@ -1217,7 +1389,7 @@ function updateFavicon(color) {
                                             // send the removeCookie command to background script, then try again
                                             runtimeAPI.sendMessage({ "command": "removeCookie", "instance": instanceName }, tryAgain);
                                         } else {
-                                            console.log("*SNOW TOOL BELT* maximum number of tries reached without success");
+                                            debugLog("*SNOW TOOL BELT* maximum number of tries reached without success");
                                             sendResponse({ "status": 500, "message": "Maximum number of tries reached", "current": current });
                                         }
                                     });
@@ -1229,14 +1401,14 @@ function updateFavicon(color) {
                                         return response.text();
                                     } else {
                                         // there was an error with this first fetch, stop here
-                                        console.log("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
+                                        debugLog("*SNOW TOOL BELT* there was an error while trying to switch nodes, stopping now");
                                         sendResponse({ "status": response.status });
                                     }
                                 })
                                 .then(function (text) {
                                     let current = getNameFromStatsPage(text);
                                     if (current === targetNode) {
-                                        console.log("*SNOW TOOL BELT* teeeheee we are already on target node");
+                                        debugLog("*SNOW TOOL BELT* teeeheee we are already on target node");
                                         sendResponse({ "status": 200, "current": current });
                                     } else {
                                         // send the removeCookie command to background script, then try again
@@ -1252,7 +1424,7 @@ function updateFavicon(color) {
             console.error("*SNOW TOOL BELT* Content script error:", error);
             // Firefox fallback: if there's an error, check if this looks like ServiceNow
             if (window.location.hostname.includes("service-now.com")) {
-                console.log("*SNOW TOOL BELT* Error fallback: Detected ServiceNow domain, initializing...");
+                debugLog("*SNOW TOOL BELT* Error fallback: Detected ServiceNow domain, initializing...");
                 initScript({ isServiceNow: true, favIconColor: "", hidden: false });
             }
         }

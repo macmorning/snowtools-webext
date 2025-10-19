@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ServiceNow tool belt",
-  "version": "6.1.0",
+  "version": "7.0.0",
   "description": "A set of tools for ServiceNow developers and administrators",
   "homepage_url": "https://github.com/macmorning/snowtools-webext",
   "icons": {
@@ -38,21 +38,33 @@
     }
   },
   "background": {
-    "scripts": ["background/background.js"]
+    "scripts": [
+      "background/background.js"
+    ]
   },
   "action": {
     "default_title": "SNOW Toolbelt",
     "default_icon": {
-        "48": "icons/tools-48.png",
-        "128": "icons/tools-128.png"
+      "48": "icons/tools-48.png",
+      "128": "icons/tools-128.png"
     },
     "default_popup": "dialog/snowbelt.html"
   },
   "content_scripts": [
     {
-      "matches": ["https://*.service-now.com/*"],
-      "js": ["content-script/purify.js","content-script/snowbelt-cs.js"],
-      "run_at": "document_end"
+      "matches": [
+        "https://*.service-now.com/*"
+      ],
+      "js": [
+        "content-script/purify.js",
+        "content-script/snowbelt-cs.js"
+      ],
+      "run_at": "document_end",
+      "exclude_matches": [
+        "*://*/*?JSONv2*",
+        "*://*/*?XML*",
+        "*://*/*&XML*"
+      ]
     }
   ],
   "options_ui": {
@@ -60,13 +72,13 @@
     "open_in_tab": true
   },
   "permissions": [
-    "tabs", 
-    "storage", 
+    "tabs",
+    "storage",
     "cookies",
     "scripting"
   ],
   "optional_permissions": [
-      "downloads"
+    "downloads"
   ],
   "host_permissions": [
     "https://*.service-now.com/*"
@@ -83,7 +95,7 @@
     {
       "resources": [
         "/content-script/getSession.js",
-        "/css/snowbelt.css"    
+        "/css/snowbelt.css"
       ],
       "matches": [
         "*://*/*"

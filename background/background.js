@@ -339,7 +339,7 @@ const msgListener = (message, sender, sendResponse) => {
         let targetInstance = message.instance;
         chrome.cookies.getAll({ "url": "https://" + targetInstance }, function (cookiesArray) {
             cookiesArray.forEach(function (cookie) {
-                if (cookie.name.indexOf("BIGipServerpool") > -1 || cookie.name.indexOf("JSESSIONID") > -1 || cookie.name.indexOf("X-Mapping") > -1) {
+                if (cookie.name.indexOf("BIGipServer") > -1 || cookie.name.indexOf("JSESSIONID") > -1 || cookie.name.indexOf("X-Mapping") > -1) {
                     chrome.cookies.remove({ "url": "https://" + targetInstance, "name": cookie.name });
                 }
             });

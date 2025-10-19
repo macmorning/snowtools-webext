@@ -1,30 +1,58 @@
 
-# ServiceNow Tool belt
+# ServiceNow Tool Belt
 
-This extension provides a small set of tools for Servicenow users and developers.
+A comprehensive browser extension designed to enhance productivity for ServiceNow developers and administrators across multiple instances.
 
-Manage your tabs:
-* Lists open tabs grouped by instance
-* Open new tabs on known instances
-* Open the same object or list on another instance
-* Select a color to fill the favicon for each instance
-* Quick access to documentation, API and custom searches
-* See the actual current update set for your session
+## Core Features
 
-Manage your instances:
-* Automatically record visited instances 
-* Set friendly names for known instances
-* Hide or show a specific instance from the options page
+### Tab Management
+* **Instance-based organization**: View all open tabs grouped by ServiceNow instance
+* **Smart tab creation**: Open new tabs on any known instance with proper positioning
+* **Cross-instance navigation**: Open the same record or list on different instances
+* **Tab grouping** (Chrome): Organize instance tabs into colored groups with one click
+* **Visual identification**: Custom favicon colors for each instance
+* **Update set tracking**: Display current update set for each session
 
-Keyboard commands: 
-* Reopen in navpage frame
-* Switch between fields & columns labels and their technical names
-* Open versions list for an object
-* Open an enhanced background script window
+### Instance Management
+* **Automatic discovery**: Automatically detect and record visited ServiceNow instances
+* **Custom naming**: Set friendly names for instances (e.g., "Dev", "Test", "Production")
+* **Visibility control**: Show or hide specific instances from the main interface
+* **Color coding**: Assign unique colors to distinguish instances at a glance
 
-Handle your configuration:
-* Sync your instances & preferences across browsers
-* Export & Import your instances preferences from a json file
+### Search & Navigation
+* **sys_id search**: Find any record across all tables using its system ID
+* **Smart record detection**: Automatically identifies the correct table and record class
+* **Direct access**: One-click navigation to found records
+* **Cross-instance search**: Search on any available instance
+
+### Developer Tools
+* **Background script enhancement**: Enhanced script editor with execution history
+* **Field name switching**: Toggle between display names and technical field names
+* **Version tracking**: Quick access to record version history
+* **Frame navigation**: Reopen pages in ServiceNow's navigation frame
+
+### Keyboard Shortcuts
+* **Customizable hotkeys**: Configure shortcuts for common actions
+* **Quick access**: Instant popup access, field switching, version viewing
+* **Background scripts**: Hotkey to open script editor on current instance
+* **Frame toggle**: Keyboard shortcut for frame navigation
+
+### Configuration & Sync
+* **Cross-browser sync**: Synchronize settings between Chrome, Firefox, and Edge
+* **Export/Import**: Backup and restore configurations via JSON files
+* **Cloud storage**: Optional sync using browser's cloud storage
+* **Theme support**: Light, dark, or automatic theme based on system preference
+
+### Advanced Features
+* **Multi-domain support**: Works with custom ServiceNow domains beyond service-now.com
+* **Node switching**: Switch between cluster nodes for testing and troubleshooting
+* **Debug mode**: Detailed console logging for extension troubleshooting
+* **Responsive design**: Adapts to different screen sizes and browser windows
+
+## Browser Support
+* **Chrome**: Full feature set including tab groups
+* **Firefox**: Complete functionality with browser-specific optimizations  
+* **Edge**: Full compatibility with Chromium-based features
 
 To do:
 * ... who knows? Post an enhancement request! 
