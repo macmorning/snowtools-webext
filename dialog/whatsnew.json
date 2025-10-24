@@ -1,0 +1,71 @@
+[
+    {
+        "version": "7.1.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Removed the manual theme selection, the extension follows your browser preferences",
+            "Made searching for sys_id a lot faster most of the time",
+            "Added search for object names, sys_properties, tasks, users, ... Use '*' at the end for a 'STARTSWITH' search"
+        ]
+    },
+    {
+        "version": "7.0.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Enhanced search: sys_id or object name, now available as a main toolbar button",
+            "In Chromium, put tabs inside a group",
+            "Light and Dark themes",
+            "Background script popup is now using the new UI",
+            "Display technical field names now works better",
+            "Removed the auto-frame feature because it's implemented by SN now"
+        ]
+    },
+    {
+        "version": "6.1.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Corrected a few issues following the manifest version upgrade."
+        ]
+    },
+    {
+        "version": "6.0.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Upgraded manifest to v3. Not a big change from a user point of view but it was such a pain I thought it deserved its own major release.",
+            "Not much more, to be honest. Please create issues on github if you see the extension misbehaving.",
+            "If you are using extra-service-now.com domains, you may have to re-enable the option, so the extension requests the new, renamed authorization to access all urls."
+        ]
+    },
+    {
+        "version": "5.1.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Finally made some updates required by the recent ServiceNow UI changes.",
+            "Updated the documentation search link."
+        ]
+    },
+    {
+        "version": "5.0.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Removed the broadest default permissions for the extension."
+        ],
+        "important": "You now have to <b>explicitly</b> allow the extension to be used outside of the service-now.com domain. \"Enable extra domains for content script\" in the options page if you want to use this feature. <br/>Just to be safe, remember you can use the export button in the options page to save your settings into a JSON file. You can import it back later in case of a bug or an issue with sync storage, or to copy your settings accross browsers."
+    },
+    {
+        "version": "4.7.1",
+        "msg": "Most notable changes:",
+        "items": [
+            "The previous background scripts are now selectable from a list.",
+            "Make sure you configure your shortcuts in the <a href='#' class='shortcuts-config-link'>shortcuts configuration</a>."
+        ]
+    },
+    {
+        "version": "4.7.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Enhanced the background script popup window with an execution history!",
+            "Make sure you configure your shortcuts in the <a href='#' class='shortcuts-config-link'>shortcuts configuration</a>."
+        ]
+    }
+]

@@ -11,16 +11,22 @@
 </head>
 
 <body>
-    <img src="../icons/options.png" id="config" class="top-commands" title="options" />
     <img src="../icons/external.png" id="open_in_panel" class="top-commands" title="open in a panel" />
-    <img src="../icons/theme-toggle.svg" id="theme-toggle" class="top-commands" title="Toggle theme" />
+    <img src="../icons/newspaper.png" id="show_news" class="top-commands" title="what's new" />
     <a href="https://github.com/macmorning/snowtools-webext/issues" title="get some help or post a request on github"
         target="_blank"><img id="help" src="../icons/question.png" class="top-commands" /></a>
+    <img src="../icons/options.png" id="config" class="top-commands" title="options" />
+
     <div id="container">
         <div id="search">
-            <input placeholder="enter search terms" type="text" id="searchInput" list="words" />
-            <button id="search_custom">search</button><button class="btn-secondary" id="search_doc">doc</button><button
-                id="search_api" class="btn-secondary">api</button>
+            <div class="search-row-1">
+                <input placeholder="enter search terms" type="text" id="searchInput" list="words" />
+            </div>
+            <div class="search-row-2">
+                <button id="search_custom">search</button>
+                <button id="search_doc">doc</button>
+                <button id="search_api">api</button>
+            </div>
         </div>
         <datalist id="words"></datalist>
         <select class="select-instance" id="new_tab">
@@ -29,7 +35,7 @@
         <ul class="firstLvlUL" id="opened_tabs"></ul>
     </div>
 
-    <script src="theme.js"></script>
+
     <script src="snowbelt.js"></script>
     <script src="tips.js"></script>
 
@@ -51,6 +57,8 @@
                 class="no_underline button-muted instance-commands" title="close tabs">&#10006;</a> <!-- ✖ -->
             <a data-instance="{{instance}}" data-window-id="{{windowId}}"
                 class="no_underline button-muted instance-commands" title="open a new tab">&#10010;</a> <!-- ✚ -->
+            <a data-instance="{{instance}}" data-window-id="{{windowId}}"
+                class="no_underline button-muted instance-commands" title="search objects">⌕</a> <!-- Search -->
             <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="updateset">US: <span
                     title="make sure content script is active in a tab and you are logged in as an admin">unknown <img
                         src="../icons/question.png" width="8px" /></span></div>
@@ -93,7 +101,6 @@
                 <div class="sp-body">
                     <ul id="nodeList" class="firstLvlUL">
                     </ul>
-                    <a href="#" class="sp-close">×</a>
                 </div>
                 <a href="#" class="sp-back"></a>
             </div>
@@ -103,15 +110,20 @@
         <div class="sp-table">
             <div class="sp-cell">
                 <div class="sp-body">
-                    <h3>Search by sys_id</h3>
-                    <div>
-                        <input type="text" id="systemIdInput" placeholder="Enter system ID...">
-                        <button id="searchButton" class="search-btn">⌕</button>
+                    <div class="search-container">
+                        <div class="search-input-container">
+                            <input type="text" id="objectSearchInput"
+                                placeholder="sys_id, object, task number, username, group (use * for starts with)">
+                            <button id="objectSearchButton" class="search-btn-inline">⌕</button>
+                        </div>
+                        <div class="search-help" id="searchHelp">
+                            <small>Enter a sys_id, object name, task number, username, or group name. Add * at the end
+                                for "starts
+                                with" search.</small>
+                        </div>
                     </div>
-                    <div id="searchResults" style="min-height: 5em;">
-                        Enter a system ID and press Enter or click the search button.
+                    <div id="searchResults">
                     </div>
-                    <a href="#" class="sp-close">×</a>
                 </div>
                 <a href="#" class="sp-back"></a>
             </div>

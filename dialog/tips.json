@@ -1,0 +1,16 @@
+[
+    "Lost your settings?<br/>Go to the options pages and make sure you are using the storage area where you saved them.",
+    "You can hide automatically saved serice-now.com sub-domains such as \"partnerportal\", \"hi\" or \"signon\" by toggling their visibility in the options page.",
+    "You can export your preferences and import them into {otherBrowser} from the options page.",
+    "You can rate this extension <a href=\"{currentBrowserURL}\" target=\"_blank\">here</a>.",
+    "This extension is also available on <a target=\"_blank\" href=\"{otherBrowserURL}\">{otherBrowser}</a>.",
+    "When switching to a specific node, the extension will send requests to your instance until we are routed to this node or the maximum number of tries was reached. You can retry as many times as you want, though.",
+    "You can post enhancement requests or defects on <a target=\"_blank\" href=\"https://github.com/macmorning/snowtools-webext/issues\">github</a>.",
+    "This extension requires access to downloads to let you export your preferences, access to cookies for node switching, and access to all domains because your ServiceNow instances could be accessed through a custom domain.",
+    "This extension doesn't collect or upload any data.",
+    "You can post issues and enhancement requests on <a target=\"_blank\" href=\"{gitURL}\">github</a>.",
+    "Does Chuck really draw power from his bow tie?",
+    "You can unhide hidden instances from the options page.",
+    "If you want to see the tabs open in private windows, you have to allow the extension to run in private mode.",
+    "{commands}"
+]

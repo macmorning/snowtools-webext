@@ -32,18 +32,77 @@ const context = {
 };
 
 /**
- * Displays a message for a short time.
+ * Gets a valid window ID, handling cases where the stored windowId might not exist
+ * @param {Function} callback Callback function that receives the valid window ID
+ */
+const getValidWindowId = (callback) => {
+    if (context.windowId !== null) {
+        // Try to verify the window still exists
+        chrome.windows.get(context.windowId, (window) => {
+            if (chrome.runtime.lastError) {
+                // Window doesn't exist, find a new one
+                chrome.windows.getAll({ windowTypes: ['normal'] }, (windows) => {
+                    if (windows.length > 0) {
+                        context.windowId = windows[0].id;
+                        callback(context.windowId);
+                    } else {
+                        callback(null);
+                    }
+                });
+            } else {
+                callback(context.windowId);
+            }
+        });
+    } else {
+        // No window ID set, find one
+        chrome.windows.getAll({ windowTypes: ['normal'] }, (windows) => {
+            if (windows.length > 0) {
+                context.windowId = windows[0].id;
+                callback(context.windowId);
+            } else {
+                callback(null);
+            }
+        });
+    }
+};
+
+/**
+ * Displays a toast notification in the top right corner
  * @param {String} txt Message to display.
- * @param {boolean} autohide Automatically hide after n seconds
+ * @param {boolean} autohide Automatically hide after n seconds (default: true)
  */
 const displayMessage = (txt, autohide) => {
     if (autohide === undefined) autohide = true;
-    document.getElementById("messages").innerHTML = txt.toString();
-    document.getElementById("messages").classList.remove("fade");
-    window.setTimeout(function () {
-        document.getElementById("messages").classList.add("fade");
-        // document.getElementById("messages").innerHTML = "&nbsp;";
-    }, 3000);
+
+    // Remove any existing toast notifications
+    const existingToasts = document.querySelectorAll('.sntb-toast-notification');
+    existingToasts.forEach(toast => toast.remove());
+
+    // Create the toast notification
+    const toast = document.createElement('div');
+    toast.className = 'sntb-toast-notification';
+    toast.innerHTML = `
+        <div class="toast-content">
+            ${txt.toString()}
+        </div>
+    `;
+
+    // Add to document
+    document.body.appendChild(toast);
+
+    // Auto-hide after 4 seconds if autohide is true
+    if (autohide) {
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.classList.add('toast-fade-out');
+                setTimeout(() => {
+                    if (toast.parentElement) {
+                        toast.remove();
+                    }
+                }, 300); // Wait for fade-out animation
+            }
+        }, 4000);
+    }
 };
 
 /**
@@ -286,51 +345,69 @@ const groupInstanceTabs = async (instance) => {
 const newTab = async (evt, url, windowId) => {
     let targetUrl;
     let instance;
-    if (windowId === undefined) {
-        windowId = (evt.target.getAttribute("data-window-id") ? parseInt(evt.target.getAttribute("data-window-id")) : context.windowId);
-    }
 
-    if (url) {
-        instance = new URL(url).hostname;
-        targetUrl = url;
-    } else {
-        instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
-        targetUrl = "https://" + instance + "/now/nav/ui/classic/params/target/blank.do";
-    }
-
-    // Create tab options
-    const tabOptions = { url: targetUrl, windowId: windowId };
-
-    // is there an open tab for this instance ? if yes, insert the new tab after the last one
-    if (context.tabs[instance] !== undefined && context.tabs[instance][windowId] !== undefined) {
-        let lastTab = context.tabs[instance][windowId][context.tabs[instance][windowId].length - 1];
-        tabOptions.index = lastTab.index + 1;
-    }
-
-    // Create the new tab
-    const newTabResult = await chrome.tabs.create(tabOptions);
-
-    // Try to add to existing group if Chrome supports tab groups
-    if (chrome.tabs.group && chrome.tabGroups && typeof browser === "undefined") {
-        try {
-            // Find existing group for this instance
-            const existingGroupId = await findExistingGroupForInstance(instance, windowId);
-
-            if (existingGroupId) {
-                debugLog("*SNOW TOOL BELT* Adding new tab to existing group:", existingGroupId);
-                await chrome.tabs.group({
-                    groupId: existingGroupId,
-                    tabIds: [newTabResult.id]
-                });
-                debugLog("*SNOW TOOL BELT* Successfully added tab to group");
+    // Get a valid window ID
+    return new Promise((resolve) => {
+        const processNewTab = (validWindowId) => {
+            if (windowId === undefined) {
+                windowId = (evt.target.getAttribute("data-window-id") ? parseInt(evt.target.getAttribute("data-window-id")) : validWindowId);
             }
-        } catch (error) {
-            debugLog("*SNOW TOOL BELT* Error adding new tab to group:", error);
-            // Don't show error to user, just log it - tab creation still succeeded
-        }
-    }
 
-    return newTabResult;
+            if (url) {
+                instance = new URL(url).hostname;
+                targetUrl = url;
+            } else {
+                instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
+                targetUrl = "https://" + instance + "/now/nav/ui/classic/params/target/blank.do";
+            }
+
+            // Create tab options
+            const tabOptions = { url: targetUrl };
+
+            // Only add windowId if we have a valid one
+            if (validWindowId) {
+                tabOptions.windowId = validWindowId;
+            }
+
+            // is there an open tab for this instance ? if yes, insert the new tab after the last one
+            if (context.tabs[instance] !== undefined && context.tabs[instance][windowId] !== undefined) {
+                let lastTab = context.tabs[instance][windowId][context.tabs[instance][windowId].length - 1];
+                tabOptions.index = lastTab.index + 1;
+            }
+
+            // Create the new tab
+            chrome.tabs.create(tabOptions).then(async (newTabResult) => {
+                // Try to add to existing group if Chrome supports tab groups
+                if (chrome.tabs.group && chrome.tabGroups && typeof browser === "undefined") {
+                    try {
+                        // Find existing group for this instance
+                        const existingGroupId = await findExistingGroupForInstance(instance, validWindowId);
+
+                        if (existingGroupId) {
+                            debugLog("*SNOW TOOL BELT* Adding new tab to existing group:", existingGroupId);
+                            await chrome.tabs.group({
+                                groupId: existingGroupId,
+                                tabIds: [newTabResult.id]
+                            });
+                            debugLog("*SNOW TOOL BELT* Successfully added tab to group");
+                        }
+                    } catch (error) {
+                        debugLog("*SNOW TOOL BELT* Error adding new tab to group:", error);
+                        // Don't show error to user, just log it - tab creation still succeeded
+                    }
+                }
+
+                resolve(newTabResult);
+            }).catch((error) => {
+                debugLog("*SNOW TOOL BELT* Error creating tab:", error);
+                displayMessage("Error creating tab: " + error.message);
+                resolve(null);
+            });
+        };
+
+        // Get a valid window ID and process the tab creation
+        getValidWindowId(processNewTab);
+    });
 };
 
 /**
@@ -446,33 +523,38 @@ const renameInstance = (evt) => {
  * @param {object} evt the event that triggered the action
  */
 const openSearchDialog = (evt) => {
-    let targetInstance = "";
-    let windowId = context.windowId;
-    if (evt.target.getAttribute("data-instance")) {
-        targetInstance = evt.target.getAttribute("data-instance");
-        windowId = evt.target.getAttribute("data-window-id");
-    } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
-        targetInstance = context.clicked.getAttribute("data-instance");
-        windowId = context.clicked.getAttribute("data-window-id");
-    }
+    getValidWindowId((validWindowId) => {
+        let targetInstance = "";
+        let windowId = validWindowId;
+        if (evt.target.getAttribute("data-instance")) {
+            targetInstance = evt.target.getAttribute("data-instance");
+            windowId = evt.target.getAttribute("data-window-id") || validWindowId;
+        } else if (context.clicked && context.clicked.getAttribute("data-instance")) {
+            targetInstance = context.clicked.getAttribute("data-instance");
+            windowId = context.clicked.getAttribute("data-window-id") || validWindowId;
+        }
 
-    // Store the target instance for the search
-    context.searchTargetInstance = targetInstance;
-    context.searchWindowId = windowId;
+        // Store the target instance for the search
+        context.searchTargetInstance = targetInstance;
+        context.searchWindowId = windowId;
 
-    // Clear previous search results
-    const systemIdInput = document.getElementById("systemIdInput");
-    const searchResults = document.getElementById("searchResults");
-    if (systemIdInput) systemIdInput.value = "";
-    if (searchResults) searchResults.innerHTML = "Enter a system ID and press Enter or click the search button.";
+        // Clear previous search results
+        const searchInput = document.getElementById("objectSearchInput");
+        const searchResults = document.getElementById("searchResults");
+        if (searchInput) {
+            searchInput.value = "";
+            searchInput.classList.remove("valid", "invalid", "sys-id", "object-name");
+        }
+        if (searchResults) searchResults.innerHTML = "";
 
-    // Show the search dialog
-    location.hash = "searchDialog";
+        // Show the search dialog
+        location.hash = "searchDialog";
 
-    // Focus the input field after a short delay to ensure the dialog is visible
-    setTimeout(() => {
-        if (systemIdInput) systemIdInput.focus();
-    }, 100);
+        // Focus the input field after a short delay to ensure the dialog is visible
+        setTimeout(() => {
+            if (searchInput) searchInput.focus();
+        }, 100);
+    });
 };
 
 /**
@@ -480,41 +562,71 @@ const openSearchDialog = (evt) => {
  */
 /**
  * Validate if a string looks like a valid ServiceNow sys_id
- * @param {string} sysId - The string to validate
+ * @param {string} input - The string to validate
  * @returns {boolean} True if it looks like a valid sys_id
  */
-const isValidSysId = (sysId) => {
+const isValidSysId = (input) => {
     // ServiceNow sys_id should be exactly 32 alphanumeric characters
     const sysIdPattern = /^[a-fA-F0-9]{32}$/;
-    return sysIdPattern.test(sysId);
+    return sysIdPattern.test(input);
+};
+
+/**
+ * Determines the search type based on input
+ * @param {string} input - The search input
+ * @returns {object} Object with type and value
+ */
+const determineSearchType = (input) => {
+    const trimmedInput = input.trim();
+
+    if (trimmedInput.length === 32 && /^[a-fA-F0-9]{32}$/.test(trimmedInput)) {
+        return { type: 'sysId', value: trimmedInput };
+    } else if (trimmedInput.length > 0) {
+        // Check if it's a starts with search (ends with *)
+        const isStartsWith = trimmedInput.endsWith('*');
+
+        if (isStartsWith) {
+            // For wildcard searches, require at least 5 characters before the *
+            const searchTerm = trimmedInput.slice(0, -1); // Remove the *
+            if (searchTerm.length < 5) {
+                return { type: 'invalid', value: trimmedInput, error: 'Wildcard searches require at least 5 characters before the *' };
+            }
+        }
+
+        return {
+            type: 'multiSearch',
+            value: trimmedInput,
+            isStartsWith: isStartsWith
+        };
+    } else {
+        return { type: 'invalid', value: '' };
+    }
 };
 
 const performSearch = () => {
-    const systemIdInput = document.getElementById("systemIdInput");
+    const searchInputElement = document.getElementById("objectSearchInput");
     const searchResults = document.getElementById("searchResults");
 
-    if (!systemIdInput || !searchResults) return;
+    if (!searchInputElement || !searchResults) return;
 
-    const systemId = systemIdInput.value.trim();
+    const searchInput = searchInputElement.value.trim();
 
-    if (!systemId) {
-        searchResults.innerHTML = "Please enter a system ID to search.";
+    if (!searchInput) {
+        searchResults.innerHTML = '<div class="search-empty">Please enter a search term</div>';
         return;
     }
 
-    // Validate sys_id format
-    if (!isValidSysId(systemId)) {
-        searchResults.innerHTML = `
-            <div class="search-error">
-                ❌ Invalid sys_id format
-            </div>
-            <div class="search-error-details">
-                A valid sys_id must be exactly 32 hexadecimal characters (0-9, a-f).
-                <br>Example: a1b2c3d4e5f6789012345678901234ab
-            </div>
-        `;
+    // Determine search type
+    const searchType = determineSearchType(searchInput);
+
+    if (searchType.type === 'invalid') {
+        searchResults.innerHTML = '<div class="search-empty">Please enter a valid search term</div>';
         return;
     }
+
+    // Hide help text during search
+    const searchHelp = document.getElementById("searchHelp");
+    if (searchHelp) searchHelp.classList.add("hidden");
 
     const targetInstance = context.searchTargetInstance;
     const windowId = context.searchWindowId;
@@ -537,7 +649,7 @@ const performSearch = () => {
     }
 
     // Disable UI elements during search
-    systemIdInput.disabled = true;
+    searchInputElement.disabled = true;
     const searchButton = document.getElementById("searchButton");
     if (searchButton) searchButton.disabled = true;
 
@@ -545,15 +657,20 @@ const performSearch = () => {
     showSearchLoader(true);
 
     // Send message to content script
+    // For multiSearch type, content script should search in this order:
+    // 1. sys_metadata (field: sys_name) - includes roles since sys_user_role extends sys_metadata
+    // 2. sys_user (field: user_name) 
+    // 3. sys_user_group (field: name)
     chrome.tabs.sendMessage(tabId, {
-        "command": "searchSystemId",
-        "systemId": systemId,
+        "command": "searchObject",
+        "searchType": searchType.type,
+        "searchValue": searchType.value,
         "instance": targetInstance
     }, (response) => {
         showSearchLoader(false);
 
         // Re-enable UI elements
-        systemIdInput.disabled = false;
+        searchInputElement.disabled = false;
         const searchButton = document.getElementById("searchButton");
         if (searchButton) searchButton.disabled = false;
 
@@ -562,9 +679,9 @@ const performSearch = () => {
             return;
         }
 
-        if (response && response.status === 200) {
+        if (response && (response.status === 200 || response.status === 404)) {
             displaySearchResults(response);
-        } else if (response && response.status !== 200) {
+        } else if (response && response.status !== 200 && response.status !== 404) {
             searchResults.innerHTML = `Search failed with status: ${response.status}`;
         } else {
             searchResults.innerHTML = "No response from the tab. Try refreshing the page.";
@@ -633,62 +750,196 @@ const displaySearchResults = (response) => {
     if (!searchResults) return;
 
     if (response.found) {
-        // Record found - show success message with link
-        let resultHtml = `
-            <div class="search-success">
-                ✓ Record found: <strong>${response.displayValue}</strong>
-            </div>
-            <div class="search-details">
-                <strong>Table:</strong> ${response.actualClass || response.table}<br>
-                <strong>sys_id:</strong> <a href="#" class="sys-id-link" data-url="${response.directUrl}">${response.systemId}</a><br>
-                <strong>Instance:</strong> ${response.instance}
-            </div>
-            <div class="search-actions">
-                <a href="#" class="search-result-link" data-url="${response.directUrl}">Open Record</a>
-            </div>
-        `;
+        let resultHtml = '';
+
+        if (response.searchType === 'sysId') {
+            // Single sys_id result - use same compact format as other results
+            resultHtml = `
+                <div class="search-results-list single-result">
+                    <div class="search-result-item">
+                        <div class="result-content">
+                            <a href="#" class="result-name-link" data-url="${response.directUrl}">${response.displayValue}</a>
+                            <span class="result-class">${response.actualClass}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else if ((response.searchType === 'objectName' || response.searchType === 'multiSearch') && response.results) {
+            // Group results by actual class name
+            const groupedResults = {};
+            response.results.forEach(result => {
+                const classKey = result.actualClass || result.sourceTable || 'unknown';
+                if (!groupedResults[classKey]) {
+                    groupedResults[classKey] = [];
+                }
+                groupedResults[classKey].push(result);
+            });
+
+            // Sort class names alphabetically
+            const classNames = Object.keys(groupedResults).sort();
+            const hasMultipleClasses = classNames.length > 1;
+            const resultClass = response.results.length === 1 ? 'single-result' : 'multiple-results';
+
+            resultHtml = `<div class="search-results-list ${resultClass}">`;
+
+            if (hasMultipleClasses) {
+                // Multiple classes - show grouped results with expand/collapse
+                classNames.forEach(className => {
+                    const classResults = groupedResults[className];
+                    // Sort results within each class alphabetically by name
+                    classResults.sort((a, b) => {
+                        const nameA = a.displayName || a.name || a.username || a.value || '';
+                        const nameB = b.displayName || b.name || b.username || b.value || '';
+                        return nameA.localeCompare(nameB);
+                    });
+
+                    const groupId = `group-${className.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    const isExpanded = classResults.length <= 3; // Auto-expand small groups
+
+                    resultHtml += `
+                        <div class="result-group">
+                            <div class="result-group-header" data-group="${groupId}">
+                                <span class="group-toggle ${isExpanded ? 'expanded' : 'collapsed'}">${isExpanded ? '▼' : '▶'}</span>
+                                <span class="group-title">${className}</span>
+                                <span class="group-count">(${classResults.length})</span>
+                            </div>
+                            <div class="result-group-content ${isExpanded ? 'expanded' : 'collapsed'}" id="${groupId}">
+                    `;
+
+                    classResults.forEach((result, index) => {
+                        const displayName = result.displayName || result.name || result.username || result.value;
+
+                        resultHtml += `
+                            <div class="search-result-item grouped" data-index="${index}">
+                                <div class="result-content">
+                                    <a href="#" class="result-name-link" data-url="${result.directUrl}">${displayName}</a>
+                                </div>
+                            </div>
+                        `;
+                    });
+
+                    resultHtml += `
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                // Single class - show flat list
+                const className = classNames[0];
+                const classResults = groupedResults[className];
+                // Sort results alphabetically by name
+                classResults.sort((a, b) => {
+                    const nameA = a.displayName || a.name || a.username || a.value || '';
+                    const nameB = b.displayName || b.name || b.username || b.value || '';
+                    return nameA.localeCompare(nameB);
+                });
+
+                classResults.forEach((result, index) => {
+                    const displayName = result.displayName || result.name || result.username || result.value;
+                    const classToDisplay = result.actualClass || result.sourceTable || 'unknown';
+
+                    resultHtml += `
+                        <div class="search-result-item" data-index="${index}">
+                            <div class="result-content">
+                                <a href="#" class="result-name-link" data-url="${result.directUrl}">${displayName}</a>
+                                <span class="result-class">${classToDisplay}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            resultHtml += '</div>';
+
+            // Add warning if we hit the API limit
+            if (response.hitLimit) {
+                resultHtml += `
+                    <div class="search-limit-warning">
+                        <div class="warning-icon">⚠️</div>
+                        <div class="warning-text">
+                            <strong>Results limited to ${response.totalResults}</strong><br>
+                            <small>There may be more results. Try a more specific search or increase the limit in options.</small>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
         searchResults.innerHTML = resultHtml;
 
-        // Add click handler for the sys_id link
-        const sysIdLink = searchResults.querySelector('.sys-id-link');
-        if (sysIdLink) {
-            sysIdLink.addEventListener('click', function (e) {
-                e.preventDefault();
-                const url = this.getAttribute('data-url');
-                // Use the same newTab function that the extension uses for opening tabs
-                newTab({ target: { getAttribute: () => null } }, url, context.windowId);
-            });
+        // Add class to container based on result count
+        if (response.searchType === 'objectName' && response.results && response.results.length > 1) {
+            searchResults.classList.add('has-multiple-results');
+        } else {
+            searchResults.classList.remove('has-multiple-results');
         }
 
-        // Add click handler for the Open Record button
-        const openRecordButton = searchResults.querySelector('.search-result-link');
-        if (openRecordButton) {
-            openRecordButton.addEventListener('click', function (e) {
+        // Add click handlers for all links
+        const resultLinks = searchResults.querySelectorAll('.search-result-link, .sys-id-link, .result-name-link');
+        resultLinks.forEach(link => {
+            link.addEventListener('click', function (e) {
                 e.preventDefault();
                 const url = this.getAttribute('data-url');
-                // Use the same newTab function that the extension uses for opening tabs
-                newTab({ target: { getAttribute: () => null } }, url, context.windowId);
+                getValidWindowId((validWindowId) => {
+                    newTab({ target: { getAttribute: () => null } }, url, validWindowId);
+                });
             });
-        }
+        });
+
+        // Add expand/collapse handlers for grouped results
+        const groupHeaders = searchResults.querySelectorAll('.result-group-header');
+        groupHeaders.forEach(header => {
+            header.addEventListener('click', function (e) {
+                e.preventDefault();
+                const groupId = this.getAttribute('data-group');
+                const groupContent = document.getElementById(groupId);
+                const toggle = this.querySelector('.group-toggle');
+
+                if (groupContent && toggle) {
+                    const isExpanded = groupContent.classList.contains('expanded');
+
+                    if (isExpanded) {
+                        // Collapse
+                        groupContent.classList.remove('expanded');
+                        groupContent.classList.add('collapsed');
+                        toggle.classList.remove('expanded');
+                        toggle.classList.add('collapsed');
+                        toggle.textContent = '▶';
+                    } else {
+                        // Expand
+                        groupContent.classList.remove('collapsed');
+                        groupContent.classList.add('expanded');
+                        toggle.classList.remove('collapsed');
+                        toggle.classList.add('expanded');
+                        toggle.textContent = '▼';
+                    }
+                }
+            });
+        });
     } else {
-        // Record not found
+        // No results found
         let resultHtml = `
             <div class="search-not-found">
-                ❌ Record not found: <strong>${response.systemId}</strong>
+                ❌ No results found for: <strong>${response.searchValue}</strong>
             </div>
             <div class="search-not-found-details">
                 <strong>Instance:</strong> ${response.instance}<br>
         `;
 
-        if (response.searchedTables) {
+        if (response.searchType === 'sysId' && response.searchedTables) {
             resultHtml += `<strong>Tables searched:</strong> ${response.searchedTables}<br>`;
+            resultHtml += `The sys_id was not found in any accessible table on this instance.`;
+        } else if (response.searchType === 'objectName') {
+            resultHtml += `No objects found with that exact name in sys_metadata.`;
+        } else if (response.searchType === 'multiSearch') {
+            resultHtml += `No matches found in sys_metadata, sys_user, or sys_user_group.`;
         }
 
         resultHtml += `
-                The sys_id was not found in any accessible table on this instance.
             </div>
         `;
         searchResults.innerHTML = resultHtml;
+        searchResults.classList.remove('has-multiple-results');
     }
 };
 
@@ -986,11 +1237,8 @@ const getOptions = () => {
 
             document.getElementById("config").addEventListener("click", openOptions);
             document.getElementById("open_in_panel").addEventListener("click", openInPanel);
-            document.getElementById("theme-toggle").addEventListener("click", () => {
-                if (typeof ThemeManager !== "undefined") {
-                    ThemeManager.toggleTheme();
-                }
-            });
+            document.getElementById("show_news").addEventListener("click", showWhatsNew);
+
 
             document.getElementById("new_tab").addEventListener("change", newTab);
             document.getElementById("search_custom").addEventListener("click", searchNow);
@@ -998,46 +1246,59 @@ const getOptions = () => {
             document.getElementById("search_api").addEventListener("click", searchNow);
             document.getElementById("searchInput").addEventListener("keyup", function (event) {
                 event.preventDefault();
-                if (event.keyCode === 13) {
+                if (event.key === "Enter") {
                     document.getElementById("search_custom").click();
                 }
             });
             document.getElementById("searchInput").focus();
 
             // Search dialog event listeners
-            const systemIdInput = document.getElementById("systemIdInput");
+            const searchInputElement = document.getElementById("objectSearchInput");
             const searchButton = document.getElementById("searchButton");
 
             if (searchButton) {
                 searchButton.addEventListener("click", performSearch);
             }
 
-            if (systemIdInput) {
-                systemIdInput.addEventListener("keyup", function (event) {
+            if (searchInputElement) {
+                searchInputElement.addEventListener("keyup", function (event) {
                     if (event.key === "Enter") {
                         performSearch();
                     }
                 });
 
                 // Add real-time validation feedback
-                systemIdInput.addEventListener("input", function (event) {
+                searchInputElement.addEventListener("input", function (event) {
                     const value = event.target.value.trim();
                     const searchButton = document.getElementById("searchButton");
+                    const searchHelp = document.getElementById("searchHelp");
+                    const searchType = determineSearchType(value);
 
                     if (value === "") {
                         // Empty input - neutral state
-                        event.target.classList.remove("valid", "invalid");
+                        event.target.classList.remove("valid", "invalid", "sys-id", "object-name");
                         if (searchButton) searchButton.disabled = false;
-                    } else if (isValidSysId(value)) {
-                        // Valid sys_id - green border
-                        event.target.classList.remove("invalid");
-                        event.target.classList.add("valid");
+                        if (searchHelp) searchHelp.innerHTML = '<small>Enter a sys_id, object name, task number, username, or group name. Add * at the end for "starts with" search.</small>';
+                    } else if (searchType.type === 'sysId') {
+                        // Valid sys_id - blue border
+                        event.target.classList.remove("invalid", "object-name");
+                        event.target.classList.add("valid", "sys-id");
                         if (searchButton) searchButton.disabled = false;
+                        if (searchHelp) searchHelp.innerHTML = '<small>Enter a sys_id, object name, task number, username, or group name. Add * at the end for "starts with" search.</small>';
+                    } else if (searchType.type === 'objectName' || searchType.type === 'multiSearch') {
+                        // Object name or multi-search - green border
+                        event.target.classList.remove("invalid", "sys-id");
+                        event.target.classList.add("valid", "object-name");
+                        if (searchButton) searchButton.disabled = false;
+                        if (searchHelp) searchHelp.innerHTML = '<small>Enter a sys_id, object name, task number, username, or group name. Add * at the end for "starts with" search.</small>';
                     } else {
-                        // Invalid sys_id - red border
-                        event.target.classList.remove("valid");
+                        // Invalid input - red border
+                        event.target.classList.remove("valid", "sys-id", "object-name");
                         event.target.classList.add("invalid");
                         if (searchButton) searchButton.disabled = true;
+                        if (searchHelp && searchType.error) {
+                            searchHelp.innerHTML = `<small class="error-text">${searchType.error}</small>`;
+                        }
                     }
                 });
             }
@@ -1055,10 +1316,11 @@ const getOptions = () => {
  * @param {object} evt the event that triggered the action
  */
 const searchNow = (evt) => {
+    console.log("**** event on " + evt.target.id);
     let currentText = document.getElementById("searchInput").value;
     let targetUrl = "";
     if (evt.target.id === "search_doc") {
-        targetUrl = "https://www.servicenow.com/docs/en-US/search?q=";
+        targetUrl = "https://www.servicenow.com/docs/search?q=";
     } else if (evt.target.id === "search_api") {
         targetUrl = "https://developer.servicenow.com/dev.do#!/search/latest/Reference/";
     } else {
@@ -1183,6 +1445,15 @@ const refreshList = () => {
             el.addEventListener("click", newTab);
         });
 
+        // add search objects actions
+        elements = document.querySelectorAll("a[title=\"search objects\"]");
+        [].forEach.call(elements, (el) => {
+            el.addEventListener("click", (e) => {
+                context.clicked = e.target;
+                openSearchDialog(e);
+            });
+        });
+
         // add the "other actions" menu
         elements = document.querySelectorAll("a[title=\"other options\"]");
         [].forEach.call(elements, (el) => {
@@ -1193,7 +1464,6 @@ const refreshList = () => {
                     { title: "&#10000; Script", fn: openBackgroundScriptWindow },
                     { title: "&#9088; Rename", fn: renameInstance },
                     { title: "&#128065; Hide", fn: hideInstance },
-                    { title: "⌕ Search", fn: openSearchDialog },
                     { title: "&#9776; Group", fn: groupTabs }
                 ];
                 basicContext.show(items, e);
@@ -1607,8 +1877,8 @@ const openInPanel = () => {
     let createData = {
         type: "popup",
         url: (isChromium ? "dialog/snowbelt.html" : "snowbelt.html"),
-        width: 700,
-        height: 500
+        width: 720,  // Slightly wider to account for browser chrome
+        height: 600  // Taller to better accommodate content
     };
     let creating = chrome.windows.create(createData);
 }
@@ -1619,66 +1889,56 @@ const openOptions = (elt) => {
     } else {
         window.open(chrome.runtime.getURL("options.html"));
     }
-
 };
 
-const whatsnew = [
-    {
-        version: '7.0.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>" +
-            "<li>Search by sys_id, from the instance contextual menu</li>" +
-            "<li>In Chromium, put tabs inside a group</li>" +
-            "<li>Light and Dark themes</li>" +
-            "<li>Background script popup is now using the new UI</li>" +
-            "<li>Display technical field names now works better</li>" +
-            "<li>Removed the auto-frame feature because it's implemented by SN now</li>" +
-            "</ul>"
-    }, {
-        version: '6.1.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>" +
-            "<li>Corrected a few issues following the manifest version upgrade.</li>" +
-            "</ul>"
-    }, {
-        version: '6.0.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>" +
-            "<li>Upgraded manifest to v3. Not a big change from a user point of view but it was such a pain I thought it deserved its own major release.</li>" +
-            "<li>Not much more, to be honest. Please create issues on github if you see the extension misbehaving.</li>" +
-            "<li>If you are using extra-service-now.com domains, you may have to re-enable the option, so the extension requests the new, renamed authorization to access all urls.</li>" +
-            "</ul>"
-    }, {
-        version: '5.1.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>" +
-            "<li>Finally made some updates required by the recent ServiceNow UI changes.</li>" +
-            "<li>Updated the documentation search link.</li>" +
-            "</ul>"
-    }, {
-        version: '5.0.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>" +
-            "<li>Removed the broadest default permissions for the extension.</li>" +
-            "</ul>" +
-            "<b>important:</b> You now have to <b>explicitly</b> allow the extension to be used outside of the service-now.com domain. \"Enable extra domains for content script\" in the options page if you want to use this feature. <br/>" +
-            "Just to be safe, remember you can use the export button in the options page to save your settings into a JSON file. You can import it back later in case of a bug or an issue with sync storage, or to copy your settings accross browsers."
-    }, {
-        version: '4.7.1',
-        msg: "Most notable changes:<br/>" +
-            "<ul>" +
-            "<li>The previous background scripts are now selectable from a list.</li>" +
-            "<li>Make sure you configure your shortcuts in the <a href='#' class='shortcuts-config-link'>shortcuts configuration</a>.</li>" +
-            "</ul>"
-    }, {
-        version: '4.7.0',
-        msg: "Most notable changes:<br/>" +
-            "<ul>" +
-            "<li>Enhanced the background script popup window with an execution history!</li>" +
-            "<li>Make sure you configure your shortcuts in the <a href='#' class='shortcuts-config-link'>shortcuts configuration</a>.</li>" +
-            "</ul>"
+/**
+ * Shows the what's new popup
+ */
+const showWhatsNew = async () => {
+    await loadWhatsNewData();
+    // Get all whatsnew content (not just unread)
+    let whatsNewText = "";
+    whatsnew.forEach((item) => {
+        whatsNewText += "<h3>version " + item.version + "</h3>";
+        whatsNewText += item.msg;
+
+        // Add bullet points for items
+        if (item.items && item.items.length > 0) {
+            whatsNewText += "<ul>";
+            item.items.forEach((listItem) => {
+                whatsNewText += "<li>" + listItem + "</li>";
+            });
+            whatsNewText += "</ul>";
+        }
+
+        // Add important note if present
+        if (item.important) {
+            whatsNewText += "<br/><b>important:</b> " + item.important;
+        }
+    });
+
+    if (whatsNewText) {
+        document.getElementById("whatsnewText").innerHTML = whatsNewText;
+        document.getElementById("whatsnewRemember").addEventListener("click", rememberWhatsNew);
+        location.hash = "whatsnewPopup";
     }
-];
+};
+
+// Whatsnew data will be loaded from external JSON file
+let whatsnew = [];
+
+/**
+ * Loads whatsnew data from external JSON file
+ */
+const loadWhatsNewData = async () => {
+    try {
+        const response = await fetch(chrome.runtime.getURL('dialog/whatsnew.json'));
+        whatsnew = await response.json();
+    } catch (error) {
+        console.error('Failed to load whatsnew data:', error);
+        whatsnew = []; // Fallback to empty array
+    }
+};
 
 const getWhatsNew = (whatsNewJSON) => {
     // whatsNewArr contains an array of keys for "whats new" messages previously marked as read
@@ -1696,8 +1956,22 @@ const getWhatsNew = (whatsNewJSON) => {
     let whatsnewText = "";
     whatsnew.forEach((item) => {
         if (whatsNewArr.indexOf(item.version) === -1) {
-            whatsnewText += "<h3>version " + item.version
-                + "</h3>" + item.msg;
+            whatsnewText += "<h3>version " + item.version + "</h3>";
+            whatsnewText += item.msg;
+
+            // Add bullet points for items
+            if (item.items && item.items.length > 0) {
+                whatsnewText += "<ul>";
+                item.items.forEach((listItem) => {
+                    whatsnewText += "<li>" + listItem + "</li>";
+                });
+                whatsnewText += "</ul>";
+            }
+
+            // Add important note if present
+            if (item.important) {
+                whatsnewText += "<br/><b>important:</b> " + item.important;
+            }
         }
     });
     return whatsnewText;
@@ -1720,7 +1994,8 @@ const rememberWhatsNew = () => {
 /**
  * Displays news
  */
-const displayWhatsNew = () => {
+const displayWhatsNew = async () => {
+    await loadWhatsNewData();
     chrome.storage.local.get("whatsnew", (result) => {
         let whatsNew = getWhatsNew(result.whatsnew);
         if (whatsNew) {
@@ -1741,8 +2016,17 @@ const bootStrap = () => {
         if (context.windowType == "popup") {
             document.getElementById("open_in_panel").classList.add("hidden");
         }
+
         if (wi.type == "popup") {
-            context.windowId = 1;
+            // For popup windows (detached), find the first available normal window
+            chrome.windows.getAll({ windowTypes: ['normal'] }, (windows) => {
+                if (windows.length > 0) {
+                    context.windowId = windows[0].id;
+                } else {
+                    // Fallback: create a new window if none exist
+                    context.windowId = null; // Will be handled in operations
+                }
+            });
         } else {
             context.windowId = (wi.id !== undefined ? wi.id : 1);
         }
@@ -1777,4 +2061,30 @@ const bootStrap = () => {
 document.addEventListener("DOMContentLoaded", () => {
     getOptions();
     displayWhatsNew();
+});
+
+// Search dialog functionality
+document.addEventListener("DOMContentLoaded", () => {
+    const objectSearchButton = document.getElementById("objectSearchButton");
+    const objectSearchInput = document.getElementById("objectSearchInput");
+
+    if (objectSearchInput) {
+        // Search function triggered by Enter key or button click
+        const performObjectSearch = () => {
+            // Trigger the main search function
+            performSearch();
+        };
+
+        // Enter key triggers search
+        objectSearchInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                performObjectSearch();
+            }
+        });
+
+        // Button click triggers search
+        if (objectSearchButton) {
+            objectSearchButton.addEventListener("click", performObjectSearch);
+        }
+    }
 });

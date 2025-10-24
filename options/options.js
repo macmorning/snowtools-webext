@@ -226,7 +226,7 @@ const restoreOptions = () => {
         document.getElementById("useSync").checked = context.useSync;
         // load options from storage area depending on the useSync setting
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets"], (result) => {
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults"], (result) => {
             context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
             context.urlFilters = result.urlFilters || "service-now.com;";
             rebuildDomainsList();
@@ -235,13 +235,14 @@ const restoreOptions = () => {
             // document.getElementById("urlFilters").value = context.urlFilters;
 
             document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
+            
+            // Load max search results setting
+            const maxSearchResults = result.maxSearchResults || 20;
+            document.getElementById("maxSearchResults").value = maxSearchResults;
+            context.maxSearchResults = maxSearchResults;
 
             // Load theme preference and debug mode
-            chrome.storage.local.get(["themePreference", "debugMode"], (localResult) => {
-                const themePreference = localResult.themePreference || "auto";
-                document.getElementById("themePreference").value = themePreference;
-                context.themePreference = themePreference;
-                
+            chrome.storage.local.get("debugMode", (localResult) => {
                 const debugMode = localResult.debugMode === true;
                 document.getElementById("debugMode").checked = debugMode;
                 context.debugMode = debugMode;
@@ -476,17 +477,21 @@ const saveOptions = (evt) => {
         if (evt.target.id === "showUpdatesets") {
             context.showUpdatesets = evt.target.checked;
             context.storageArea.set({ "showUpdatesets": context.showUpdatesets }, () => { });
-        } else if (evt.target.id === "themePreference") {
-            context.themePreference = evt.target.value;
-            chrome.storage.local.set({ "themePreference": context.themePreference }, () => {
-                // Notify ThemeManager if available
-                if (typeof ThemeManager !== "undefined") {
-                    ThemeManager.saveThemePreference(context.themePreference);
-                }
-            });
+
         } else if (evt.target.id === "debugMode") {
             context.debugMode = evt.target.checked;
             chrome.storage.local.set({ "debugMode": context.debugMode }, () => {});
+        } else if (evt.target.id === "maxSearchResults") {
+            const value = parseInt(evt.target.value);
+            if (value >= 5 && value <= 100) {
+                context.maxSearchResults = value;
+                context.storageArea.set({ "maxSearchResults": context.maxSearchResults }, () => {
+                    console.log("Max search results saved:", context.maxSearchResults);
+                });
+            } else {
+                evt.target.value = context.maxSearchResults || 20;
+                displayMessage("Maximum search results must be between 5 and 100.");
+            }
         } else if (evt.target.id === "extraDomains") {
             console.log(evt.target.checked);
             context.extraDomains = evt.target.checked;
@@ -553,23 +558,19 @@ const exportOptions = (evt) => {
         permissions: ['downloads']
     }, (granted) => {
         if (granted) {
-            context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets"], (result) => {
-                // Also get theme preference from local storage
-                chrome.storage.local.get("themePreference", (themeResult) => {
-                    result.themePreference = themeResult.themePreference;
-                    // let string = encodeURIComponent(JSON.stringify(result));
-                    var blob = new Blob([JSON.stringify(result)], { type: "application/json;charset=utf-8" });
-                    try {
-                        chrome.downloads.download({
-                            filename: "snow-toolbelt-backup.json",
-                            saveAs: true,
-                            url: URL.createObjectURL(blob)
-                        });
-                    } catch (e) {
-                        displayMessage("Sorry, there was a browser error. Please report it with the details below.", e);
-                        console.log(e);
-                    }
-                });
+            context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults"], (result) => {
+                // let string = encodeURIComponent(JSON.stringify(result));
+                var blob = new Blob([JSON.stringify(result)], { type: "application/json;charset=utf-8" });
+                try {
+                    chrome.downloads.download({
+                        filename: "snow-toolbelt-backup.json",
+                        saveAs: true,
+                        url: URL.createObjectURL(blob)
+                    });
+                } catch (e) {
+                    displayMessage("Sorry, there was a browser error. Please report it with the details below.", e);
+                    console.log(e);
+                }
             });
         } else {
             displayMessage("Sorry, the extension can only export your data if you approved the requested permission.");
@@ -602,13 +603,10 @@ const importOptions = (evt) => {
                     "instanceOptions": obj.instanceOptions,
                     "extraDomains": false, // always set to false by default to request the all_urls permission again if required
                     "urlFilters": obj.urlFilters,
-
-                    "showUpdatesets": obj.showUpdatesets
+                    "showUpdatesets": obj.showUpdatesets,
+                    "maxSearchResults": obj.maxSearchResults || 20
                 }, () => {
-                    // Also restore theme preference if present
-                    if (obj.themePreference) {
-                        chrome.storage.local.set({ "themePreference": obj.themePreference });
-                    }
+
                     displayMessage("Options restored from file");
                     restoreOptions();
                 });
@@ -657,8 +655,9 @@ document.getElementById("useSync").addEventListener("change", toggleSync);
 
 document.getElementById("extraDomains").addEventListener("change", saveOptions);
 document.getElementById("showUpdatesets").addEventListener("change", saveOptions);
-document.getElementById("themePreference").addEventListener("change", saveOptions);
+
 document.getElementById("debugMode").addEventListener("change", saveOptions);
+document.getElementById("maxSearchResults").addEventListener("change", saveOptions);
 document.getElementById("export").addEventListener("click", exportOptions);
 document.getElementById("import").addEventListener("click", openFileSelect);
 document.getElementById("importFile").style.display = "none";

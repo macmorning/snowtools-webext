@@ -8,7 +8,7 @@ if (typeof isChromium === 'undefined') {
     window.isChromium = (typeof browser === "undefined");
 }
 
-const shortcutsURL = (isChromium ? "chrome://extensions/shortcuts" : "about:addons");
+const shortcutsURL = (isChromium ? "chrome://extensions/shortcuts" : "Firefox shortcuts settings");
 
 /**
  * Opens the shortcuts configuration page for the current browser
@@ -17,18 +17,34 @@ const openShortcutsPage = () => {
     if (isChromium) {
         chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
     } else {
-        // Firefox: Open add-ons manager where users can manage extension shortcuts
-        chrome.tabs.create({ url: "about:addons" });
+        // Firefox: Use the dedicated shortcuts API if available
+        if (typeof browser !== "undefined" && browser.commands && browser.commands.openShortcutSettings) {
+            try {
+                browser.commands.openShortcutSettings();
+            } catch (error) {
+                console.error("Could not open shortcuts settings:", error);
+                // Fallback: show instructions to user
+                alert("To configure keyboard shortcuts in Firefox:\n1. Type 'about:addons' in the address bar\n2. Click on the gear icon\n3. Select 'Manage Extension Shortcuts'");
+            }
+        } else {
+            // Fallback for older Firefox versions or if API is not available
+            alert("To configure keyboard shortcuts in Firefox:\n1. Type 'about:addons' in the address bar\n2. Click on the gear icon\n3. Select 'Manage Extension Shortcuts'");
+        }
     }
 };
 
-let tips;
+let tips = [];
 context.lastTipNumber = -1;
-context.currentVersion = "7.0.0";
+
+// Get version from manifest
 try {
+    const manifest = chrome.runtime.getManifest();
+    context.currentVersion = manifest.version;
     document.getElementById("help").title = "current version: " + context.currentVersion;
 } catch (e) {
-    // ignore errors here;
+    // Fallback if manifest access fails
+    context.currentVersion = "unknown";
+    console.error("Could not get version from manifest:", e);
 }
 
 let commandsTip = "";
@@ -49,7 +65,11 @@ const getCommands = () => {
     }
 }
 
-const nextTip = () => {
+const nextTip = async () => {
+    if (tips.length === 0) {
+        await loadTipsData();
+    }
+
     let number;
     number = context.lastTipNumber + 1;
     if (number >= tips.length) { number = 0; }
@@ -62,23 +82,38 @@ const nextTip = () => {
     }, 300);
     return true;
 }
-const getTip = () => {
-    tips = [
-        "Lost your settings?<br/>Go to the options pages and make sure you are using the storage area where you saved them.",
-        "You can hide automatically saved serice-now.com sub-domains such as \"partnerportal\", \"hi\" or \"signon\" by toggling their visibility in the options page.",
-        "You can export your preferences and import them into " + (isChromium ? "Firefox" : "Chrome") + " from the options page.",
-        "You can rate this extension <a href=\"" + (isChromium ? chromeURL : mozURL) + "\" target=\"_blank\">here</a>.",
-        "This extension is also available on <a target=\"_blank\" href=\"" + (isChromium ? mozURL : chromeURL) + "\">" + (isChromium ? "Firefox" : "Chrome") + "</a>.",
-        "When switching to a specific node, the extension will send requests to your instance until we are routed to this node or the maximum number of tries was reached. You can retry as many times as you want, though.",
-        "You can post enhancement requests or defects on <a target=\"_blank\" href=\"https://github.com/macmorning/snowtools-webext/issues\">github</a>.",
-        "This extension requires access to downloads to let you export your preferences, access to cookies for node switching, and access to all domains because your ServiceNow instances could be accessed through a custom domain.",
-        "This extension doesn't collect or upload any data.",
-        "You can post issues and enhancement requests on <a target=\"_blank\" href=\"" + gitURL + "\">github</a>.",
-        "Does Chuck really draw power from his bow tie?",
-        "You can unhide hidden instances from the options page.",
-        "If you want to see the tabs open in private windows, you have to allow the extension to run in private mode.",
-        getCommands()
-    ];
+/**
+ * Loads tips data from external JSON file
+ */
+const loadTipsData = async () => {
+    try {
+        const response = await fetch(chrome.runtime.getURL('dialog/tips.json'));
+        const tipsData = await response.json();
+
+        // Process tips with dynamic content
+        tips = tipsData.map(tip => {
+            return tip
+                .replace('{otherBrowser}', isChromium ? "Firefox" : "Chrome")
+                .replace('{currentBrowserURL}', isChromium ? chromeURL : mozURL)
+                .replace('{otherBrowserURL}', isChromium ? mozURL : chromeURL)
+                .replace('{gitURL}', gitURL)
+                .replace('{commands}', getCommands() || 'Commands not available');
+        });
+    } catch (error) {
+        console.error('Failed to load tips data:', error);
+        // Fallback tips
+        tips = [
+            "Lost your settings?<br/>Go to the options pages and make sure you are using the storage area where you saved them.",
+            "You can post issues and enhancement requests on <a target=\"_blank\" href=\"" + gitURL + "\">github</a>.",
+            "This extension doesn't collect or upload any data."
+        ];
+    }
+};
+
+const getTip = async () => {
+    if (tips.length === 0) {
+        await loadTipsData();
+    }
 
     let number;
     number = Math.floor((Math.random() * tips.length));
@@ -97,7 +132,7 @@ if (document.querySelector("span#shortcuts")) {
 }
 
 // Add event listener for shortcuts links (using event delegation for dynamic content)
-document.addEventListener('click', function(e) {
+document.addEventListener('click', function (e) {
     if (e.target.id === 'shortcutsLink' || e.target.classList.contains('shortcuts-config-link')) {
         e.preventDefault();
         openShortcutsPage();

@@ -1050,33 +1050,44 @@ function updateFavicon(color) {
 /**
  * Search through multiple tables to find a record with the given sys_id
  * @param {Array} tableNames - Array of table names to search
- * @param {string} systemId - The sys_id to search for
+ * @param {string} sysId - The sys_id to search for
  * @param {string} host - The ServiceNow instance host
  * @param {string} token - Authentication token
  * @returns {Promise} Promise that resolves with search result
  */
-async function searchThroughTables(tableNames, systemId, host, token) {
+async function searchThroughTables(tableNames, sysId, host, token) {
     // Filter out ts_ tables
     const filteredTables = tableNames.filter(tableName => !tableName.startsWith("ts_"));
-    debugLog("*SNOW TOOL BELT* Starting search through", filteredTables.length, "tables for sys_id:", systemId, "(filtered from", tableNames.length, "total tables)");
 
+    const searchId = Math.random().toString(36).substr(2, 9);
+    debugLog("*SNOW TOOL BELT* [SEARCH " + searchId + "] Starting search through", filteredTables.length, "tables for sys_id:", sysId);
+
+    let tablesSearched = 0;
     for (let i = 0; i < filteredTables.length; i++) {
         const tableName = filteredTables[i];
-        debugLog("*SNOW TOOL BELT* Searching in table:", tableName, `(${i + 1}/${filteredTables.length})`);
+        tablesSearched++;
+        debugLog("*SNOW TOOL BELT* [SEARCH " + searchId + "] [START] Searching in table:", tableName, `(${i + 1}/${filteredTables.length})`, "- Tables searched so far:", tablesSearched);
         try {
             // Use direct record access - single API call with display values
-            const tableApiUrl = `https://${host}/api/now/table/${tableName}/${systemId}?sysparm_display_value=all`;
+            const tableApiUrl = `https://${host}/api/now/table/${tableName}/${sysId}?sysparm_display_value=all`;
             debugLog("*SNOW TOOL BELT* Fetching URL:", tableApiUrl);
 
-            const response = await fetch(tableApiUrl, {
-                method: "GET",
-                headers: {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                    "X-UserToken": token
-                },
-                credentials: "same-origin"
-            });
+            let response;
+            try {
+                response = await fetch(tableApiUrl, {
+                    method: "GET",
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "X-UserToken": token
+                    },
+                    credentials: "same-origin"
+                });
+                debugLog("*SNOW TOOL BELT* Fetch completed for table:", tableName, "- Status:", response.status);
+            } catch (fetchError) {
+                debugLog("*SNOW TOOL BELT* Fetch failed for table:", tableName, "- Error:", fetchError, "- continuing to next table");
+                continue;
+            }
 
             if (response.status === 200) {
                 debugLog("*SNOW TOOL BELT* Found record in table:", tableName);
@@ -1111,45 +1122,327 @@ async function searchThroughTables(tableNames, systemId, host, token) {
                         return typeof field === 'string' ? field : (field.display_value || field.value);
                     };
 
-                    const displayValue = getDisplayValue(record.number) ||
+                    const displayValue = getDisplayValue(record.sys_name) ||
+                        getDisplayValue(record.number) ||
                         getDisplayValue(record.name) ||
                         getDisplayValue(record.short_description) ||
                         getDisplayValue(record.title) ||
                         getDisplayValue(record.sys_id) ||
-                        systemId;
+                        sysId;
 
                     return {
                         status: 200,
-                        systemId: systemId,
+                        searchType: 'sysId',
+                        searchValue: sysId,
+                        sysId: sysId,
                         table: tableName,
                         actualClass: actualClass,
                         displayValue: displayValue,
-                        directUrl: `https://${host}/${actualClass}.do?sys_id=${systemId}`,
+                        directUrl: `https://${host}/${actualClass}.do?sys_id=${sysId}`,
                         instance: host,
                         found: true
                     };
                 }
             } else if (response.status === 404) {
-                debugLog("*SNOW TOOL BELT* Record not found in table:", tableName);
+                debugLog("*SNOW TOOL BELT* Record not found in table:", tableName, "- continuing to next table");
                 // Continue to next table
             } else {
-                debugLog("*SNOW TOOL BELT* Unexpected response status:", response.status, "for table:", tableName);
+                debugLog("*SNOW TOOL BELT* Unexpected response status:", response.status, "for table:", tableName, "- continuing to next table");
             }
         } catch (error) {
-            debugLog("*SNOW TOOL BELT* Error searching table", tableName, ":", error);
+            debugLog("*SNOW TOOL BELT* Error searching table", tableName, ":", error, "- continuing to next table");
             // Continue to next table
         }
+        debugLog("*SNOW TOOL BELT* [SEARCH " + searchId + "] [END] Completed search in table:", tableName);
     }
 
     // If we get here, the sys_id was not found in any table
+    debugLog("*SNOW TOOL BELT* [SEARCH " + searchId + "] Search completed - sys_id not found in any of the", tablesSearched, "tables searched out of", filteredTables.length, "total tables");
     return {
         status: 404,
-        systemId: systemId,
+        searchType: 'sysId',
+        searchValue: sysId,
+        sysId: sysId,
         table: "not_found",
         displayValue: "Record not found",
         instance: host,
         found: false,
         searchedTables: filteredTables.length
+    };
+}
+
+/**
+ * Search for sys_id with priority tables first, then all tables if needed
+ * @param {string} sysId - The sys_id to search for
+ * @param {string} host - The ServiceNow instance host
+ * @param {string} token - Authentication token
+ * @returns {Promise} Promise that resolves with search result
+ */
+async function searchSysIdWithPriority(sysId, host, token) {
+    debugLog("*SNOW TOOL BELT* Starting priority sys_id search for:", sysId);
+
+    // Priority tables to search first
+    const priorityTables = [
+        "task",
+        "sys_metadata",
+        "sn_jny_journey",
+        "sys_flow_context",
+        "sys_user",
+        "sys_user_group",
+        "sys_user_grmember",
+        "sys_user_role",
+        "sys_user_has_role",
+        "sys_properties",
+        "sysapproval_approver",
+        "sysevent"
+    ];
+
+    debugLog("*SNOW TOOL BELT* Searching priority tables first:", priorityTables.join(", "));
+
+    // First, try priority tables only
+    const priorityResult = await searchThroughTables(priorityTables, sysId, host, token);
+
+    if (priorityResult.found) {
+        debugLog("*SNOW TOOL BELT* Found in priority tables!");
+        return priorityResult;
+    }
+
+    debugLog("*SNOW TOOL BELT* Not found in priority tables, querying sys_db_object for all tables...");
+
+    // If not found in priority tables, get all table names and search
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    headers.append('Accept', 'application/json');
+    headers.append('Cache-Control', 'no-cache');
+    headers.append('X-UserToken', token);
+
+    try {
+        const tableApiUrl = `${window.location.origin}/api/now/table/sys_db_object?sysparm_query=super_class=NULL^sys_update_name!=NULL^sys_class_name=sys_db_object^nameNOT LIKE00%5EORDERBYDESCsys_updated_on&sysparm_fields=name`;
+
+        const response = await fetch(tableApiUrl, {
+            credentials: "same-origin",
+            headers: headers
+        });
+
+        if (response.ok && response.status === 200) {
+            const data = await response.json();
+            debugLog("*SNOW TOOL BELT* sys_db_object query result:", data);
+            debugLog("*SNOW TOOL BELT* Found", data.result.length, "tables with empty super_class");
+
+            const tableNames = data.result.map(record => record.name);
+            debugLog("*SNOW TOOL BELT* Searching all", tableNames.length, "tables...");
+
+            return await searchThroughTables(tableNames, sysId, host, token);
+        } else {
+            throw new Error(`sys_db_object API request failed with status: ${response.status}`);
+        }
+    } catch (error) {
+        debugLog("*SNOW TOOL BELT* Error querying sys_db_object:", error);
+        throw error;
+    }
+}
+
+/**
+ * Search for objects by name in sys_metadata and sys_flow tables
+ * @param {string} objectName - The object name to search for
+ * @param {string} host - The ServiceNow instance host
+ * @param {string} token - Authentication token
+ * @returns {Promise} Promise that resolves with search results
+ */
+async function searchByObjectName(searchValue, host, token, searchType = 'objectName') {
+    debugLog("*SNOW TOOL BELT* Searching for:", searchValue, "Type:", searchType);
+
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    headers.append('Accept', 'application/json');
+    headers.append('Cache-Control', 'no-cache');
+    headers.append('X-UserToken', token);
+
+    // Helper function to safely extract display name
+    const getDisplayName = (nameField) => {
+        if (!nameField) return null;
+        if (typeof nameField === 'string') return nameField;
+        return nameField.display_value || nameField.value || null;
+    };
+
+    // Helper function to safely extract class name
+    const getClassName = (classField, fallback) => {
+        if (!classField) return fallback;
+        if (typeof classField === 'string') return classField;
+        return classField.display_value || classField.value || fallback;
+    };
+
+    // Check if this is a "starts with" search (ends with *)
+    const isStartsWithSearch = searchValue.endsWith('*');
+    const cleanSearchValue = isStartsWithSearch ? searchValue.slice(0, -1) : searchValue;
+
+    debugLog("*SNOW TOOL BELT* Search type:", isStartsWithSearch ? "starts with" : "exact match", "Clean value:", cleanSearchValue);
+
+    // Define search tables in order
+    const searchTables = [
+        {
+            table: 'sys_metadata',
+            query: isStartsWithSearch ? `sys_nameSTARTSWITH${cleanSearchValue}` : `sys_name=${cleanSearchValue}`,
+            fields: 'sys_id,name,sys_name,sys_class_name,sys_updated_on',
+            nameField: 'sys_name',
+            displayName: 'Object'
+        },
+        {
+            table: 'task',
+            query: isStartsWithSearch ? `numberSTARTSWITH${cleanSearchValue}` : `number=${cleanSearchValue}`,
+            fields: 'sys_id,number,short_description,state,sys_class_name,sys_updated_on',
+            nameField: 'number',
+            displayName: 'Task'
+        },
+        {
+            table: 'sys_user',
+            query: isStartsWithSearch ? `user_nameSTARTSWITH${cleanSearchValue}` : `user_name=${cleanSearchValue}`,
+            fields: 'sys_id,user_name,name,email,active',
+            nameField: 'user_name',
+            displayName: 'User'
+        },
+        {
+            table: 'sys_user_group',
+            query: isStartsWithSearch ? `nameSTARTSWITH${cleanSearchValue}` : `name=${cleanSearchValue}`,
+            fields: 'sys_id,name,description,active',
+            nameField: 'name',
+            displayName: 'Group'
+        }
+    ];
+
+    // For backward compatibility, if searchType is 'objectName', only search sys_metadata
+    const tablesToSearch = searchType === 'multiSearch' ? searchTables : [searchTables[0]];
+
+    for (const searchConfig of tablesToSearch) {
+        try {
+            // Get the configured max search results limit
+            const maxResults = await new Promise((resolve) => {
+                storageAPI.local.get("useSync", (result1) => {
+                    const useSync = result1.useSync === "true" || result1.useSync === true;
+                    const storageArea = useSync ? storageAPI.sync : storageAPI.local;
+                    storageArea.get("maxSearchResults", (result) => {
+                        resolve(result.maxSearchResults || 20);
+                    });
+                });
+            });
+
+            const apiUrl = `${window.location.origin}/api/now/table/${searchConfig.table}?sysparm_query=${searchConfig.query}&sysparm_fields=${searchConfig.fields}&sysparm_limit=${maxResults}`;
+
+            debugLog(`*SNOW TOOL BELT* Searching ${searchConfig.table} for exact match`);
+
+            const response = await fetch(apiUrl, {
+                credentials: "same-origin",
+                headers: headers
+            });
+
+            if (response.ok && response.status === 200) {
+                const data = await response.json();
+                debugLog(`*SNOW TOOL BELT* Found ${data.result.length} results in ${searchConfig.table}`);
+
+                if (data.result.length > 0) {
+                    const results = [];
+                    for (const record of data.result) {
+                        let displayName;
+                        let actualClass = searchConfig.table;
+
+                        // Extract display name and class based on table type
+                        if (searchConfig.table === 'sys_metadata') {
+                            displayName = getDisplayName(record.sys_name) || getDisplayName(record.name);
+
+                            // Get the actual class name from sys_class_name field (same logic as sys_id search)
+                            actualClass = searchConfig.table; // fallback
+                            if (record.sys_class_name) {
+                                debugLog("*SNOW TOOL BELT* sys_class_name field:", record.sys_class_name, "type:", typeof record.sys_class_name);
+
+                                // Handle both string and object formats
+                                actualClass = typeof record.sys_class_name === 'string'
+                                    ? record.sys_class_name
+                                    : (record.sys_class_name.value || record.sys_class_name.display_value || searchConfig.table);
+                            }
+                            debugLog("*SNOW TOOL BELT* Final actualClass for object search:", actualClass);
+                        } else if (searchConfig.table === 'task') {
+                            displayName = getDisplayName(record.number);
+                            
+                            // Get the actual class name from sys_class_name field for tasks
+                            actualClass = searchConfig.table; // fallback
+                            if (record.sys_class_name) {
+                                debugLog("*SNOW TOOL BELT* task sys_class_name field:", record.sys_class_name, "type:", typeof record.sys_class_name);
+
+                                // Handle both string and object formats
+                                actualClass = typeof record.sys_class_name === 'string'
+                                    ? record.sys_class_name
+                                    : (record.sys_class_name.value || record.sys_class_name.display_value || searchConfig.table);
+                            }
+                            debugLog("*SNOW TOOL BELT* Final actualClass for task search:", actualClass);
+                        } else if (searchConfig.table === 'sys_user') {
+                            displayName = getDisplayName(record.name) || getDisplayName(record.user_name);
+                            actualClass = searchConfig.table;
+                        } else {
+                            displayName = getDisplayName(record.name);
+                            actualClass = searchConfig.table;
+                        }
+
+                        // Only add records with valid names
+                        if (displayName && displayName.trim() !== '') {
+                            results.push({
+                                sys_id: record.sys_id,
+                                name: displayName,
+                                username: searchConfig.table === 'sys_user' ? getDisplayName(record.user_name) : undefined,
+                                table: searchConfig.table,
+                                sourceTable: searchConfig.table,
+                                actualClass: actualClass,
+                                directUrl: `https://${host}/${actualClass}.do?sys_id=${record.sys_id}`,
+                                description: `${searchConfig.displayName} ${isStartsWithSearch ? 'starts with' : 'exact'} match`,
+                                updated: record.sys_updated_on,
+                                email: searchConfig.table === 'sys_user' ? getDisplayName(record.email) : undefined,
+                                active: record.active,
+                                // Task-specific fields
+                                shortDescription: searchConfig.table === 'task' ? getDisplayName(record.short_description) : undefined,
+                                state: searchConfig.table === 'task' ? record.state : undefined
+                            });
+                        }
+                    }
+
+                    if (results.length > 0) {
+                        // Sort results by actual class name, then alphabetically by name
+                        results.sort((a, b) => {
+                            // First sort by actual class name
+                            if (a.actualClass !== b.actualClass) {
+                                return a.actualClass.localeCompare(b.actualClass);
+                            }
+                            // Then sort alphabetically by name
+                            return a.name.localeCompare(b.name);
+                        });
+
+                        return {
+                            status: 200,
+                            searchValue: searchValue,
+                            searchType: searchType,
+                            results: results,
+                            instance: host,
+                            found: true,
+                            totalResults: results.length,
+                            searchedTable: searchConfig.table,
+                            isStartsWithSearch: isStartsWithSearch,
+                            hitLimit: data.result.length === maxResults // Flag when we hit the API limit
+                        };
+                    }
+                }
+            }
+        } catch (error) {
+            debugLog(`*SNOW TOOL BELT* Error searching ${searchConfig.table}:`, error);
+            // Continue to next table on error
+        }
+    }
+
+    // No results found in any table
+    return {
+        status: 404,
+        searchValue: searchValue,
+        searchType: searchType,
+        displayValue: "No matches found",
+        instance: host,
+        found: false
     };
 }
 
@@ -1290,18 +1583,19 @@ async function searchThroughTables(tableNames, systemId, host, token) {
                                     sendResponse({ "nodes": [], "current": "", "status": 500 });
                                 });
                             return true;
-                        } else if (request.command === "searchSystemId") {
+                        } else if (request.command === "searchObject") {
                             /**
-                             * Search for a system ID
+                             * Search for objects by sys_id or name
                              */
-                            debugLog("*SNOW TOOL BELT* Searching for system ID:", request.systemId);
+                            debugLog("*SNOW TOOL BELT* Searching for object:", request.searchValue, "Type:", request.searchType);
 
                             // Check if we have the authentication token
                             if (!context.g_ck) {
                                 debugLog("*SNOW TOOL BELT* No authentication token available");
                                 sendResponse({
                                     status: 401,
-                                    systemId: request.systemId,
+                                    searchValue: request.searchValue,
+                                    searchType: request.searchType,
                                     table: "error",
                                     displayValue: "Authentication token not available",
                                     instance: request.instance || window.location.hostname,
@@ -1310,54 +1604,56 @@ async function searchThroughTables(tableNames, systemId, host, token) {
                                 return true;
                             }
 
-                            // First, get all table names from sys_db_object where super_class is empty
-                            const tableApiUrl = new Request(window.location.origin + "/api/now/table/sys_db_object?sysparm_query=super_class=NULL^sys_update_name!=NULL^sys_class_name=sys_db_object^nameNOT LIKE00%5EORDERBYDESCsys_updated_on&sysparm_fields=name");
-
-                            const headers = new Headers();
-                            headers.append('Content-Type', 'application/json');
-                            headers.append('Accept', 'application/json');
-                            headers.append('Cache-Control', 'no-cache');
-                            headers.append('X-UserToken', context.g_ck);
-
-                            fetch(tableApiUrl, {
-                                credentials: "same-origin",
-                                headers: headers
-                            })
-                                .then(function (response) {
-                                    if (response.ok && response.status === 200) {
-                                        return response.json();
-                                    } else {
-                                        throw new Error(`API request failed with status: ${response.status}`);
-                                    }
-                                })
-                                .then(function (data) {
-                                    debugLog("*SNOW TOOL BELT* sys_db_object query result:", data);
-                                    debugLog("*SNOW TOOL BELT* Found", data.result.length, "tables with empty super_class");
-
-                                    // Log the table names
-                                    const tableNames = data.result.map(record => record.name);
-                                    debugLog("*SNOW TOOL BELT* Table names:", tableNames);
-
-                                    // Now search through each table for the sys_id
-                                    return searchThroughTables(tableNames, request.systemId, host, context.g_ck);
-                                })
-                                .then(function (searchResult) {
-                                    sendResponse(searchResult);
-                                })
-                                .catch(function (error) {
-                                    debugLog("*SNOW TOOL BELT* Error querying sys_db_object:", error);
-
-                                    const errorResponse = {
-                                        status: 500,
-                                        systemId: request.systemId,
-                                        table: "error",
-                                        displayValue: "Error: " + error.message,
-                                        instance: request.instance || window.location.hostname,
-                                        found: false
-                                    };
-
-                                    sendResponse(errorResponse);
+                            // Search based on type
+                            if (request.searchType === 'objectName' || request.searchType === 'multiSearch') {
+                                // Object/multi search - search sys_metadata and other tables
+                                searchByObjectName(request.searchValue, host, context.g_ck, request.searchType)
+                                    .then(function (searchResult) {
+                                        sendResponse(searchResult);
+                                    })
+                                    .catch(function (error) {
+                                        debugLog("*SNOW TOOL BELT* Error in object search:", error);
+                                        const errorResponse = {
+                                            status: 500,
+                                            searchValue: request.searchValue,
+                                            searchType: request.searchType,
+                                            table: "error",
+                                            displayValue: "Error: " + error.message,
+                                            instance: request.instance || window.location.hostname,
+                                            found: false
+                                        };
+                                        sendResponse(errorResponse);
+                                    });
+                            } else if (request.searchType === 'sysId') {
+                                // sys_id search - first try priority tables, then all tables if needed
+                                searchSysIdWithPriority(request.searchValue, host, context.g_ck)
+                                    .then(function (searchResult) {
+                                        sendResponse(searchResult);
+                                    })
+                                    .catch(function (error) {
+                                        debugLog("*SNOW TOOL BELT* Error in sys_id search:", error);
+                                        const errorResponse = {
+                                            status: 500,
+                                            searchValue: request.searchValue,
+                                            searchType: request.searchType,
+                                            table: "error",
+                                            displayValue: "Error: " + error.message,
+                                            instance: request.instance || window.location.hostname,
+                                            found: false
+                                        };
+                                        sendResponse(errorResponse);
+                                    });
+                            } else {
+                                sendResponse({
+                                    status: 400,
+                                    searchValue: request.searchValue,
+                                    searchType: request.searchType,
+                                    table: "error",
+                                    displayValue: "Invalid search type",
+                                    instance: request.instance || window.location.hostname,
+                                    found: false
                                 });
+                            }
 
                             return true;
                         } else if (request.command === "switchNode") {
