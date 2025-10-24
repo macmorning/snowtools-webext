@@ -1130,6 +1130,10 @@ async function searchThroughTables(tableNames, sysId, host, token) {
                         getDisplayValue(record.sys_id) ||
                         sysId;
 
+                    const directUrl = `https://${host}/${actualClass}.do?sys_id=${sysId}`;
+                    debugLog("*SNOW TOOL BELT* Generated directUrl:", directUrl);
+                    debugLog("*SNOW TOOL BELT* Using actualClass:", actualClass, "instead of table:", tableName);
+
                     return {
                         status: 200,
                         searchType: 'sysId',
@@ -1138,7 +1142,7 @@ async function searchThroughTables(tableNames, sysId, host, token) {
                         table: tableName,
                         actualClass: actualClass,
                         displayValue: displayValue,
-                        directUrl: `https://${host}/${actualClass}.do?sys_id=${sysId}`,
+                        directUrl: directUrl,
                         instance: host,
                         found: true
                     };
@@ -1183,8 +1187,8 @@ async function searchSysIdWithPriority(sysId, host, token) {
 
     // Priority tables to search first
     const priorityTables = [
-        "task",
         "sys_metadata",
+        "task",
         "sn_jny_journey",
         "sys_flow_context",
         "sys_user",
@@ -1194,7 +1198,8 @@ async function searchSysIdWithPriority(sysId, host, token) {
         "sys_user_has_role",
         "sys_properties",
         "sysapproval_approver",
-        "sysevent"
+        "sysevent",
+        "core_company"
     ];
 
     debugLog("*SNOW TOOL BELT* Searching priority tables first:", priorityTables.join(", "));

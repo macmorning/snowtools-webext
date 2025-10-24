@@ -5,7 +5,8 @@
         "items": [
             "Removed the manual theme selection, the extension follows your browser preferences",
             "Made searching for sys_id a lot faster most of the time",
-            "Added search for object names, sys_properties, tasks, users, ... Use '*' at the end for a 'STARTSWITH' search"
+            "Added search for object names, sys_properties, tasks, users, ... Use '*' at the end for a 'STARTSWITH' search",
+            "Corrected multiple issues when running the extension is an independant windows"
         ]
     },
     {

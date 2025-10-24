@@ -343,6 +343,7 @@ const groupInstanceTabs = async (instance) => {
  * @param {Integer} windowId Id of the window in which the new tab should be opened
  */
 const newTab = async (evt, url, windowId) => {
+    console.log("*SNOW TOOL BELT* newTab on: " + url);
     let targetUrl;
     let instance;
 
@@ -358,7 +359,7 @@ const newTab = async (evt, url, windowId) => {
                 targetUrl = url;
             } else {
                 instance = (evt.target.getAttribute("data-instance") ? evt.target.getAttribute("data-instance") : evt.target.value);
-                targetUrl = "https://" + instance + "/now/nav/ui/classic/params/target/blank.do";
+                targetUrl = "https://" + instance + "/";
             }
 
             // Create tab options
@@ -653,8 +654,16 @@ const performSearch = () => {
     const searchButton = document.getElementById("searchButton");
     if (searchButton) searchButton.disabled = true;
 
-    // Show loading animation
-    showSearchLoader(true);
+    // Show loading animation with progress indication
+    if (searchType.type === 'sysId') {
+        showSearchProgress("Searching popular tables first.");
+        // After 2 seconds, update message to indicate extended search
+        context.searchProgressTimeout = setTimeout(() => {
+            showSearchProgress("The record was not found in popular tables. Now searching everywhere.<br><small>It may take a while.</small>");
+        }, 2000);
+    } else {
+        showSearchLoader(true);
+    }
 
     // Send message to content script
     // For multiSearch type, content script should search in this order:
@@ -669,13 +678,27 @@ const performSearch = () => {
     }, (response) => {
         showSearchLoader(false);
 
+        // Clear progress timeout if it exists
+        if (context.searchProgressTimeout) {
+            clearTimeout(context.searchProgressTimeout);
+            context.searchProgressTimeout = null;
+        }
+
         // Re-enable UI elements
         searchInputElement.disabled = false;
         const searchButton = document.getElementById("searchButton");
         if (searchButton) searchButton.disabled = false;
 
         if (chrome.runtime.lastError) {
-            searchResults.innerHTML = `Error: ${chrome.runtime.lastError.message}`;
+            searchResults.innerHTML = `
+                <div class="search-error">
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-content">
+                        <strong>Connection Error</strong><br>
+                        <small>The content script is not available on this tab. Please reload the tab and try again.</small>
+                    </div>
+                </div>
+            `;
             return;
         }
 
@@ -742,12 +765,32 @@ const showSearchLoader = (show) => {
 };
 
 /**
+ * Shows search progress with a specific message
+ * @param {string} message - Progress message to display
+ */
+const showSearchProgress = (message) => {
+    const searchResults = document.getElementById("searchResults");
+    if (!searchResults) return;
+
+    searchResults.innerHTML = `
+        <div class="search-progress">
+            <div class="progress-message">${message}</div>
+            <div class="progress-dots">
+                <span class="dot1">.</span><span class="dot2">.</span><span class="dot3">.</span>
+            </div>
+        </div>
+    `;
+};
+
+/**
  * Displays the search results
  * @param {object} response - The response from the content script
  */
 const displaySearchResults = (response) => {
     const searchResults = document.getElementById("searchResults");
     if (!searchResults) return;
+
+
 
     if (response.found) {
         let resultHtml = '';

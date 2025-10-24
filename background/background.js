@@ -118,15 +118,23 @@ const getOptions = () => {
             // update tab icons
             chrome.tabs.query({}, (tabs) => {
                 for (var i = 0; i < tabs.length; ++i) {
-                    let instance = new URL(tabs[i].url).hostname;
-                    if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
-                        chrome.tabs.sendMessage(tabs[i].id, { "command": "updateFavicon", "color": context.instanceOptions[instance]["color"] }, (response) => {
-                            // Handle the case where content script is not loaded
-                            if (chrome.runtime.lastError) {
-                                // Silently ignore - content script may not be loaded yet
-                                console.log("*SNOW TOOL BELT BG* Content script not ready for favicon update:", chrome.runtime.lastError.message);
-                            }
-                        });
+                    try {
+                        if (!tabs[i].url || (!tabs[i].url.startsWith('http://') && !tabs[i].url.startsWith('https://'))) {
+                            continue;
+                        }
+                        let instance = new URL(tabs[i].url).hostname;
+                        if (context.instanceOptions[instance] !== undefined && context.instanceOptions[instance]["color"]) {
+                            chrome.tabs.sendMessage(tabs[i].id, { "command": "updateFavicon", "color": context.instanceOptions[instance]["color"] }, (response) => {
+                                // Handle the case where content script is not loaded
+                                if (chrome.runtime.lastError) {
+                                    // Silently ignore - content script may not be loaded yet
+                                    console.log("*SNOW TOOL BELT BG* Content script not ready for favicon update:", chrome.runtime.lastError.message);
+                                }
+                            });
+                        }
+                    } catch (error) {
+                        // Invalid URL, skip this tab
+                        console.log("*SNOW TOOL BELT BG* Invalid URL in tab update:", tabs[i].url, error.message);
                     }
                 }
             });
@@ -141,13 +149,26 @@ const getOptions = () => {
  * @param {Tab} tab the Tab object itself
  */
 function tabUpdated(tabId, changeInfo, tab) {
-    let url = new URL(tab.url);
-    let instance = url.hostname;
+    // Check if tab.url exists and is a valid HTTP/HTTPS URL
+    if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
+        return false;
+    }
+    
+    let url;
+    let instance;
+    
+    try {
+        url = new URL(tab.url);
+        instance = url.hostname;
+    } catch (error) {
+        // Invalid URL, skip processing
+        console.log("*SNOW TOOL BELT BG* Invalid URL in tabUpdated:", tab.url, error.message);
+        return false;
+    }
+    
     if (context.instanceOptions[instance] === undefined) {
         return false;
     }
-
-
 }
 
 /**
@@ -157,12 +178,20 @@ function tabUpdated(tabId, changeInfo, tab) {
 const popIn = (tabid) => {
     tabid = parseInt(tabid);
     chromeAPI.tabs.get(tabid, (tab) => {
-        let url = new URL(tab.url);
-        if (url.pathname !== "/nav_to.do") {
-            let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
-            chromeAPI.tabs.update(tab.id, { url: newUrl });
-        } else {
-            displayMessage("Already in a frame");
+        try {
+            if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
+                console.log("*SNOW TOOL BELT BG* Invalid URL for popIn:", tab.url);
+                return;
+            }
+            let url = new URL(tab.url);
+            if (url.pathname !== "/nav_to.do") {
+                let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
+                chromeAPI.tabs.update(tab.id, { url: newUrl });
+            } else {
+                displayMessage("Already in a frame");
+            }
+        } catch (error) {
+            console.error("*SNOW TOOL BELT BG* Error in popIn:", error.message);
         }
     });
 };
@@ -172,12 +201,16 @@ const popIn = (tabid) => {
  * @param {Object} tab The tab from which the command was sent
  */
 const openVersions = (tab) => {
-    // console.log("*SNOW TOOL BELT BG* openVersions");
-    let url = new URL(tab.url);
-    if (url.pathname == "/nav_to.do") {
-        // this is a framed nav window, get the base uri
-        url = new URL("https://" + url.host + url.searchParams.get("uri"));
-    }
+    try {
+        if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
+            console.log("*SNOW TOOL BELT BG* Invalid URL for openVersions:", tab.url);
+            return false;
+        }
+        let url = new URL(tab.url);
+        if (url.pathname == "/nav_to.do") {
+            // this is a framed nav window, get the base uri
+            url = new URL("https://" + url.host + url.searchParams.get("uri"));
+        }
     var tableName = url.pathname.replace("/", "").replace(".do", "");
     var sysId = url.searchParams.get("sys_id");
     if (url.pathname.startsWith("/now/nav/ui/classic/params/target")) {
@@ -198,6 +231,10 @@ const openVersions = (tab) => {
     };
     // console.log(createData);
     let creating = chrome.windows.create(createData);
+    } catch (error) {
+        console.error("*SNOW TOOL BELT BG* Error in openVersions:", error.message);
+        return false;
+    }
 }
 
 /**
@@ -205,14 +242,22 @@ const openVersions = (tab) => {
  * @param {Object} tab The tab from which the command was sent
  */
 const openBackgroundScriptWindow = (tab) => {
-    let url = new URL(tab.url);
-    let createData = {
-        type: "popup",
-        url: "https://" + url.host + "/sys.scripts.modern.do",
-        width: 700,
-        height: 850
-    };
-    let creating = chrome.windows.create(createData);
+    try {
+        if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
+            console.log("*SNOW TOOL BELT BG* Invalid URL for openBackgroundScriptWindow:", tab.url);
+            return;
+        }
+        let url = new URL(tab.url);
+        let createData = {
+            type: "popup",
+            url: "https://" + url.host + "/sys.scripts.modern.do",
+            width: 700,
+            height: 850
+        };
+        let creating = chrome.windows.create(createData);
+    } catch (error) {
+        console.error("*SNOW TOOL BELT BG* Error in openBackgroundScriptWindow:", error.message);
+    }
 }
 
 /**
@@ -241,9 +286,14 @@ const cmdListener = (command) => {
         currentTab = tabs[0];
         let hostname;
         try {
+            if (!currentTab.url || (!currentTab.url.startsWith('http://') && !currentTab.url.startsWith('https://'))) {
+                console.log("*SNOW TOOL BELT BG* Invalid URL for command:", currentTab.url);
+                return false;
+            }
             hostname = new URL(currentTab.url).hostname;
         } catch (e) {
             console.error("*SNOW TOOL BELT BG* Unable to get sender hostname: " + e);
+            return false;
         }
         let test = isServiceNow(hostname);
         console.warn(test);

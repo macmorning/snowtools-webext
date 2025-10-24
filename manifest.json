@@ -8,6 +8,7 @@
     "48": "icons/tools-48.png",
     "128": "icons/tools-128.png"
   },
+  "incognito": "split",
   "commands": {
     "_execute_action": {
       "suggested_key": {
@@ -38,9 +39,7 @@
     }
   },
   "background": {
-    "scripts": [
-      "background/background.js"
-    ]
+    "service_worker": "background/background.js"
   },
   "action": {
     "default_title": "SNOW Toolbelt",
@@ -73,6 +72,7 @@
   },
   "permissions": [
     "tabs",
+    "tabGroups",
     "storage",
     "cookies",
     "scripting"
