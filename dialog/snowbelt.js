@@ -29,6 +29,7 @@ const context = {
     commands: {},
     updateSets: {}, // one value per window and instance
     frameExceptions: ["/navpage.do", "/stats.do", "/nav_to.do", "/cache.do", "/login.do", "/workflow_ide.do", "/hi_login.do", "/auth_redirect.do", "/ssologin.do", "/profile_update.do"] // URLs that should not be reframed
+
 };
 
 /**
@@ -437,6 +438,8 @@ const closeTab = (evt) => {
  * Moves tab into a navigation frame
  * @param {object} evt the event that triggered the action
  */
+
+
 const popIn = (evt) => {
     let tabid = "";
     if (evt.target.getAttribute("data-id")) {
@@ -1436,10 +1439,7 @@ const refreshList = () => {
             el.addEventListener("click", closeTab);
         });
 
-        elements = document.querySelectorAll("a[title=\"reopen in a frame\"]");
-        [].forEach.call(elements, (el) => {
-            el.addEventListener("click", popIn);
-        });
+
 
         // add the "open on" menu
         elements = document.querySelectorAll("a[title=\"open on...\"]");
@@ -1477,6 +1477,11 @@ const refreshList = () => {
         });
 
         // add close tabs actions
+        elements = document.querySelectorAll("a[title=\"reopen in a frame\"]");
+        [].forEach.call(elements, (el) => {
+            el.addEventListener("click", popIn);
+        });
+
         elements = document.querySelectorAll("a[title=\"close tabs\"]");
         [].forEach.call(elements, (el) => {
             el.addEventListener("click", closeTabs);
@@ -1759,6 +1764,7 @@ const updateTabInfo = (instance, windowId, index) => {
                 });
             }
         }
+
 
         // show/hide "reopen in frame" button
         const shouldShowReframeButton = url.pathname.endsWith(".do")

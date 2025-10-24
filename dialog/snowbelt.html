@@ -23,9 +23,9 @@
                 <input placeholder="enter search terms" type="text" id="searchInput" list="words" />
             </div>
             <div class="search-row-2">
-                <button id="search_custom">search</button>
-                <button id="search_doc">doc</button>
-                <button id="search_api">api</button>
+                <button id="search_custom" class="btn-primary">search</button>
+                <button id="search_doc" class="btn-secondary">doc</button>
+                <button id="search_api" class="btn-secondary">api</button>
             </div>
         </div>
         <datalist id="words"></datalist>
@@ -75,6 +75,7 @@
             <span id="tab{{tabid}}_title">{{title}}</span>
             <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}"
                 class="no_underline button-muted tab-commands" title="reopen in a frame">&#8690;</a>
+
         </li>
     </template>
 
@@ -114,7 +115,7 @@
                         <div class="search-input-container">
                             <input type="text" id="objectSearchInput"
                                 placeholder="sys_id, object, task number, username, group (use * for starts with)">
-                            <button id="objectSearchButton" class="search-btn-inline">⌕</button>
+                            <button id="objectSearchButton" class="btn-primary search-btn-inline">⌕</button>
                         </div>
                         <div class="search-help" id="searchHelp">
                             <small>Enter a sys_id, object name, task number, username, or group name. Add * at the end
@@ -138,7 +139,6 @@
                         <span id="whatsnewText"></span>
                     </div>
                     <button id="whatsnewRemember" class="thin btn-secondary">Ok, do not display again</button>
-                    <a href="#" class="sp-close">×</a>
                 </div>
                 <a href="#" class="sp-back"></a>
             </div>

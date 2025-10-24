@@ -1367,7 +1367,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                             debugLog("*SNOW TOOL BELT* Final actualClass for object search:", actualClass);
                         } else if (searchConfig.table === 'task') {
                             displayName = getDisplayName(record.number);
-                            
+
                             // Get the actual class name from sys_class_name field for tasks
                             actualClass = searchConfig.table; // fallback
                             if (record.sys_class_name) {

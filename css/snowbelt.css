@@ -1,23 +1,79 @@
 :root {
+    /* Background colors */
     --main-bg-color: #F7F7F7;
+    --alt-bg-color: #e7e7e7;
+    --surface-white: #ffffff;
+    --surface-light-gray: #f5f5f5;
+
+    /* Text colors */
     --main-color: #293E40;
     --secondary-color: #000000;
+    --text-dark: #333333;
+    --text-muted: #666666;
+
+    /* Accent colors */
+    --primary-teal: #4db6ac;
+    --primary-teal-hover: #26a69a;
     --muted-color: #81B5A1;
-    --alt-bg-color: #e7e7e7;
+    --highlight: #d66419;
+
+    /* Border colors */
+    --border-light: #ddd;
+    --border-medium: #ccc;
     --disabled-color: #cecece;
+
+    /* Button colors */
+    --btn-primary-bg: var(--primary-teal);
+    --btn-primary-bg-hover: var(--primary-teal-hover);
+    --btn-primary-text: white;
+    --btn-secondary-bg: var(--alt-bg-color);
+    --btn-secondary-bg-hover: var(--primary-teal);
+    --btn-secondary-text: var(--main-color);
+    --btn-secondary-text-hover: white;
+    --btn-secondary-border: var(--border-light);
+
+    /* Legacy variables for compatibility */
     --btn-color: var(--main-color);
     --btn-hover-color: #81B5A1;
-    --highlight: #d66419;
+}
+
+/* Reframe button visibility */
+.reframe-button.hidden {
+    display: none !important;
+}
+
+.reframe-button.visible {
+    display: inline !important;
 }
 
 /* Dark theme variables */
 @media (prefers-color-scheme: dark) {
     :root {
+        /* Background colors */
         --main-bg-color: #1e1e1e;
+        --alt-bg-color: #2d2d2d;
+        --surface-white: #f5f5f5b4;
+        --surface-light-gray: #f0f0f0;
+
+        /* Text colors */
         --main-color: #e0f2f1;
         --secondary-color: #ffffff;
+        --text-dark: #333333;
+        --text-muted: #666666;
+
+        /* Accent colors remain the same */
+        --primary-teal: #4db6ac;
+        --primary-teal-hover: #26a69a;
         --muted-color: #a5d6a7;
-        --alt-bg-color: #2d2d2d;
+
+        /* Border colors */
+        --border-light: #555;
+        --border-medium: #666;
+
+        /* Button colors for dark theme */
+        --btn-secondary-bg: var(--alt-bg-color);
+        --btn-secondary-text: var(--main-color);
+        --btn-secondary-border: var(--border-light);
         --disabled-color: #757575;
         --btn-color: var(--main-color);
         --btn-hover-color: #4db6ac;
@@ -176,78 +232,7 @@ img#show_news {
     right: 110px;
 }
 
-/* Icon hover animations */
-img#config:hover {
-    animation: rotate-360 0.6s ease-in-out !important;
-    transform-origin: center center;
-}
 
-img#show_news:hover {
-    animation: shake-zoom 0.5s ease-in-out !important;
-    transform-origin: center center;
-}
-
-img#help:hover {
-    animation: flip-horizontal 0.6s ease-in-out !important;
-    transform-origin: center center;
-}
-
-img#open_in_panel:hover {
-    animation: pop-out 0.4s ease-in-out !important;
-    transform-origin: center center;
-}
-
-/* Keyframe animations */
-@keyframes rotate-360 {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-@keyframes shake-zoom {
-    0% {
-        transform: scale(1) translateX(0);
-    }
-    25% {
-        transform: scale(1.1) translateX(-1px);
-    }
-    50% {
-        transform: scale(1.15) translateX(1px);
-    }
-    75% {
-        transform: scale(1.1) translateX(-1px);
-    }
-    100% {
-        transform: scale(1) translateX(0);
-    }
-}
-
-@keyframes flip-horizontal {
-    0% {
-        transform: rotateY(0deg);
-    }
-    50% {
-        transform: rotateY(180deg);
-    }
-    100% {
-        transform: rotateY(0deg);
-    }
-}
-
-@keyframes pop-out {
-    0% {
-        transform: scale(1) translate(0, 0);
-    }
-    50% {
-        transform: scale(1.2) translate(2px, -2px);
-    }
-    100% {
-        transform: scale(1) translate(0, 0);
-    }
-}
 
 img#open_in_panel {
     right: 150px;
@@ -570,7 +555,7 @@ label {
 button {
     width: 100%;
     margin: auto;
-    height: 29px;
+    height: 31px;
     background-color: var(--btn-color);
     color: var(--main-bg-color);
     margin-bottom: 6px;
@@ -1487,14 +1472,7 @@ c visibility and display classes */
     display: block !important;
 }
 
-/* Reframe button visibility */
-.reframe-button.hidden {
-    display: none !important;
-}
 
-.reframe-button.visible {
-    display: inline !important;
-}
 
 /* Ta
 b layout fixes to prevent wrapping */
@@ -2184,9 +2162,13 @@ body.theme-auto.theme-dark-detected .search-error {
 }
 
 @keyframes dot-pulse {
-    0%, 60%, 100% {
+
+    0%,
+    60%,
+    100% {
         opacity: 0.3;
     }
+
     30% {
         opacity: 1;
     }
@@ -2728,25 +2710,48 @@ input::placeholder {
     border-radius: 0 4px 4px 0;
 }
 
+/* Generic button classes */
+.btn-primary {
+    background-color: var(--btn-primary-bg) !important;
+    color: var(--btn-primary-text) !important;
+    border-color: var(--btn-primary-bg) !important;
+}
+
+.btn-primary:hover {
+    background-color: var(--btn-primary-bg-hover) !important;
+    border-color: var(--btn-primary-bg-hover) !important;
+}
+
+.btn-secondary {
+    background-color: var(--btn-secondary-bg) !important;
+    color: var(--btn-secondary-text) !important;
+    border-color: var(--btn-secondary-border) !important;
+}
+
+.btn-secondary:hover {
+    background-color: var(--btn-secondary-bg-hover) !important;
+    color: var(--btn-secondary-text-hover) !important;
+    border-color: var(--btn-secondary-bg-hover) !important;
+}
+
+/* Search row specific styling */
 .search-row-2 button:not(:first-child) {
     border-left: none;
 }
 
-.search-row-2 button:hover {
-    background-color: #26a69a;
+/* Specific radius styling */
+#search_custom {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
 }
 
-#search_doc,
+#search_doc {
+    border-radius: 0;
+}
+
 #search_api {
-    background-color: #f5f5f5;
-    color: #333;
-    border-color: #ddd;
-}
-
-#search_doc:hover,
-#search_api:hover {
-    background-color: #4db6ac;
-    color: white;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
 }
 
 /* Dark theme for inputs and selects */
@@ -2769,28 +2774,7 @@ input::placeholder {
         color: #90a4ae;
     }
 
-    .search-row-2 button {
-        background-color: #4db6ac;
-        border-color: #4db6ac;
-    }
 
-    .search-row-2 button:hover {
-        background-color: #26a69a;
-    }
-
-    #search_doc,
-    #search_api {
-        background-color: #2d2d2d;
-        color: #e0f2f1;
-        border-color: #555;
-    }
-
-    #search_doc:hover,
-    #search_api:hover {
-        background-color: #4db6ac;
-        color: white;
-        border-color: #4db6ac;
-    }
 }
 
 body.theme-dark input,
@@ -2815,34 +2799,7 @@ body.theme-auto.theme-dark-detected input::placeholder {
     color: #90a4ae;
 }
 
-body.theme-dark .search-row-2 button,
-body.theme-auto.theme-dark-detected .search-row-2 button {
-    background-color: #4db6ac;
-    border-color: #4db6ac;
-}
 
-body.theme-dark .search-row-2 button:hover,
-body.theme-auto.theme-dark-detected .search-row-2 button:hover {
-    background-color: #26a69a;
-}
-
-body.theme-dark #search_doc,
-body.theme-dark #search_api,
-body.theme-auto.theme-dark-detected #search_doc,
-body.theme-auto.theme-dark-detected #search_api {
-    background-color: #2d2d2d;
-    color: #e0f2f1;
-    border-color: #555;
-}
-
-body.theme-dark #search_doc:hover,
-body.theme-dark #search_api:hover,
-body.theme-auto.theme-dark-detected #search_doc:hover,
-body.theme-auto.theme-dark-detected #search_api:hover {
-    background-color: #4db6ac;
-    color: white;
-    border-color: #4db6ac;
-}
 
 /* Search dialog specific styling */
 .search-container {

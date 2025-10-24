@@ -185,7 +185,9 @@ const popIn = (tabid) => {
             }
             let url = new URL(tab.url);
             if (url.pathname !== "/nav_to.do") {
-                let newUrl = "https://" + url.host + "/nav_to.do?uri=" + encodeURI(url.pathname + url.search);
+                // Remove leading slash from pathname before encoding
+                let pathWithoutSlash = url.pathname.startsWith('/') ? url.pathname.substring(1) : url.pathname;
+                let newUrl = "https://" + url.host + "/now/nav/ui/classic/params/target/" + encodeURIComponent(pathWithoutSlash + url.search);
                 chromeAPI.tabs.update(tab.id, { url: newUrl });
             } else {
                 displayMessage("Already in a frame");
@@ -380,11 +382,7 @@ const msgListener = (message, sender, sendResponse) => {
     } catch (e) {
         console.error("*SNOW TOOL BELT BG* Unable to get sender hostname: " + e);
     }
-    if (message.command === "execute-reframe" && message.tabid) {
-        popIn(message.tabid);
-        sendResponse(true);
-        return true;
-    }
+
     if (message.command === "removeCookie" && message.instance) {
         let targetInstance = message.instance;
         chrome.cookies.getAll({ "url": "https://" + targetInstance }, function (cookiesArray) {
@@ -398,6 +396,11 @@ const msgListener = (message, sender, sendResponse) => {
         return true;
     } else if (message.command === "isServiceNow" && sender.url) {
         sendResponse(isServiceNow(hostname));
+    }
+    if (message.command === "execute-reframe" && message.tabid) {
+        popIn(message.tabid);
+        sendResponse(true);
+        return true;
     }
     sendResponse("");
 };
