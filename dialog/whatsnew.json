@@ -4,7 +4,7 @@
         "msg": "Most notable changes:",
         "items": [
             "Added keyboard shortcuts button with live tooltip showing configured shortcuts",
-            "Updated the 'show versions' feature (check your shortcuts!) to open any object versions incl. flows from designed"
+            "Updated the 'show versions' feature (check your shortcuts!) to open any object incl. flows from designer"
         ]
     },
     {
