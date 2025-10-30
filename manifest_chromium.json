@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ServiceNow tool belt",
-  "version": "7.1.0",
+  "version": "7.2.0",
   "description": "A set of tools for ServiceNow developers and administrators",
   "homepage_url": "https://github.com/macmorning/snowtools-webext",
   "icons": {
@@ -21,7 +21,7 @@
       "suggested_key": {
         "default": "Alt+N"
       },
-      "description": "Switch from technical to display field names"
+      "description": "Show technical field names"
     },
     "execute-openversions": {
       "suggested_key": {
