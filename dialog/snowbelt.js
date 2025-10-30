@@ -459,6 +459,31 @@ const popIn = (evt) => {
 };
 
 /**
+ * Loads keyboard shortcuts and displays them in the shortcuts button tooltip
+ */
+const loadShortcutsTooltip = () => {
+    if (typeof chrome !== 'undefined' && chrome.commands && chrome.commands.getAll) {
+        chrome.commands.getAll((commands) => {
+            if (commands && commands.length > 0) {
+                let tooltipText = "Keyboard shortcuts:\n";
+                commands.forEach((command) => {
+                    if (command.shortcut) {
+                        const description = command.name === '_execute_action' ? 'Open tools popup' : command.description;
+                        tooltipText += `${description}: ${command.shortcut}\n`;
+                    }
+                });
+                // Remove the last newline and set the tooltip
+                tooltipText = tooltipText.trim();
+                const shortcutsButton = document.getElementById("shortcuts");
+                if (shortcutsButton) {
+                    shortcutsButton.title = tooltipText;
+                }
+            }
+        });
+    }
+};
+
+/**
  * Closes all tabs given their instance
  * @param {object} evt the event that triggered the action
  */
@@ -1284,6 +1309,10 @@ const getOptions = () => {
             document.getElementById("config").addEventListener("click", openOptions);
             document.getElementById("open_in_panel").addEventListener("click", openInPanel);
             document.getElementById("show_news").addEventListener("click", showWhatsNew);
+            document.getElementById("shortcuts").addEventListener("click", openShortcutsPage);
+            
+            // Load and display keyboard shortcuts in tooltip
+            loadShortcutsTooltip();
 
 
             document.getElementById("new_tab").addEventListener("change", newTab);

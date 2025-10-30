@@ -224,19 +224,23 @@ img#config {
     right: 30px;
 }
 
-img#help {
+img#shortcuts {
     right: 70px;
 }
 
-img#show_news {
+img#help {
     right: 110px;
 }
 
-
-
-img#open_in_panel {
+img#show_news {
     right: 150px;
 }
+
+img#open_in_panel {
+    right: 190px;
+}
+
+
 
 p#tip {
     opacity: 1;

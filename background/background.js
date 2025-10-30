@@ -153,10 +153,10 @@ function tabUpdated(tabId, changeInfo, tab) {
     if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
         return false;
     }
-    
+
     let url;
     let instance;
-    
+
     try {
         url = new URL(tab.url);
         instance = url.hostname;
@@ -165,7 +165,7 @@ function tabUpdated(tabId, changeInfo, tab) {
         console.log("*SNOW TOOL BELT BG* Invalid URL in tabUpdated:", tab.url, error.message);
         return false;
     }
-    
+
     if (context.instanceOptions[instance] === undefined) {
         return false;
     }
@@ -208,31 +208,33 @@ const openVersions = (tab) => {
             console.log("*SNOW TOOL BELT BG* Invalid URL for openVersions:", tab.url);
             return false;
         }
+
         let url = new URL(tab.url);
-        if (url.pathname == "/nav_to.do") {
-            // this is a framed nav window, get the base uri
-            url = new URL("https://" + url.host + url.searchParams.get("uri"));
+
+        // Extract sys_id from URL using regex to find first 32-character alphanumeric lowercase string
+        // Look for patterns after "=" or "%3D" (URL encoded "=")
+        const sysIdRegex = /(?:=|%3D)([a-f0-9]{32})(?:[^a-f0-9]|$)/i;
+        const match = tab.url.match(sysIdRegex);
+
+        if (!match || !match[1]) {
+            console.log("*SNOW TOOL BELT BG* No sys_id found in URL:", tab.url);
+            return false;
         }
-    var tableName = url.pathname.replace("/", "").replace(".do", "");
-    var sysId = url.searchParams.get("sys_id");
-    if (url.pathname.startsWith("/now/nav/ui/classic/params/target")) {
-        // this the "new" ui management
-        tableName = tableName.replace("now/nav/ui/classic/params/target/", "").split("%3F")[0];
-        sysId = url.pathname.split("%3D")[1].split("%26")[0];
-    }
-    // console.log("*SNOW TOOL BELT BG* tableName: " + tableName);
-    // console.log("*SNOW TOOL BELT BG* sysId: " + sysId);
-    if (!tableName || !sysId) {
-        return false;
-    }
-    let createData = {
-        type: "popup",
-        url: "https://" + url.host + "/sys_update_version_list.do?sysparm_query=nameSTARTSWITH" + tableName + "_" + sysId,
-        width: 1200,
-        height: 500
-    };
-    // console.log(createData);
-    let creating = chrome.windows.create(createData);
+
+        const sysId = match[1].toLowerCase();
+        console.log("*SNOW TOOL BELT BG* Found sys_id:", sysId);
+
+        // Use existing logic to open the popup window
+        let createData = {
+            type: "popup",
+            url: "https://" + url.host + "/sys_update_version_list.do?sysparm_query=nameCONTAINS" + sysId+"^ORDERBYDESCsys_recorded_at",
+            width: 1200,
+            height: 500
+        };
+
+        chrome.windows.create(createData);
+        return true;
+
     } catch (error) {
         console.error("*SNOW TOOL BELT BG* Error in openVersions:", error.message);
         return false;

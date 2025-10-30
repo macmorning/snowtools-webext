@@ -1,5 +1,13 @@
 [
     {
+        "version": "7.2.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Added keyboard shortcuts button with live tooltip showing configured shortcuts",
+            "Updated the 'show versions' feature (check your shortcuts!) to open any object versions incl. flows from designed"
+        ]
+    },
+    {
         "version": "7.1.0",
         "msg": "Most notable changes:",
         "items": [
