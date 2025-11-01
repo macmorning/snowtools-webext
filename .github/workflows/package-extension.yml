@@ -101,10 +101,10 @@ jobs:
       with:
         name: snowtools-firefox-${{ github.ref_name }}
         
-    - name: Download Chromium package
-      uses: actions/download-artifact@v4
-      with:
-        name: snowtools-chromium-${{ github.ref_name }}
+    # - name: Download Chromium package
+    #   uses: actions/download-artifact@v4
+    #   with:
+    #     name: snowtools-chromium-${{ github.ref_name }}
         
     - name: Publish to Firefox Add-ons
       uses: browser-actions/release-firefox-addon@latest
@@ -114,20 +114,20 @@ jobs:
         auth-api-secret: ${{ secrets.FIREFOX_API_SECRET }}
         addon-path: snowtools-firefox-${{ github.ref_name }}.zip
         
-    - name: Publish to Chrome Web Store
-      uses: browser-actions/release-chrome-extension@latest
-      with:
-        extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
-        client-id: ${{ secrets.CHROME_CLIENT_ID }}
-        client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-        refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-        extension-path: snowtools-chromium-${{ github.ref_name }}.zip
+    # - name: Publish to Chrome Web Store
+    #   uses: browser-actions/release-chrome-extension@latest
+    #   with:
+    #     extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+    #     client-id: ${{ secrets.CHROME_CLIENT_ID }}
+    #     client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+    #     refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+    #     extension-path: snowtools-chromium-${{ github.ref_name }}.zip
         
-    - name: Publish to Microsoft Edge Add-ons
-      uses: browser-actions/release-edge-extension@latest
-      with:
-        product-id: ${{ secrets.EDGE_PRODUCT_ID }}
-        client-id: ${{ secrets.EDGE_CLIENT_ID }}
-        client-secret: ${{ secrets.EDGE_CLIENT_SECRET }}
-        access-token-url: ${{ secrets.EDGE_ACCESS_TOKEN_URL }}
-        extension-path: snowtools-chromium-${{ github.ref_name }}.zip
+    # - name: Publish to Microsoft Edge Add-ons
+    #   uses: browser-actions/release-edge-extension@latest
+    #   with:
+    #     product-id: ${{ secrets.EDGE_PRODUCT_ID }}
+    #     client-id: ${{ secrets.EDGE_CLIENT_ID }}
+    #     client-secret: ${{ secrets.EDGE_CLIENT_SECRET }}
+    #     access-token-url: ${{ secrets.EDGE_ACCESS_TOKEN_URL }}
+    #     extension-path: snowtools-chromium-${{ github.ref_name }}.zip
