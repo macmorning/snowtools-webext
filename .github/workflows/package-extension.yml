@@ -107,7 +107,7 @@ jobs:
         name: snowtools-chromium-${{ github.ref_name }}
         
     - name: Publish to Firefox Add-ons
-      uses: browser-actions/release-firefox-addon@v1
+      uses: browser-actions/release-firefox-addon@latest
       with:
         addon-id: ${{ secrets.FIREFOX_ADDON_ID }}
         auth-api-issuer: ${{ secrets.FIREFOX_API_ISSUER }}
@@ -115,7 +115,7 @@ jobs:
         addon-path: snowtools-firefox-${{ github.ref_name }}.zip
         
     - name: Publish to Chrome Web Store
-      uses: browser-actions/release-chrome-extension@v1
+      uses: browser-actions/release-chrome-extension@latest
       with:
         extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
         client-id: ${{ secrets.CHROME_CLIENT_ID }}
@@ -124,7 +124,7 @@ jobs:
         extension-path: snowtools-chromium-${{ github.ref_name }}.zip
         
     - name: Publish to Microsoft Edge Add-ons
-      uses: browser-actions/release-edge-extension@v1
+      uses: browser-actions/release-edge-extension@latest
       with:
         product-id: ${{ secrets.EDGE_PRODUCT_ID }}
         client-id: ${{ secrets.EDGE_CLIENT_ID }}
