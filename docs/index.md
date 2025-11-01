@@ -19,7 +19,11 @@ This extension (the "app") only saves in the storage area of your choosing (loca
 * friendly name
 * favicon color
 * hidden true/false
-* collpased true/false
+* collapsed true/false
+* custom domains
+* debug on/off
+* search result limit
+* seen version news
 
 ABSOLUTELY NO DATA OR PERSONAL INFORMATIONS ARE STORED ANYWHERE ELSE.
 All data can be deleted by the user at browser level. When usingthe browser specific sync feature, the responsability of the data is in hands of the browser editor.

@@ -1,11 +1,10 @@
-name: Package Extension
+name: Package and Publish Extension
 
 on:
   push:
-    tags:
-      - '*'
-    branches:
-      - main
+    tags: ['v[0-9].[0-9]+.[0-9]+']
+  release:
+    types: [published]
 
 jobs:
   package:
@@ -83,3 +82,48 @@ jobs:
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-stores:
+    needs: package
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download Firefox package
+      uses: actions/download-artifact@v4
+      with:
+        name: snowtools-firefox-${{ github.ref_name }}
+        
+    - name: Download Chromium package
+      uses: actions/download-artifact@v4
+      with:
+        name: snowtools-chromium-${{ github.ref_name }}
+        
+    - name: Publish to Firefox Add-ons
+      uses: browser-actions/release-firefox-addon@v1
+      with:
+        addon-id: ${{ secrets.FIREFOX_ADDON_ID }}
+        auth-api-issuer: ${{ secrets.FIREFOX_API_ISSUER }}
+        auth-api-secret: ${{ secrets.FIREFOX_API_SECRET }}
+        addon-path: snowtools-firefox-${{ github.ref_name }}.zip
+        
+    - name: Publish to Chrome Web Store
+      uses: browser-actions/release-chrome-extension@v1
+      with:
+        extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+        client-id: ${{ secrets.CHROME_CLIENT_ID }}
+        client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+        refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        extension-path: snowtools-chromium-${{ github.ref_name }}.zip
+        
+    - name: Publish to Microsoft Edge Add-ons
+      uses: browser-actions/release-edge-extension@v1
+      with:
+        product-id: ${{ secrets.EDGE_PRODUCT_ID }}
+        client-id: ${{ secrets.EDGE_CLIENT_ID }}
+        client-secret: ${{ secrets.EDGE_CLIENT_SECRET }}
+        access-token-url: ${{ secrets.EDGE_ACCESS_TOKEN_URL }}
+        extension-path: snowtools-chromium-${{ github.ref_name }}.zip
