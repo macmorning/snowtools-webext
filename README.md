@@ -9,7 +9,7 @@ Browser extension for ServiceNow developers and administrators. Manage multiple 
 - **Grouped tabs**: View tabs organized by ServiceNow instance
 - **Instance switching**: Open records/lists on different instances
 - **Custom colors**: Assign colors to distinguish instances
-- **Tab groups** (Chrome): Auto-organize tabs with colored groups
+- **Tab groups**: Auto-organize tabs with colored groups (when supported)
 
 ### Search & Navigation
 - **Universal search**: Find records by sys_id, task number, username, or group name

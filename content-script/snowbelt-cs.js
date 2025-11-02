@@ -1035,16 +1035,102 @@ function updateFavicon(color) {
 
     let img = document.createElement("img");
     img.onload = function (ev) {
+        // Draw the original image
         context.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
-        context.globalCompositeOperation = "source-in";
 
-        context.fillStyle = color;
-        context.fillRect(0, 0, 256, 256);
+        // Get image data to analyze colors
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        // Find the most used non-transparent color
+        const colorCounts = {};
+        let maxCount = 0;
+        let dominantColor = null;
+
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const a = data[i + 3];
+
+            // Skip transparent pixels
+            if (a < 128) continue;
+
+            // Create color key (ignore very light colors like white/near-white)
+            const colorKey = `${r},${g},${b}`;
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+
+            // Skip very light colors (brightness > 240) as they're likely background
+            if (brightness > 240) continue;
+
+            colorCounts[colorKey] = (colorCounts[colorKey] || 0) + 1;
+
+            if (colorCounts[colorKey] > maxCount) {
+                maxCount = colorCounts[colorKey];
+                dominantColor = { r, g, b };
+            }
+        }
+
+        debugLog("*SNOW TOOL BELT* Dominant color found:", dominantColor, "with", maxCount, "pixels");
+
+        if (dominantColor) {
+            // Replace the dominant color with the instance color
+            const targetColor = hexToRgb(color);
+            if (targetColor) {
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const a = data[i + 3];
+
+                    // Skip transparent pixels
+                    if (a < 128) continue;
+
+                    // Check if this pixel matches the dominant color (with some tolerance)
+                    const colorDistance = Math.sqrt(
+                        Math.pow(r - dominantColor.r, 2) +
+                        Math.pow(g - dominantColor.g, 2) +
+                        Math.pow(b - dominantColor.b, 2)
+                    );
+
+                    // Replace colors that are close to the dominant color
+                    if (colorDistance < 50) {
+                        data[i] = targetColor.r;
+                        data[i + 1] = targetColor.g;
+                        data[i + 2] = targetColor.b;
+                        // Keep original alpha
+                    }
+                }
+
+                // Put the modified image data back
+                context.putImageData(imageData, 0, 0);
+            }
+        } else {
+            // Fallback to the old method if no dominant color found
+            debugLog("*SNOW TOOL BELT* No dominant color found, using fallback method");
+            context.globalCompositeOperation = "source-in";
+            context.fillStyle = color;
+            context.fillRect(0, 0, 256, 256);
+        }
 
         link.href = canvas.toDataURL();
         link.type = "image/x-icon";
     };
     img.src = faviconUrl;
+}
+
+/**
+ * Convert hex color to RGB object
+ * @param {string} hex - Hex color string (e.g., "#ff0000")
+ * @returns {Object|null} RGB object with r, g, b properties or null if invalid
+ */
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+    } : null;
 }
 
 /**

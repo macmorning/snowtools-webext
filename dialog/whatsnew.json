@@ -1,5 +1,13 @@
 [
     {
+        "version": "7.3.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Enabled tab grouping for Firefox, if API is available",
+            "Tweaked the icon coloring feature to keep the original icon shape"
+        ]
+    },
+    {
         "version": "7.2.0",
         "msg": "Most notable changes:",
         "items": [
@@ -22,7 +30,7 @@
         "msg": "Most notable changes:",
         "items": [
             "Enhanced search: sys_id or object name, now available as a main toolbar button",
-            "In Chromium, put tabs inside a group",
+            "Organize tabs into groups with instance colors (when supported by browser)",
             "Light and Dark themes",
             "Background script popup is now using the new UI",
             "Display technical field names now works better",
