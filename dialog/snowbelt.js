@@ -124,9 +124,9 @@ const switchTab = (evt) => {
  * @returns {Promise<number|null>} The group ID if found, null otherwise
  */
 const findExistingGroupForInstance = async (instance, windowId) => {
-    // Only works in Chrome with tabGroups API
-    if (!chrome.tabs.group || !chrome.tabGroups || typeof browser !== "undefined") {
-        return null; // Return null immediately if not Chrome
+    // Check if tabGroups API is available
+    if (!chrome.tabs.group || !chrome.tabGroups) {
+        return null; // Return null immediately if API not available
     }
 
     try {
@@ -215,8 +215,6 @@ const groupTabs = (evt) => {
         debugLog("*SNOW TOOL BELT* chrome.tabs.group exists:", !!(chrome.tabs && chrome.tabs.group));
         debugLog("*SNOW TOOL BELT* chrome.tabGroups exists:", !!chrome.tabGroups);
         debugLog("*SNOW TOOL BELT* chrome.tabGroups.update exists:", !!(chrome.tabGroups && chrome.tabGroups.update));
-        debugLog("*SNOW TOOL BELT* Browser type (isChromium):", isChromium);
-        debugLog("*SNOW TOOL BELT* typeof browser:", typeof browser);
 
         groupInstanceTabs(instance);
     }
@@ -227,10 +225,10 @@ const groupTabs = (evt) => {
  * @param {string} instance - The instance hostname
  */
 const groupInstanceTabs = async (instance) => {
-    // Only works in Chrome with tabGroups API
-    if (!chrome.tabs.group || !chrome.tabGroups || typeof browser !== "undefined") {
-        displayMessage("Tab groups are only supported in Chrome", true);
-        debugLog("*SNOW TOOL BELT* Tab groups not available - chrome.tabs.group:", !!chrome.tabs.group, "chrome.tabGroups:", !!chrome.tabGroups, "browser type:", typeof browser);
+    // Check if tabGroups API is available
+    if (!chrome.tabs.group || !chrome.tabGroups) {
+        displayMessage("Tab groups are not supported in this browser", true);
+        debugLog("*SNOW TOOL BELT* Tab groups not available - chrome.tabs.group:", !!chrome.tabs.group, "chrome.tabGroups:", !!chrome.tabGroups);
         return;
     }
 
@@ -379,8 +377,8 @@ const newTab = async (evt, url, windowId) => {
 
             // Create the new tab
             chrome.tabs.create(tabOptions).then(async (newTabResult) => {
-                // Try to add to existing group if Chrome supports tab groups
-                if (chrome.tabs.group && chrome.tabGroups && typeof browser === "undefined") {
+                // Try to add to existing group if tabGroups API is available
+                if (chrome.tabs.group && chrome.tabGroups) {
                     try {
                         // Find existing group for this instance
                         const existingGroupId = await findExistingGroupForInstance(instance, validWindowId);
@@ -1310,7 +1308,7 @@ const getOptions = () => {
             document.getElementById("open_in_panel").addEventListener("click", openInPanel);
             document.getElementById("show_news").addEventListener("click", showWhatsNew);
             document.getElementById("shortcuts").addEventListener("click", openShortcutsPage);
-            
+
             // Load and display keyboard shortcuts in tooltip
             loadShortcutsTooltip();
 
