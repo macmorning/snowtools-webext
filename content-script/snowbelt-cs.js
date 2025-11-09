@@ -105,6 +105,16 @@ function querySelectorDeep(root, selector) {
 function switchFieldNames() {
     debugLog("*SNOW TOOL BELT* Switching field names (with shadow DOM support)");
 
+    // Check if we're in a modern workspace - if so, disable this feature for now
+    // Look for sn-canvas-toolbar which is present in workspaces but not in classic UI
+    // Need to search in shadow DOM as well
+    const hasCanvasToolbar = querySelectorAllDeep(document, "sn-canvas-toolbar").length > 0;
+    
+    if (hasCanvasToolbar) {
+        debugLog("*SNOW TOOL BELT* Field name switching disabled in modern workspace (detected sn-canvas-toolbar in shadow DOM)");
+        return { success: false, message: "Sorry! Switching field names is not supported in Workspaces at this time." };
+    }
+
     // Global state management - check if we're currently showing technical names
     const isCurrentlyTechnical = document.body.getAttribute("data-sntb-technical") === "true";
     debugLog("*SNOW TOOL BELT* Current state:", isCurrentlyTechnical ? "showing technical names" : "showing labels");
@@ -154,17 +164,59 @@ function switchFieldNames() {
 
     fields.forEach((el, index) => {
         try {
-            const childEl = el.querySelector("span a");
+            const glideField = el.getAttribute("glide_field");
+            const glideLabel = el.getAttribute("glide_label");
+            
+            // Skip if this is a checkbox column, control column, or has no valid field name
+            if (!glideField || glideField === "" || glideField === "null") {
+                debugLog(`*SNOW TOOL BELT* List element ${index + 1}: Skipping (no valid glide_field)`);
+                return;
+            }
+            
+            // Skip if this is a control column (checkbox, search icon, etc.)
+            if (el.classList.contains("col-control") || el.classList.contains("list-decoration-table")) {
+                debugLog(`*SNOW TOOL BELT* List element ${index + 1}: Skipping (control column)`);
+                return;
+            }
+            
+            // Skip if the element contains a checkbox (it's a checkbox column)
+            if (el.querySelector("input[type='checkbox']")) {
+                debugLog(`*SNOW TOOL BELT* List element ${index + 1}: Skipping (contains checkbox)`);
+                return;
+            }
+            
+            // Skip if this is a search control column
+            if (el.getAttribute("name") === "search") {
+                debugLog(`*SNOW TOOL BELT* List element ${index + 1}: Skipping (search column)`);
+                return;
+            }
+            
+            // Skip if the element doesn't have a proper column header structure
+            if (!el.classList.contains("list_header_cell") && !el.classList.contains("list_hdr")) {
+                debugLog(`*SNOW TOOL BELT* List element ${index + 1}: Skipping (not a header cell)`);
+                return;
+            }
+            
+            // Find the text element - try multiple selectors for different list structures
+            let childEl = el.querySelector("a.column_head"); // Modern list headers
+            if (!childEl) {
+                childEl = el.querySelector("span.list_header_cell_container a"); // Try more specific selector
+            }
+            if (!childEl) {
+                childEl = el.querySelector("span a"); // Related lists
+            }
+            
+            // Don't use generic "a" fallback as it might catch checkbox labels
+            
             if (childEl) {
                 const currentText = childEl.innerText;
-                const glideField = el.getAttribute("glide_field");
-                const glideLabel = el.getAttribute("glide_label");
 
                 debugLog(`*SNOW TOOL BELT* List element ${index + 1}:`, {
                     currentText,
                     glideField,
                     glideLabel,
-                    element: el.outerHTML.substring(0, 100)
+                    element: el.outerHTML.substring(0, 200),
+                    childElClass: childEl.className
                 });
 
                 if (isCurrentlyTechnical && glideLabel) {
@@ -173,9 +225,20 @@ function switchFieldNames() {
                     debugLog(`*SNOW TOOL BELT* List: Restored "${glideLabel}" from technical name`);
                 } else if (!isCurrentlyTechnical && glideField) {
                     // Currently showing label, switch to technical
-                    childEl.innerText = glideField;
-                    debugLog(`*SNOW TOOL BELT* List: Switched to technical "${glideField}"`);
+                    let cleanedField = glideField;
+                    // Remove sys_readonly. prefix
+                    cleanedField = cleanedField.replace(/^sys_readonly\./, "");
+                    // Remove table name prefix (e.g., "sys_update_xml." from "sys_update_xml.sys_created_on")
+                    if (cleanedField.includes(".")) {
+                        const parts = cleanedField.split(".");
+                        // Only keep the last part (the actual field name)
+                        cleanedField = parts[parts.length - 1];
+                    }
+                    childEl.innerText = cleanedField;
+                    debugLog(`*SNOW TOOL BELT* List: Switched to technical "${cleanedField}" (original: "${glideField}")`);
                 }
+            } else {
+                debugLog(`*SNOW TOOL BELT* List element ${index + 1}: No text element found`);
             }
         } catch (e) {
             debugLog("*SNOW TOOL BELT* Error processing glide_field element:", e);
@@ -208,7 +271,19 @@ function switchFieldNames() {
 
     fields.forEach((el, index) => {
         try {
-
+            const forAttr = el.getAttribute("for");
+            
+            // Skip checkbox labels (allcheck, check_)
+            if (forAttr && (forAttr.includes("allcheck") || forAttr.startsWith("check_"))) {
+                debugLog(`*SNOW TOOL BELT* Form element ${index + 1}: Skipping (checkbox label)`);
+                return;
+            }
+            
+            // Skip action labels (listv2_*_labelAction)
+            if (forAttr && forAttr.includes("labelAction")) {
+                debugLog(`*SNOW TOOL BELT* Form element ${index + 1}: Skipping (action label)`);
+                return;
+            }
 
             // Try to find the text container - either span.label-text or direct label content
             let textEl = el.querySelector("span.label-text");
@@ -225,7 +300,6 @@ function switchFieldNames() {
             if (textEl) {
                 const savedName = el.getAttribute("data-sntb-name");
                 const currentText = textEl.innerText;
-                const forAttr = el.getAttribute("for");
 
                 debugLog(`*SNOW TOOL BELT* Form element ${index + 1}:`, {
                     currentText,
@@ -295,7 +369,15 @@ function switchFieldNames() {
                         // First time - save original
                         el.setAttribute("data-sntb-name", currentText);
                     }
-                    const technicalName = forAttr.replace("sys_display.", "").replace("select_0", "");
+                    let technicalName = forAttr.replace("sys_display.", "").replace("select_0", "");
+                    // Remove sys_readonly. prefix
+                    technicalName = technicalName.replace(/^sys_readonly\./, "");
+                    // Remove table name prefix (e.g., "sys_update_set." from "sys_update_set.name")
+                    if (technicalName.includes(".")) {
+                        const parts = technicalName.split(".");
+                        // Only keep the last part (the actual field name)
+                        technicalName = parts[parts.length - 1];
+                    }
 
                     if (isDirectLabel) {
                         // For direct labels, use the same robust approach
@@ -348,10 +430,21 @@ function switchFieldNames() {
     }
 
     // For modern workspace/shadow DOM elements
-    debugLog("*SNOW TOOL BELT* Processing modern workspace elements...");
+    // Only process modern elements if we're in a modern workspace (not classic UI)
+    // Look for sn-canvas-toolbar which is present in workspaces but not in classic UI
+    // Need to search in shadow DOM as well
+    const hasCanvasToolbarElement = querySelectorAllDeep(doc, "sn-canvas-toolbar").length > 0;
+    const isModernWorkspace = hasCanvasToolbarElement;
+    
+    if (isModernWorkspace) {
+        debugLog("*SNOW TOOL BELT* Processing modern workspace elements...");
+    } else {
+        debugLog("*SNOW TOOL BELT* Skipping modern workspace processing (classic UI detected)");
+    }
 
-    // Try multiple modern selectors with comprehensive coverage
-    const modernSelectors = [
+    if (isModernWorkspace) {
+        // Try multiple modern selectors with comprehensive coverage
+        const modernSelectors = [
         // ServiceNow specific components
         "sn-form-field", "now-form-field", "sn-record-form", "now-record-form",
         // Data attributes
@@ -466,6 +559,12 @@ function switchFieldNames() {
 
 
                     if (labelEl && fieldName && labelEl.innerText) {
+                        // Skip checkbox labels and action labels
+                        if (fieldName.includes("allcheck") || fieldName.startsWith("check_") || fieldName.includes("labelAction")) {
+                            debugLog(`*SNOW TOOL BELT* Modern: Skipping checkbox/action label: ${fieldName}`);
+                            return;
+                        }
+                        
                         // Clean up the field name
                         let cleanFieldName = fieldName.replace("sys_display.", "").replace("select_0", "");
 
@@ -504,7 +603,8 @@ function switchFieldNames() {
         }
     });
 
-    debugLog("*SNOW TOOL BELT* Total modern elements found:", totalModernElements);
+        debugLog("*SNOW TOOL BELT* Total modern elements found:", totalModernElements);
+    } // End of isModernWorkspace check
 
     // Toggle global state
     document.body.setAttribute("data-sntb-technical", isCurrentlyTechnical ? "false" : "true");
@@ -529,6 +629,84 @@ function getNameFromStatsPage(text) {
         // console.log(text);
     }
     return instanceName;
+}
+
+/**
+ * Sets up monitoring for update set changes using polling
+ * Only checks when the tab is active (visible and focused)
+ */
+function setupUpdateSetMonitoring() {
+    let lastUpdateSetId = null;
+    let isCheckingUpdateSet = false;
+    
+    const POLLING_INTERVAL = 5000; // 5 seconds
+    
+    /**
+     * Fetches current update set and reports if changed
+     */
+    const checkAndReportUpdateSet = async () => {
+        // Only check if tab is active (visible and focused)
+        if (document.hidden || !document.hasFocus()) {
+            debugLog("*SNOW TOOL BELT* Skipping update set check (tab not active)");
+            return;
+        }
+        
+        if (!context.g_ck || isCheckingUpdateSet) return;
+        
+        isCheckingUpdateSet = true;
+        
+        try {
+            const concourseUrl = window.location.origin + "/api/now/ui/concoursepicker/updateset";
+            const headers = new Headers();
+            headers.append('Content-Type', 'application/json');
+            headers.append('Accept', 'application/json');
+            headers.append('Cache-Control', 'no-cache');
+            headers.append('X-UserToken', context.g_ck);
+            
+            const response = await fetch(concourseUrl, { headers: headers });
+            if (response.ok && response.status === 200) {
+                const text = await response.text();
+                const parsed = JSON.parse(text).result;
+                const currentId = parsed.current?.sysId || parsed.current?.sys_id;
+                
+                // Check if update set changed
+                if (lastUpdateSetId !== null && currentId !== lastUpdateSetId) {
+                    debugLog("*SNOW TOOL BELT* Update set changed from", lastUpdateSetId, "to", currentId);
+                    
+                    // Report the change to background
+                    const updateSetInfo = {
+                        updateSet: parsed.updateSet,
+                        current: parsed.current
+                    };
+                    
+                    const tabInfo = getTabInfo();
+                    runtimeAPI.sendMessage({
+                        command: "reportTabState",
+                        tabInfo: {
+                            type: tabInfo.type,
+                            details: tabInfo.details,
+                            tabs: tabInfo.tabs,
+                            updateSet: updateSetInfo,
+                            timestamp: Date.now()
+                        }
+                    });
+                    
+                    console.log("*SNOW TOOL BELT* Update set change reported:", parsed.current?.name);
+                }
+                
+                lastUpdateSetId = currentId;
+            }
+        } catch (error) {
+            debugLog("*SNOW TOOL BELT* Error checking update set:", error);
+        } finally {
+            isCheckingUpdateSet = false;
+        }
+    };
+    
+    // Start polling every 5 seconds
+    setInterval(checkAndReportUpdateSet, POLLING_INTERVAL);
+    
+    console.log("*SNOW TOOL BELT* Update set monitoring initialized (5s polling, active tab only)");
 }
 
 /**
@@ -1334,6 +1512,211 @@ async function searchSysIdWithPriority(sysId, host, token) {
 }
 
 /**
+ * Search for a record by ServiceNow number (e.g., INC0001234, REQ0005678)
+ * First queries sys_number to find the table, then queries that table for the record
+ * @param {string} numberValue - The number to search for (e.g., INC0001234)
+ * @param {string} host - The ServiceNow instance host
+ * @param {string} token - Authentication token
+ * @returns {Promise} Promise that resolves with search results
+ */
+async function searchByNumber(numberValue, host, token) {
+    debugLog("*SNOW TOOL BELT* Searching for number:", numberValue);
+
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    headers.append('Accept', 'application/json');
+    headers.append('Cache-Control', 'no-cache');
+    headers.append('X-UserToken', token);
+
+    // Extract the prefix (letters) from the number
+    const prefixMatch = numberValue.match(/^([A-Za-z]+)/);
+    if (!prefixMatch) {
+        return {
+            status: 404,
+            searchValue: numberValue,
+            searchType: 'number',
+            table: "none",
+            displayValue: "Invalid number format",
+            instance: host,
+            found: false
+        };
+    }
+
+    const prefix = prefixMatch[1].toUpperCase();
+    debugLog("*SNOW TOOL BELT* Number prefix:", prefix);
+
+    try {
+        // Step 1: Query sys_number to find the table for this prefix
+        // Note: Get all fields to see what's available, as the field name might vary
+        const sysNumberUrl = `${window.location.origin}/api/now/table/sys_number?sysparm_query=prefix=${prefix}&sysparm_limit=1`;
+        
+        debugLog("*SNOW TOOL BELT* Querying sys_number for prefix:", prefix);
+        const sysNumberResponse = await fetch(sysNumberUrl, {
+            credentials: "same-origin",
+            headers: headers
+        });
+
+        if (!sysNumberResponse.ok || sysNumberResponse.status !== 200) {
+            debugLog("*SNOW TOOL BELT* sys_number query failed with status:", sysNumberResponse.status);
+            return {
+                status: 404,
+                searchValue: numberValue,
+                searchType: 'number',
+                table: "none",
+                displayValue: `No table found for prefix: ${prefix}`,
+                instance: host,
+                found: false
+            };
+        }
+
+        const sysNumberData = await sysNumberResponse.json();
+        debugLog("*SNOW TOOL BELT* sys_number result:", sysNumberData);
+
+        if (!sysNumberData.result || sysNumberData.result.length === 0) {
+            debugLog("*SNOW TOOL BELT* No table found for prefix:", prefix);
+            return {
+                status: 404,
+                searchValue: numberValue,
+                searchType: 'number',
+                table: "none",
+                displayValue: `No table found for prefix: ${prefix}`,
+                instance: host,
+                found: false
+            };
+        }
+
+        // Get the table name from sys_number result
+        // The field might be called 'table', 'category', or another name
+        const sysNumberRecord = sysNumberData.result[0];
+        debugLog("*SNOW TOOL BELT* Full sys_number record:", sysNumberRecord);
+        
+        let tableName;
+        
+        // Try different possible field names
+        const possibleFields = ['table', 'category', 'number_table'];
+        for (const fieldName of possibleFields) {
+            const field = sysNumberRecord[fieldName];
+            if (field) {
+                if (typeof field === 'string') {
+                    tableName = field;
+                } else if (typeof field === 'object') {
+                    tableName = field.value || field.display_value;
+                }
+                if (tableName) {
+                    debugLog(`*SNOW TOOL BELT* Found table name in field '${fieldName}':`, tableName);
+                    break;
+                }
+            }
+        }
+        
+        if (!tableName) {
+            debugLog("*SNOW TOOL BELT* Could not extract table name from sys_number result. Available fields:", Object.keys(sysNumberRecord));
+            return {
+                status: 404,
+                searchValue: numberValue,
+                searchType: 'number',
+                table: "none",
+                displayValue: `Could not determine table for prefix: ${prefix}. The sys_number record may not have a table reference.`,
+                instance: host,
+                found: false
+            };
+        }
+
+        debugLog("*SNOW TOOL BELT* Found table for prefix:", tableName);
+
+        // Step 2: Query the actual table for the record with this number
+        const recordUrl = `${window.location.origin}/api/now/table/${tableName}?sysparm_query=number=${numberValue}&sysparm_fields=sys_id,number,short_description,state,sys_class_name,sys_updated_on&sysparm_limit=1`;
+        
+        debugLog("*SNOW TOOL BELT* Querying table:", tableName, "for number:", numberValue);
+        const recordResponse = await fetch(recordUrl, {
+            credentials: "same-origin",
+            headers: headers
+        });
+
+        if (!recordResponse.ok || recordResponse.status !== 200) {
+            debugLog("*SNOW TOOL BELT* Record query failed with status:", recordResponse.status);
+            return {
+                status: 404,
+                searchValue: numberValue,
+                searchType: 'number',
+                table: tableName,
+                displayValue: `Record not found in table: ${tableName}`,
+                instance: host,
+                found: false
+            };
+        }
+
+        const recordData = await recordResponse.json();
+        debugLog("*SNOW TOOL BELT* Record result:", recordData);
+
+        if (!recordData.result || recordData.result.length === 0) {
+            debugLog("*SNOW TOOL BELT* No record found with number:", numberValue);
+            return {
+                status: 404,
+                searchValue: numberValue,
+                searchType: 'number',
+                table: tableName,
+                displayValue: `Record not found: ${numberValue}`,
+                instance: host,
+                found: false
+            };
+        }
+
+        // Extract record details
+        const record = recordData.result[0];
+        const actualClass = typeof record.sys_class_name === 'string'
+            ? record.sys_class_name
+            : (record.sys_class_name?.value || record.sys_class_name?.display_value || tableName);
+
+        const shortDescription = typeof record.short_description === 'string'
+            ? record.short_description
+            : (record.short_description?.display_value || record.short_description?.value || '');
+
+        debugLog("*SNOW TOOL BELT* Found record:", record.sys_id, "in table:", actualClass);
+
+        return {
+            status: 200,
+            searchValue: numberValue,
+            searchType: 'number',
+            table: tableName,
+            actualClass: actualClass,
+            sys_id: record.sys_id,
+            displayValue: numberValue,
+            shortDescription: shortDescription,
+            state: record.state,
+            updated: record.sys_updated_on,
+            directUrl: `https://${host}/${actualClass}.do?sys_id=${record.sys_id}`,
+            instance: host,
+            found: true,
+            results: [{
+                sys_id: record.sys_id,
+                name: numberValue,
+                table: tableName,
+                sourceTable: tableName,
+                actualClass: actualClass,
+                directUrl: `https://${host}/${actualClass}.do?sys_id=${record.sys_id}`,
+                description: `Number match in ${actualClass}`,
+                updated: record.sys_updated_on,
+                shortDescription: shortDescription,
+                state: record.state
+            }]
+        };
+
+    } catch (error) {
+        debugLog("*SNOW TOOL BELT* Error in number search:", error);
+        return {
+            status: 500,
+            searchValue: numberValue,
+            searchType: 'number',
+            table: "error",
+            displayValue: "Error: " + error.message,
+            instance: host,
+            found: false
+        };
+    }
+}
+
+/**
  * Search for objects by name in sys_metadata and sys_flow tables
  * @param {string} objectName - The object name to search for
  * @param {string} host - The ServiceNow instance host
@@ -1538,29 +1921,85 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
 }
 
 (function () {
-    debugLog("*SNOW TOOL BELT* Content script loaded on:", window.location.href);
-    debugLog("*SNOW TOOL BELT* Browser:", typeof browser !== "undefined" ? "Firefox" : "Chrome");
+    console.log("*SNOW TOOL BELT* Content script loaded on:", window.location.href);
+    console.log("*SNOW TOOL BELT* Browser:", typeof browser !== "undefined" ? "Firefox" : "Chrome");
 
     // Firefox-specific: Add a delay to ensure background script is ready
     const initializeExtension = () => {
         // ask background script if this tab must be considered as a ServiceNow instance, and get the favicon color
         try {
-            runtimeAPI.sendMessage({ "command": "isServiceNow" }, function (response) {
-                debugLog("*SNOW TOOL BELT* isServiceNow response:", response);
+            runtimeAPI.sendMessage({ 
+                "command": "isServiceNow",
+                "hostname": window.location.hostname,
+                "url": window.location.href
+            }, function (response) {
+                console.log("*SNOW TOOL BELT* isServiceNow response:", response);
                 if (runtimeAPI.lastError) {
                     console.error("*SNOW TOOL BELT* Runtime error:", runtimeAPI.lastError);
                     // Firefox fallback: if background script fails, check if this looks like ServiceNow
                     if (window.location.hostname.includes("service-now.com")) {
-                        debugLog("*SNOW TOOL BELT* Fallback: Detected ServiceNow domain, initializing...");
+                        console.log("*SNOW TOOL BELT* Fallback: Detected ServiceNow domain, initializing...");
                         initScript({ isServiceNow: true, favIconColor: "", hidden: false });
                     }
                     return;
                 }
                 if (response === undefined || response.isServiceNow === false) {
-                    debugLog("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
+                    console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
                 } else {
-                    debugLog("*SNOW TOOL BELT* ServiceNow instance detected, initializing...");
+                    console.log("*SNOW TOOL BELT* ServiceNow instance detected, initializing...");
                     initScript(response);
+                    
+                    // Phase 1: Report initial tab state to background script
+                    setTimeout(async () => {
+                        const tabInfo = getTabInfo();
+                        
+                        // Fetch update set information if g_ck is available
+                        let updateSetInfo = null;
+                        if (context.g_ck) {
+                            try {
+                                const concourseUrl = window.location.origin + "/api/now/ui/concoursepicker/updateset";
+                                const headers = new Headers();
+                                headers.append('Content-Type', 'application/json');
+                                headers.append('Accept', 'application/json');
+                                headers.append('Cache-Control', 'no-cache');
+                                headers.append('X-UserToken', context.g_ck);
+                                
+                                const response = await fetch(concourseUrl, { headers: headers });
+                                if (response.ok && response.status === 200) {
+                                    const text = await response.text();
+                                    const parsed = JSON.parse(text).result;
+                                    updateSetInfo = {
+                                        updateSet: parsed.updateSet,
+                                        current: parsed.current
+                                    };
+                                    console.log("*SNOW TOOL BELT* Phase 1: Fetched update set:", updateSetInfo.current?.name);
+                                }
+                            } catch (error) {
+                                console.log("*SNOW TOOL BELT* Phase 1: Could not fetch update set:", error);
+                            }
+                        }
+                        
+                        console.log("*SNOW TOOL BELT* Phase 1: Reporting tab state to background:", tabInfo);
+                        runtimeAPI.sendMessage({
+                            command: "reportTabState",
+                            tabInfo: {
+                                type: tabInfo.type,
+                                details: tabInfo.details,
+                                tabs: tabInfo.tabs,
+                                updateSet: updateSetInfo,
+                                timestamp: Date.now()
+                            }
+                        }, (response) => {
+                            if (response && response.success) {
+                                console.log("*SNOW TOOL BELT* Phase 1: Tab state reported successfully");
+                            } else {
+                                console.log("*SNOW TOOL BELT* Phase 1: Failed to report tab state", response);
+                            }
+                        });
+                    }, 1000); // Wait 1 second for page to stabilize
+
+                    // Monitor update set changes
+                    setupUpdateSetMonitoring();
 
                     // Defining how to react to messages coming from the background script or the browser action
                     runtimeAPI.onMessage.addListener(function (request, sender, sendResponse) {
@@ -1569,7 +2008,12 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                         let host = window.location.host;
                         let statsUrl = new Request(window.location.origin + "/stats.do");
 
-                        if (request.command === "updateFavicon") {
+                        if (request.command === "ping") {
+                            /**
+                             * Simple ping to check if content script is responsive
+                             */
+                            sendResponse({ status: "ok" });
+                        } else if (request.command === "updateFavicon") {
                             /**
                             *  change Favicon color
                             */
@@ -1696,7 +2140,26 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                             }
 
                             // Search based on type
-                            if (request.searchType === 'objectName' || request.searchType === 'multiSearch') {
+                            if (request.searchType === 'number') {
+                                // Number search - search sys_number first, then the actual table
+                                searchByNumber(request.searchValue, host, context.g_ck)
+                                    .then(function (searchResult) {
+                                        sendResponse(searchResult);
+                                    })
+                                    .catch(function (error) {
+                                        debugLog("*SNOW TOOL BELT* Error in number search:", error);
+                                        const errorResponse = {
+                                            status: 500,
+                                            searchValue: request.searchValue,
+                                            searchType: request.searchType,
+                                            table: "error",
+                                            displayValue: "Error: " + error.message,
+                                            instance: request.instance || window.location.hostname,
+                                            found: false
+                                        };
+                                        sendResponse(errorResponse);
+                                    });
+                            } else if (request.searchType === 'objectName' || request.searchType === 'multiSearch') {
                                 // Object/multi search - search sys_metadata and other tables
                                 searchByObjectName(request.searchValue, host, context.g_ck, request.searchType)
                                     .then(function (searchResult) {
@@ -1825,5 +2288,924 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         // Chrome: initialize immediately
         initializeExtension();
     }
+})();
+
+/**
+ * Tool Belt Console - Doom-style console for quick access to extension features
+ */
+(function() {
+    let consoleElement = null;
+    let consoleInput = null;
+    let consoleResults = null;
+    let isConsoleOpen = false;
+    let searchHistory = [];
+    let historyIndex = -1;
+    
+    /**
+     * Creates the console HTML structure
+     */
+    const createConsole = () => {
+        const console = document.createElement('div');
+        console.id = 'sntb-console';
+        console.className = 'sntb-console';
+        console.innerHTML = `
+            <div class="sntb-console-header">
+                <span class="sntb-console-title">▸ ServiceNow Tool Belt Console</span>
+                <span class="sntb-console-hint">ESC to close | ↑↓ for history</span>
+            </div>
+            <div class="sntb-console-input-container">
+                <span class="sntb-console-prompt">></span>
+                <input type="text" class="sntb-console-input" placeholder='Type "h" or "help" for a list of available commands' autofocus />
+            </div>
+            <div class="sntb-console-results"></div>
+        `;
+        
+        // Inject minimal CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            .sntb-console {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: linear-gradient(0deg, #1a1a1a 0%, #0d0d0d 100%);
+                border-top: 3px solid #00ff00;
+                box-shadow: 0 -4px 20px rgba(0, 255, 0, 0.3);
+                z-index: 999999;
+                font-family: 'Courier New', monospace;
+                color: #00ff00;
+                padding: 0;
+                opacity: 0.95;
+                transform: translateY(calc(100% + 30px));
+                transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+                pointer-events: none;
+            }
+            
+            .sntb-console.open {
+                transform: translateY(0);
+                pointer-events: auto;
+            }
+            
+            .sntb-console-header {
+                background: #000;
+                padding: 8px 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-top: 1px solid #00ff00;
+            }
+            
+            .sntb-console-title {
+                font-weight: bold;
+                font-size: 14px;
+                letter-spacing: 2px;
+            }
+            
+            .sntb-console-hint {
+                font-size: 11px;
+                color: #00aa00;
+            }
+            
+            .sntb-console-input-container {
+                padding: 12px 16px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .sntb-console-prompt {
+                font-size: 18px;
+                font-weight: bold;
+                color: #00ff00;
+            }
+            
+            .sntb-console-input {
+                flex: 1;
+                background: transparent;
+                border: none;
+                color: #00ff00;
+                font-family: 'Courier New', monospace;
+                font-size: 16px;
+                outline: none;
+                caret-color: #00ff00;
+            }
+            
+            .sntb-console-input::placeholder {
+                color: #006600;
+            }
+            
+            .sntb-console-results {
+                height: 400px;
+                overflow-y: auto;
+                padding: 0 16px 16px 16px;
+            }
+            
+            .sntb-console-result-group {
+                margin: 8px 0;
+            }
+            
+            .sntb-console-group-header {
+                padding: 8px 12px;
+                background: rgba(0, 255, 0, 0.1);
+                border-left: 3px solid #00ff00;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                transition: all 0.2s;
+            }
+            
+            .sntb-console-group-header:hover {
+                background: rgba(0, 255, 0, 0.2);
+            }
+            
+            .sntb-console-group-toggle {
+                font-size: 12px;
+                color: #00ff00;
+                width: 16px;
+            }
+            
+            .sntb-console-group-title {
+                font-size: 14px;
+                font-weight: bold;
+                color: #00ff00;
+                flex: 1;
+            }
+            
+            .sntb-console-group-count {
+                font-size: 12px;
+                color: #00aa00;
+            }
+            
+            .sntb-console-group-content {
+                padding-left: 24px;
+            }
+            
+            .sntb-console-result-item {
+                padding: 8px 12px;
+                margin: 4px 0;
+                background: rgba(0, 255, 0, 0.05);
+                border-left: 3px solid #00ff00;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            
+            .sntb-console-result-item.grouped {
+                border-left: 2px solid #00aa00;
+                background: rgba(0, 255, 0, 0.03);
+            }
+            
+            .sntb-console-result-item:hover {
+                background: rgba(0, 255, 0, 0.15);
+                border-left-width: 6px;
+                padding-left: 9px;
+            }
+            
+            .sntb-console-result-item.grouped:hover {
+                border-left-width: 4px;
+                padding-left: 10px;
+            }
+            
+            .sntb-console-result-name {
+                font-size: 14px;
+                font-weight: bold;
+            }
+            
+            .sntb-console-result-class {
+                font-size: 12px;
+                color: #00aa00;
+                margin-left: 8px;
+            }
+            
+            .sntb-console-loading {
+                text-align: left;
+                padding: 12px;
+                color: #00aa00;
+                animation: sntb-blink 1s infinite;
+            }
+            
+            @keyframes sntb-blink {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.3; }
+            }
+            
+            .sntb-console-error {
+                color: #ff0000;
+                padding: 12px;
+                text-align: left;
+            }
+            
+            .sntb-console-results::-webkit-scrollbar {
+                width: 8px;
+            }
+            
+            .sntb-console-results::-webkit-scrollbar-track {
+                background: #000;
+            }
+            
+            .sntb-console-results::-webkit-scrollbar-thumb {
+                background: #00ff00;
+                border-radius: 4px;
+            }
+        `;
+        
+        document.head.appendChild(style);
+        document.body.appendChild(console);
+        
+        return console;
+    };
+    
+    /**
+     * Toggles the console visibility
+     */
+    const toggleConsole = () => {
+        if (!consoleElement) {
+            consoleElement = createConsole();
+            consoleInput = consoleElement.querySelector('.sntb-console-input');
+            consoleResults = consoleElement.querySelector('.sntb-console-results');
+            
+            // Setup event listeners
+            setupConsoleListeners();
+        }
+        
+        isConsoleOpen = !isConsoleOpen;
+        
+        if (isConsoleOpen) {
+            consoleElement.classList.add('open');
+            consoleInput.focus();
+            // Don't clear input or results - preserve state when reopening
+        } else {
+            consoleElement.classList.remove('open');
+        }
+    };
+    
+    /**
+     * Setup console event listeners
+     */
+    const setupConsoleListeners = () => {
+        // ESC to close
+        consoleInput.addEventListener('keydown', async (e) => {
+            if (e.key === 'Escape') {
+                toggleConsole();
+            } else if (e.key === 'Enter') {
+                await performConsoleSearch();
+                consoleInput.value = ''; // Clear input after execution
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                handleTabComplete();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex < searchHistory.length - 1) {
+                    historyIndex++;
+                    consoleInput.value = searchHistory[historyIndex];
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    consoleInput.value = searchHistory[historyIndex];
+                } else if (historyIndex === 0) {
+                    historyIndex = -1;
+                    consoleInput.value = '';
+                }
+            }
+        });
+    };
+    
+    /**
+     * Handle tab completion for commands
+     */
+    const handleTabComplete = () => {
+        const input = consoleInput.value.trim();
+        if (!input) return;
+        
+        const parts = input.split(/\s+/);
+        const commandPart = parts[0].toLowerCase();
+        
+        // Only autocomplete if we're still on the command part (no spaces after)
+        if (parts.length === 1 || (parts.length === 2 && input.endsWith(' '))) {
+            // Only complete to full command labels (exclude shortcuts like 's', 'h', 'v', 'n', 'bg', 'st')
+            const fullCommands = ['help', 'search', 'versions', 'names', 'background', 'stats'];
+            const matches = fullCommands.filter(cmd => cmd.startsWith(commandPart));
+            
+            if (matches.length === 1) {
+                // Single match - complete it
+                consoleInput.value = matches[0] + ' ';
+            } else if (matches.length > 1) {
+                // Multiple matches - show them
+                let html = '<div style="padding: 12px; line-height: 1.8;">';
+                html += '<div style="font-weight: bold; margin-bottom: 8px;">▸ MATCHING COMMANDS:</div>';
+                matches.forEach(cmd => {
+                    html += `<div style="color: #00ff00; margin-left: 16px;">${cmd}</div>`;
+                });
+                html += '</div>';
+                consoleResults.innerHTML = html;
+            }
+        }
+    };
+    
+    /**
+     * Available console commands
+     */
+    const commands = {
+        help: {
+            description: 'Show available commands',
+            usage: 'help | h',
+            execute: () => {
+                let html = '<div style="padding: 12px; line-height: 1.6;">';
+                html += '<div style="font-weight: bold; margin-bottom: 8px;">▸ AVAILABLE COMMANDS:</div>';
+                
+                // Only show main commands (not shortcuts)
+                const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'stats'];
+                mainCommands.forEach(cmd => {
+                    const command = commands[cmd];
+                    // Escape HTML entities manually to preserve <term> display
+                    const escapeHtml = (str) => {
+                        return str.replace(/&/g, '&amp;')
+                                  .replace(/</g, '&lt;')
+                                  .replace(/>/g, '&gt;')
+                                  .replace(/"/g, '&quot;')
+                                  .replace(/'/g, '&#039;');
+                    };
+                    const safeUsage = escapeHtml(command.usage);
+                    const safeDescription = escapeHtml(command.description);
+                    html += `
+                        <div style="margin-bottom: 4px;">
+                            <span style="color: #00ff00; font-weight: bold;">${safeUsage}</span>
+                            <span style="color: #006600; margin-left: 16px;">${safeDescription}</span>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                consoleResults.innerHTML = html;
+            }
+        },
+        h: {
+            description: 'Alias for help',
+            usage: 'h',
+            execute: () => {
+                commands.help.execute();
+            }
+        },
+        search: {
+            description: 'Search for records by sys_id, number, or name',
+            usage: 'search <term> | s <term>',
+            execute: async (args) => {
+                const searchTerm = args.join(' ').trim();
+                if (!searchTerm) {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ USAGE: search &lt;term&gt;</div>';
+                    return;
+                }
+                
+                // Show loading
+                consoleResults.innerHTML = '<div class="sntb-console-loading">▸ SEARCHING...</div>';
+                
+                // Determine search type
+                const searchType = determineSearchType(searchTerm);
+                
+                if (searchType.type === 'invalid') {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ INVALID SEARCH TERM: ' + (searchType.error || 'Unknown error') + '</div>';
+                    return;
+                }
+                
+                // Perform search
+                try {
+                    const result = await performSearch(searchType.type, searchType.value);
+                    displayConsoleResults(result);
+                } catch (error) {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ SEARCH FAILED: ' + error.message + '</div>';
+                }
+            }
+        },
+        s: {
+            description: 'Alias for search',
+            usage: 's <term>',
+            execute: async (args) => {
+                await commands.search.execute(args);
+            }
+        },
+        versions: {
+            description: 'View versions of current object',
+            usage: 'versions | v',
+            execute: () => {
+                // Send command to background script to open versions
+                runtimeAPI.sendMessage({ "command": "execute-openversions" }, (response) => {
+                    if (runtimeAPI.lastError) {
+                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ FAILED TO OPEN VERSIONS: ' + runtimeAPI.lastError.message + '</div>';
+                    } else {
+                        consoleResults.innerHTML = '<div style="padding: 12px; color: #00ff00;">✓ Versions window opened</div>';
+                    }
+                });
+            }
+        },
+        v: {
+            description: 'Alias for versions',
+            usage: 'v',
+            execute: () => {
+                commands.versions.execute();
+            }
+        },
+        names: {
+            description: 'Toggle field names between labels and technical names',
+            usage: 'names | n',
+            execute: () => {
+                try {
+                    const result = switchFieldNames();
+                    
+                    // Check if the function returned an error (workspace detection)
+                    if (result && !result.success) {
+                        consoleResults.innerHTML = `<div style="padding: 12px; color: #ffaa00;">${result.message}</div>`;
+                        return;
+                    }
+                    
+                    const isNowTechnical = document.body.getAttribute("data-sntb-technical") === "true";
+                    const mode = isNowTechnical ? "technical names" : "labels";
+                    consoleResults.innerHTML = `<div style="padding: 12px; color: #00ff00;">✓ Switched to ${mode}</div>`;
+                } catch (error) {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ FAILED TO SWITCH FIELD NAMES: ' + error.message + '</div>';
+                }
+            }
+        },
+        n: {
+            description: 'Alias for names',
+            usage: 'n',
+            execute: () => {
+                commands.names.execute();
+            }
+        },
+        background: {
+            description: 'Open background script editor',
+            usage: 'background | bg',
+            execute: () => {
+                // Send command to background script to open background script editor
+                runtimeAPI.sendMessage({ "command": "execute-backgroundscript" }, (response) => {
+                    if (runtimeAPI.lastError) {
+                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ FAILED TO OPEN BACKGROUND SCRIPT: ' + runtimeAPI.lastError.message + '</div>';
+                    } else {
+                        consoleResults.innerHTML = '<div style="padding: 12px; color: #00ff00;">✓ Background script window opened</div>';
+                    }
+                });
+            }
+        },
+        bg: {
+            description: 'Alias for background',
+            usage: 'bg',
+            execute: () => {
+                commands.background.execute();
+            }
+        },
+        stats: {
+            description: 'Show instance statistics summary',
+            usage: 'stats | st',
+            execute: async () => {
+                try {
+                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ FETCHING STATS...</div>';
+                    
+                    const statsUrl = window.location.origin + '/stats.do';
+                    const response = await fetch(statsUrl);
+                    const text = await response.text();
+                    
+                    // Parse HTML and extract text content
+                    // Parse the HTML first to get the db_connections span
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(text, 'text/html');
+                    
+                    // Replace <br> tags with newlines for text extraction
+                    const textWithNewlines = text.replace(/<br\s*\/?>/gi, '\n');
+                    const statsText = textWithNewlines.replace(/<[^>]+>/g, '');
+                    
+                    // Extract key metrics - looking for patterns like "Build name: Yokohama"
+                    const nodeMatch = statsText.match(/Connected to cluster node:\s*([^\n]+)/);
+                    const buildNameMatch = statsText.match(/Build name:\s*([^\n]+)/);
+                    const buildDateMatch = statsText.match(/Build date:\s*([^\n]+)/);
+                    const buildTagMatch = statsText.match(/Build tag:\s*([^\n]+)/);
+                    const instanceNameMatch = statsText.match(/Instance name:\s*([^\n]+)/);
+                    const midBuildstampMatch = statsText.match(/MID buildstamp:\s*([^\n]+)/);
+                    const runLevelMatch = statsText.match(/Current Run Level:\s*([^\n]+)/);
+                    const maxConcurrencyMatch = statsText.match(/Maximum session concurrency:\s*(\d+)/);
+                    const loggedInMatch = statsText.match(/Logged in sessions:\s*(\d+)/);
+                    const sessionTimeoutMatch = statsText.match(/Session timeout:\s*([^\n]+)/);
+                    
+                    const nodeName = nodeMatch ? nodeMatch[1].trim() : 'Unknown';
+                    const buildName = buildNameMatch ? buildNameMatch[1].trim() : 'Unknown';
+                    const buildDate = buildDateMatch ? buildDateMatch[1].trim() : 'Unknown';
+                    const buildTag = buildTagMatch ? buildTagMatch[1].trim() : 'Unknown';
+                    const instanceName = instanceNameMatch ? instanceNameMatch[1].trim() : 'Unknown';
+                    const midBuildstamp = midBuildstampMatch ? midBuildstampMatch[1].trim() : 'Unknown';
+                    const runLevel = runLevelMatch ? runLevelMatch[1].trim() : 'Unknown';
+                    const maxConcurrency = maxConcurrencyMatch ? maxConcurrencyMatch[1].trim() : 'Unknown';
+                    const loggedIn = loggedInMatch ? loggedInMatch[1].trim() : 'Unknown';
+                    const sessionTimeout = sessionTimeoutMatch ? sessionTimeoutMatch[1].trim() : 'Unknown';
+                    
+                    // Extract db_connections span content for all prefixes
+                    const dbConnectionsSpan = doc.getElementById('db_connections');
+                    const dbPrefixes = [];
+                    
+                    if (dbConnectionsSpan) {
+                        // Replace <br> with newlines in the span content
+                        const dbHtml = dbConnectionsSpan.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+                        const dbText = dbHtml.replace(/<[^>]+>/g, '');
+                        
+                        // Extract all prefix sections (match "\nPrefix: <name>" followed by content until next "\nPrefix:" or end)
+                        const prefixRegex = /\nPrefix:\s*([^\n]+)([\s\S]*?)(?=\nPrefix:|$)/g;
+                        let match;
+                        
+                        while ((match = prefixRegex.exec(dbText)) !== null) {
+                            const prefixName = match[1].trim();
+                            const prefixText = match[2];
+                            
+                            const dbNameMatch = prefixText.match(/DB Name:\s*([^\n]+)/);
+                            const dbStatusMatch = prefixText.match(/Status:\s*([^\n]+)/);
+                            const dbBusyMatch = prefixText.match(/Busy:\s*(\d+)/);
+                            const dbClosedMatch = prefixText.match(/Closed:\s*(\d+)/);
+                            const dbAvailableMatch = prefixText.match(/Available:\s*(\d+)/);
+                            const dbSharedMatch = prefixText.match(/Shared:\s*(\d+)/);
+                            const dbSharedBusyMatch = prefixText.match(/SharedBusy:\s*(\d+)/);
+                            const dbTotalMatch = prefixText.match(/Total:\s*(\d+)/);
+                            const dbMaxMatch = prefixText.match(/Max:\s*(\d+)/);
+                            
+                            dbPrefixes.push({
+                                prefix: prefixName,
+                                dbName: dbNameMatch ? dbNameMatch[1].trim() : 'Unknown',
+                                status: dbStatusMatch ? dbStatusMatch[1].trim() : 'Unknown',
+                                busy: dbBusyMatch ? dbBusyMatch[1] : 'Unknown',
+                                closed: dbClosedMatch ? dbClosedMatch[1] : 'Unknown',
+                                available: dbAvailableMatch ? dbAvailableMatch[1] : 'Unknown',
+                                shared: dbSharedMatch ? dbSharedMatch[1] : 'Unknown',
+                                sharedBusy: dbSharedBusyMatch ? dbSharedBusyMatch[1] : 'Unknown',
+                                total: dbTotalMatch ? dbTotalMatch[1] : 'Unknown',
+                                max: dbMaxMatch ? dbMaxMatch[1] : 'Unknown'
+                            });
+                        }
+                    }
+                    
+                    // Escape HTML to prevent rendering issues
+                    const escapeHtml = (str) => {
+                        return str.replace(/&/g, '&amp;')
+                                  .replace(/</g, '&lt;')
+                                  .replace(/>/g, '&gt;')
+                                  .replace(/"/g, '&quot;')
+                                  .replace(/'/g, '&#039;');
+                    };
+                    
+                    let html = '<div style="padding: 12px; line-height: 1.8; font-size: 13px;">';
+                    html += '<div style="font-weight: bold; margin-bottom: 12px; color: #00ff00;">▸ INSTANCE STATISTICS</div>';
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Connected to cluster node: <span style="color: #00ff00;">${escapeHtml(nodeName)}</span></div>`;
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Build name: <span style="color: #00ff00;">${escapeHtml(buildName)}</span></div>`;
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Build date: <span style="color: #00ff00;">${escapeHtml(buildDate)}</span></div>`;
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Build tag: <span style="color: #00ff00;">${escapeHtml(buildTag)}</span></div>`;
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Instance name: <span style="color: #00ff00;">${escapeHtml(instanceName)}</span></div>`;
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">MID buildstamp: <span style="color: #00ff00;">${escapeHtml(midBuildstamp)}</span></div>`;
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Current Run Level: <span style="color: #00ff00;">${escapeHtml(runLevel)}</span></div>`;
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Maximum session concurrency: <span style="color: #00ff00;">${escapeHtml(maxConcurrency)}</span></div>`;
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Logged in sessions: <span style="color: #00ff00;">${escapeHtml(loggedIn)}</span></div>`;
+                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Session timeout: <span style="color: #00ff00;">${escapeHtml(sessionTimeout)}</span></div>`;
+                    
+                    html += '<div style="font-weight: bold; margin-top: 16px; margin-bottom: 8px; color: #00ff00;">▸ DATABASE CONNECTIONS</div>';
+                    
+                    // Display each database prefix in its own table
+                    for (const prefix of dbPrefixes) {
+                        html += `<div style="color: #00aa00; margin-top: 12px; margin-bottom: 4px; font-weight: bold;">Prefix: ${escapeHtml(prefix.prefix)}</div>`;
+                        html += `<div style="color: #00aa00; margin-bottom: 4px; font-size: 11px;">DB Name: <span style="color: #00ff00;">${escapeHtml(prefix.dbName)}</span> | Status: <span style="color: #00ff00;">${escapeHtml(prefix.status)}</span></div>`;
+                        
+                        // Transposed horizontal table for database metrics
+                        html += '<table style="border-collapse: collapse; margin-top: 4px; font-size: 11px; width: 100%;">';
+                        html += '<tr style="background-color: #1a1a1a;">';
+                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Busy</th>';
+                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Closed</th>';
+                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Available</th>';
+                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Shared</th>';
+                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">SharedBusy</th>';
+                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Total</th>';
+                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Max</th>';
+                        html += '</tr>';
+                        html += '<tr>';
+                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.busy)}</td>`;
+                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.closed)}</td>`;
+                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.available)}</td>`;
+                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.shared)}</td>`;
+                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.sharedBusy)}</td>`;
+                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.total)}</td>`;
+                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.max)}</td>`;
+                        html += '</tr>';
+                        html += '</table>';
+                    }
+                    
+                    // Extract response times for both 5 and 60 minute windows
+                    // Pattern: "X transactions, Y per minute, 90% faster than Z"
+                    const extractTransactions = (text, type, window) => {
+                        // Match the section header, then look for the specific minute line
+                        // Each time window is on its own line
+                        const regex = new RegExp(`${type}[\\s\\S]*?\\n${window} minute:\\s*[^\\(]+\\((\\d+)\\s+transactions,\\s+([\\d.]+)\\s+per minute,\\s+(\\d+)%\\s+faster than\\s+([^\\)]+)`);
+                        const match = text.match(regex);
+                        return match ? { count: match[1], perMin: match[2], fasterPercent: match[3], fasterThan: match[4] } : null;
+                    };
+                    
+                    const responseTypes = [
+                        { name: 'Server', pattern: 'Server Response Time' },
+                        { name: 'Client', pattern: 'Client Response Time' },
+                        { name: 'All Transactions', pattern: 'All Transactions Response Time' },
+                        { name: 'User Initiated', pattern: 'User Initiated Response Time' },
+                        { name: 'Background', pattern: 'Background Response Time' }
+                    ];
+                    
+                    html += '<div style="font-weight: bold; margin-top: 16px; margin-bottom: 8px; color: #00ff00;">▸ RESPONSE TIMES</div>';
+                    html += '<table style="border-collapse: collapse; margin-top: 8px; font-size: 11px; width: 100%;">';
+                    html += '<tr style="background-color: #1a1a1a;">';
+                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: left;">Type</th>';
+                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">5m count</th>';
+                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">5m/min</th>';
+                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">5m faster</th>';
+                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">60m count</th>';
+                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">60m/min</th>';
+                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">60m faster</th>';
+                    html += '</tr>';
+                    
+                    for (const type of responseTypes) {
+                        const data5 = extractTransactions(statsText, type.pattern, '5');
+                        const data60 = extractTransactions(statsText, type.pattern, '60');
+                        
+                        if (data5 || data60) {
+                            html += '<tr>';
+                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00aa00;">${escapeHtml(type.name)}</td>`;
+                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">${data5 ? escapeHtml(data5.count) : '-'}</td>`;
+                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">${data5 ? escapeHtml(data5.perMin) : '-'}</td>`;
+                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center; font-size: 10px;">${data5 ? escapeHtml(data5.fasterPercent) + '% (' + escapeHtml(data5.fasterThan) + ')' : '-'}</td>`;
+                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">${data60 ? escapeHtml(data60.count) : '-'}</td>`;
+                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">${data60 ? escapeHtml(data60.perMin) : '-'}</td>`;
+                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center; font-size: 10px;">${data60 ? escapeHtml(data60.fasterPercent) + '% (' + escapeHtml(data60.fasterThan) + ')' : '-'}</td>`;
+                            html += '</tr>';
+                        }
+                    }
+                    
+                    html += '</table>';
+                    html += '</div>';
+                    
+                    consoleResults.innerHTML = html;
+                } catch (error) {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to fetch stats: ' + error.message + '</div>';
+                }
+            }
+        },
+        st: {
+            description: 'Alias for stats',
+            usage: 'st',
+            execute: async () => {
+                await commands.stats.execute();
+            }
+        }
+    };
+    
+    /**
+     * Parses and executes console command
+     */
+    const performConsoleSearch = async () => {
+        const input = consoleInput.value.trim();
+        if (!input) return;
+        
+        // Add to history
+        searchHistory.unshift(input);
+        if (searchHistory.length > 10) searchHistory.pop();
+        historyIndex = -1;
+        
+        // Parse command and arguments
+        const parts = input.split(/\s+/);
+        const command = parts[0].toLowerCase();
+        const args = parts.slice(1);
+        
+        // Execute command
+        if (commands[command]) {
+            await commands[command].execute(args);
+        } else {
+            // Show error message and help
+            const escapeHtml = (str) => {
+                return str.replace(/&/g, '&amp;')
+                          .replace(/</g, '&lt;')
+                          .replace(/>/g, '&gt;')
+                          .replace(/"/g, '&quot;')
+                          .replace(/'/g, '&#039;');
+            };
+            
+            let html = `
+                <div class="sntb-console-error" style="margin-bottom: 12px;">
+                    ✖ Unknown command: ${escapeHtml(command)}
+                </div>
+            `;
+            
+            // Add help content
+            html += '<div style="padding: 12px; line-height: 1.6;">';
+            html += '<div style="font-weight: bold; margin-bottom: 8px;">▸ AVAILABLE COMMANDS:</div>';
+            
+            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'stats'];
+            mainCommands.forEach(cmd => {
+                const cmdObj = commands[cmd];
+                const safeUsage = escapeHtml(cmdObj.usage);
+                const safeDescription = escapeHtml(cmdObj.description);
+                html += `
+                    <div style="margin-bottom: 4px;">
+                        <span style="color: #00ff00; font-weight: bold;">${safeUsage}</span>
+                        <span style="color: #006600; margin-left: 16px;">${safeDescription}</span>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            consoleResults.innerHTML = html;
+        }
+    };
+    
+    /**
+     * Determine search type (same logic as popup)
+     */
+    const determineSearchType = (input) => {
+        if (input.length === 32 && /^[a-fA-F0-9]{32}$/.test(input)) {
+            return { type: 'sysId', value: input };
+        } else if (/^[A-Za-z]+\d+$/.test(input)) {
+            return { type: 'number', value: input };
+        } else {
+            const isStartsWith = input.endsWith('*');
+            if (isStartsWith && input.slice(0, -1).length < 5) {
+                return { type: 'invalid', error: 'Wildcard requires 5+ chars' };
+            }
+            return { type: 'multiSearch', value: input, isStartsWith };
+        }
+    };
+    
+    /**
+     * Perform search using content script functions
+     */
+    const performSearch = async (searchType, searchValue) => {
+        if (!context.g_ck) {
+            throw new Error('Not authenticated');
+        }
+        
+        const host = window.location.hostname;
+        
+        if (searchType === 'sysId') {
+            return await searchSysIdWithPriority(searchValue, host, context.g_ck);
+        } else if (searchType === 'number') {
+            return await searchByNumber(searchValue, host, context.g_ck);
+        } else {
+            return await searchByObjectName(searchValue, host, context.g_ck, 'multiSearch');
+        }
+    };
+    
+    /**
+     * Display search results in console
+     */
+    const displayConsoleResults = (result) => {
+        if (!result) {
+            consoleResults.innerHTML = '<div class="sntb-console-error">✖ NO RESULT RETURNED</div>';
+            return;
+        }
+        
+        // Handle different result structures
+        let results = [];
+        
+        if (result.results && Array.isArray(result.results)) {
+            // Multi-result format
+            results = result.results;
+        } else if (result.status === 200 && result.directUrl) {
+            // Single result format (sys_id search)
+            results = [{
+                name: result.displayName || result.name || result.searchValue,
+                displayName: result.displayName || result.name,
+                actualClass: result.actualClass || result.table,
+                table: result.table,
+                directUrl: result.directUrl,
+                value: result.searchValue
+            }];
+        }
+        
+        if (results.length === 0) {
+            consoleResults.innerHTML = '<div class="sntb-console-error">✖ NO RESULTS FOUND</div>';
+            return;
+        }
+        
+        // Group results by actual class name
+        const groupedResults = {};
+        results.forEach(item => {
+            const classKey = item.actualClass || item.table || 'unknown';
+            if (!groupedResults[classKey]) {
+                groupedResults[classKey] = [];
+            }
+            groupedResults[classKey].push(item);
+        });
+        
+        // Sort class names alphabetically
+        const classNames = Object.keys(groupedResults).sort();
+        const hasMultipleClasses = classNames.length > 1;
+        
+        let html = '';
+        
+        if (hasMultipleClasses) {
+            // Multiple classes - show grouped results with expand/collapse
+            classNames.forEach(className => {
+                const classResults = groupedResults[className];
+                // Sort results within each class alphabetically by name
+                classResults.sort((a, b) => {
+                    const nameA = a.displayName || a.name || a.value || '';
+                    const nameB = b.displayName || b.name || b.value || '';
+                    return nameA.localeCompare(nameB);
+                });
+                
+                const groupId = `console-group-${className.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                const isExpanded = classResults.length <= 3; // Auto-expand small groups
+                const safeClassName = DOMPurify.sanitize(className);
+                
+                html += `
+                    <div class="sntb-console-result-group">
+                        <div class="sntb-console-group-header" data-group="${groupId}">
+                            <span class="sntb-console-group-toggle">${isExpanded ? '▼' : '▶'}</span>
+                            <span class="sntb-console-group-title">${safeClassName}</span>
+                            <span class="sntb-console-group-count">(${classResults.length})</span>
+                        </div>
+                        <div class="sntb-console-group-content" id="${groupId}" style="display: ${isExpanded ? 'block' : 'none'};">
+                `;
+                
+                classResults.forEach(item => {
+                    const name = item.name || item.displayName || item.value || 'Unknown';
+                    const url = item.directUrl || '#';
+                    const safeName = DOMPurify.sanitize(name);
+                    const safeUrl = DOMPurify.sanitize(url);
+                    const safeClassName = DOMPurify.sanitize(className);
+                    html += `
+                        <div class="sntb-console-result-item grouped" data-url="${safeUrl}">
+                            <span class="sntb-console-result-name">${safeName}</span>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            // Single class - show flat list
+            const className = classNames[0];
+            const classResults = groupedResults[className];
+            // Sort results alphabetically by name
+            classResults.sort((a, b) => {
+                const nameA = a.displayName || a.name || a.value || '';
+                const nameB = b.displayName || b.name || b.value || '';
+                return nameA.localeCompare(nameB);
+            });
+            
+            classResults.forEach(item => {
+                const name = item.name || item.displayName || item.value || 'Unknown';
+                const classToDisplay = item.actualClass || item.table || 'Unknown';
+                const url = item.directUrl || '#';
+                const safeName = DOMPurify.sanitize(name);
+                const safeClass = DOMPurify.sanitize(classToDisplay);
+                const safeUrl = DOMPurify.sanitize(url);
+                html += `
+                    <div class="sntb-console-result-item" data-url="${safeUrl}">
+                        <span class="sntb-console-result-name">${safeName}</span>
+                        <span class="sntb-console-result-class">[${safeClass}]</span>
+                    </div>
+                `;
+            });
+        }
+        
+        consoleResults.innerHTML = html;
+        
+        // Add click handlers for results
+        consoleResults.querySelectorAll('.sntb-console-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const url = item.getAttribute('data-url');
+                window.open(url, '_blank');
+                // Don't close console - keep results visible for multiple clicks
+            });
+        });
+        
+        // Add click handlers for group headers (expand/collapse)
+        consoleResults.querySelectorAll('.sntb-console-group-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const groupId = header.getAttribute('data-group');
+                const content = document.getElementById(groupId);
+                const toggle = header.querySelector('.sntb-console-group-toggle');
+                
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    toggle.textContent = '▼';
+                } else {
+                    content.style.display = 'none';
+                    toggle.textContent = '▶';
+                }
+            });
+        });
+    };
+    
+    // Listen for toggle command from background
+    runtimeAPI.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.command === 'toggleConsole') {
+            toggleConsole();
+            sendResponse({ success: true });
+        }
+    });
+    
+    console.log("*SNOW TOOL BELT* Console initialized (Ctrl+Shift+K)");
 })();
 
