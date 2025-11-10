@@ -876,10 +876,12 @@ input:checked+.slider:before {
 }
 
 .history {
-    padding: 0 10px;
+    padding: 0;
     margin-bottom: 10px;
-    max-height: 130px;
+    max-height: 200px;
     overflow-y: auto;
+    border: 1px solid var(--disabled-color);
+    border-radius: 4px;
 }
 
 .history_table {
@@ -894,26 +896,56 @@ input:checked+.slider:before {
     top: 0;
     background-color: var(--btn-color);
     color: var(--main-bg-color);
+    padding: 10px 12px;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--disabled-color);
+    z-index: 10;
 }
 
 .history_table tr {
     text-align: left;
+    border-bottom: 1px solid var(--disabled-color);
 }
 
-.history_table tr {
+.history_table tbody tr {
     cursor: pointer;
+    transition: background-color 0.15s ease;
 }
 
-.history_table tr:hover {
+.history_table tbody tr:hover {
     background-color: var(--alt-bg-color);
 }
 
+.history_table tbody tr:active {
+    background-color: var(--btn-hover-color);
+}
+
 .history_table td {
-    padding: 5px;
-    font-size: small;
+    padding: 10px 12px;
+    font-size: 13px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    vertical-align: middle;
+}
+
+.history_table td[name=""] {
+    text-align: center;
+    color: var(--muted-color);
+    font-weight: bold;
+}
+
+.history_table td[name="started"] {
+    font-family: 'Courier New', monospace;
+    color: var(--secondary-color);
+}
+
+.history_table td[name="script"] {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
 }
 
 #newFilter {
@@ -1642,6 +1674,45 @@ body.theme-auto.theme-dark-detected .search-help {
 
 body.theme-dark .search-help small,
 body.theme-auto.theme-dark-detected .search-help small {
+    color: #b0bec5;
+}
+
+/* Search options (checkbox) */
+.search-options {
+    margin: 8px 0 4px 0;
+}
+
+.search-option-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--main-color);
+    cursor: pointer;
+}
+
+.search-option-label input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.search-hint {
+    cursor: help;
+    opacity: 0.7;
+    vertical-align: middle;
+}
+
+.search-hint:hover {
+    opacity: 1;
+}
+
+@media (prefers-color-scheme: dark) {
+    .search-option-label {
+        color: #b0bec5;
+    }
+}
+
+body.theme-dark .search-option-label,
+body.theme-auto.theme-dark-detected .search-option-label {
     color: #b0bec5;
 }
 

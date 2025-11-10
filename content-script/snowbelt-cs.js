@@ -639,7 +639,7 @@ function setupUpdateSetMonitoring() {
     let lastUpdateSetId = null;
     let isCheckingUpdateSet = false;
     
-    const POLLING_INTERVAL = 5000; // 5 seconds
+    const POLLING_INTERVAL = 10000; // 5 seconds
     
     /**
      * Fetches current update set and reports if changed
@@ -801,110 +801,9 @@ function initScript(options) {
         cssFile.setAttribute("href", runtimeAPI.getURL("/css/snowbelt.css"));
         window.document.head.appendChild(cssFile);
 
-        // Wait for Monaco Editor to be available
-        const waitForMonaco = () => {
-            return new Promise((resolve, reject) => {
-                let attempts = 0;
-                const maxAttempts = 100; // 10 seconds max wait
-
-                const checkMonaco = () => {
-                    attempts++;
-                    debugLog(`*SNOW TOOL BELT* Checking for Monaco (attempt ${attempts}/${maxAttempts})`);
-
-                    // Check for ServiceNow's Monaco implementation
-                    const hasMonaco = window.monaco && window.monaco.editor;
-                    const hasGlideEditor = window.GlideEditorMonaco;
-                    let hasScriptEditor = false;
-                    try {
-                        hasScriptEditor = window.script_editor && typeof window.script_editor === 'object' && window.script_editor.editor;
-                    } catch (e) {
-                        // Ignore errors when checking script_editor
-                    }
-                    const editorElements = document.querySelectorAll('.monaco-editor');
-
-                    try {
-                        debugLog("*SNOW TOOL BELT* Monaco check:", {
-                            monacoExists: !!window.monaco,
-                            editorAPI: !!(window.monaco && window.monaco.editor),
-                            glideEditorMonaco: !!window.GlideEditorMonaco,
-                            scriptEditor: !!window.script_editor,
-                            scriptEditorType: typeof window.script_editor,
-                            scriptEditorReady: !!(window.script_editor && typeof window.script_editor === 'object' && window.script_editor.editor),
-                            editorElements: editorElements.length
-                        });
-                    } catch (e) {
-                        debugLog("*SNOW TOOL BELT* Error in Monaco check debug:", e.message);
-                    }
-
-                    // Check if we have enough to work with - be less strict about ServiceNow objects
-                    if ((hasMonaco || editorElements.length > 0) && document.getElementById('div_script')) {
-                        debugLog("*SNOW TOOL BELT* Monaco editor environment detected!");
-                        resolve(true);
-                        return;
-                    }
-
-                    // Alternative: if we have the Monaco DOM but not the objects, try to proceed anyway
-                    if (editorElements.length > 0 && attempts > 20) {
-                        debugLog("*SNOW TOOL BELT* Monaco DOM found, proceeding without full API access");
-                        resolve(true);
-                        return;
-                    }
-
-                    if (attempts >= maxAttempts) {
-                        debugLog("*SNOW TOOL BELT* Monaco editor not found after maximum attempts");
-                        reject(new Error("Monaco editor not found"));
-                        return;
-                    }
-
-                    setTimeout(checkMonaco, 100);
-                };
-                checkMonaco();
-            });
-        };
-
-        // Function to get Monaco editor instance
-        const getMonacoEditor = () => {
-            // Try multiple approaches to get the editor
-
-            // Method 1: ServiceNow's script_editor global
-            try {
-                if (window.script_editor && window.script_editor.editor) {
-                    return window.script_editor.editor;
-                }
-            } catch (e) {
-                debugLog("*SNOW TOOL BELT* Error accessing script_editor:", e.message);
-            }
-
-            // Method 2: Standard Monaco API
-            try {
-                if (window.monaco && window.monaco.editor) {
-                    const editors = window.monaco.editor.getEditors();
-                    if (editors && editors.length > 0) {
-                        return editors[0];
-                    }
-                }
-            } catch (e) {
-                debugLog("*SNOW TOOL BELT* Error accessing monaco.editor:", e.message);
-            }
-
-            // Method 3: Try to find via GlideEditorMonaco if available
-            try {
-                if (window.GlideEditorMonaco && window.GlideEditorMonaco.get) {
-                    const editor = window.GlideEditorMonaco.get('script');
-                    if (editor && editor.editor) {
-                        return editor.editor;
-                    }
-                }
-            } catch (e) {
-                debugLog("*SNOW TOOL BELT* Error accessing GlideEditorMonaco:", e.message);
-            }
-
-            return null;
-        };
-
-        // Function to set Monaco editor content
-        const setMonacoContent = (content) => {
-            debugLog("*SNOW TOOL BELT* Using clipboard approach for Monaco content");
+        // Function to set editor content via clipboard
+        const setEditorContent = (content) => {
+            debugLog("*SNOW TOOL BELT* Using clipboard approach for editor content");
 
             // Copy content to clipboard and show user-friendly notification
             try {
@@ -931,7 +830,7 @@ function initScript(options) {
                             transition: opacity 0.3s ease-out;
                         ">
                             <strong>✓ Script copied to clipboard!</strong><br>
-                            Click in the Monaco editor and press <strong>Ctrl+V</strong> to paste.
+                            Click in the editor and press <strong>Ctrl+V</strong> to paste.
                         </div>
                     `;
                     document.body.appendChild(notification);
@@ -949,11 +848,11 @@ function initScript(options) {
                         }
                     }, 2000);
 
-                    // Try to focus the Monaco editor to make pasting easier
-                    const monacoTextarea = document.querySelector('.monaco-editor textarea.inputarea');
-                    if (monacoTextarea) {
-                        monacoTextarea.focus();
-                        debugLog("*SNOW TOOL BELT* Monaco editor focused for pasting");
+                    // Try to focus the editor to make pasting easier
+                    const editorTextarea = document.querySelector('.monaco-editor textarea.inputarea');
+                    if (editorTextarea) {
+                        editorTextarea.focus();
+                        debugLog("*SNOW TOOL BELT* Editor focused for pasting");
                     }
 
                 }).catch(err => {
@@ -998,7 +897,7 @@ function initScript(options) {
                         border: 1px solid var(--muted-color, #81B5A1);
                     ">
                         <h3 style="margin-top: 0; color: var(--highlight, #d66419);">📋 Copy Script Content</h3>
-                        <p>Select all the text below and copy it (<strong>Ctrl+C</strong>), then paste it into the Monaco editor:</p>
+                        <p>Select all the text below and copy it (<strong>Ctrl+C</strong>), then paste it into the editor:</p>
                         <textarea readonly style="
                             width: 100%;
                             height: 300px;
@@ -1028,51 +927,9 @@ function initScript(options) {
             document.body.appendChild(modal);
         };
 
-        // Wait for the Monaco editor DOM elements to appear first
-        const waitForMonacoDOM = () => {
-            return new Promise((resolve) => {
-                let attempts = 0;
-                const maxAttempts = 50; // 5 seconds
-
-                const checkDOM = () => {
-                    attempts++;
-                    const monacoEditor = document.querySelector('.monaco-editor');
-                    const scriptDiv = document.getElementById('div_script');
-
-                    debugLog(`*SNOW TOOL BELT* Waiting for Monaco DOM (attempt ${attempts}/${maxAttempts})`, {
-                        monacoEditor: !!monacoEditor,
-                        scriptDiv: !!scriptDiv,
-                        readyState: document.readyState
-                    });
-
-                    if (monacoEditor && scriptDiv) {
-                        debugLog("*SNOW TOOL BELT* Monaco DOM elements found!");
-                        resolve();
-                        return;
-                    }
-
-                    if (attempts >= maxAttempts) {
-                        debugLog("*SNOW TOOL BELT* Monaco DOM elements not found, proceeding anyway");
-                        resolve();
-                        return;
-                    }
-
-                    setTimeout(checkDOM, 100);
-                };
-                checkDOM();
-            });
-        };
-
-        waitForMonacoDOM().then(() => {
-            // Wait a bit more for ServiceNow's scripts to initialize
-            return new Promise(resolve => setTimeout(resolve, 2000));
-        }).then(() => {
-            return waitForMonaco();
-        }).then(() => {
-            debugLog("*SNOW TOOL BELT* Monaco editor ready, initializing background script enhancements");
-            // We are on the background script page with Monaco editor
-            // retrieves execution history for the current user
-            debugLog("*SNOW TOOL BELT* Fetching execution history");
+        // Fetch execution history immediately
+        debugLog("*SNOW TOOL BELT* Initializing background script enhancements");
+        debugLog("*SNOW TOOL BELT* Fetching execution history");
             let historyUrl = new Request(url.origin + "/sys_script_execution_history_list.do?JSONv2&sysparm_action=getRecords&sysparm_query=executed_byDYNAMIC90d1921e5f510100a9ad2572f2b477fe^ORDERBYDESCstarted");
             let headers = new Headers();
             headers.append('Content-Type', 'application/json');
@@ -1100,20 +957,21 @@ function initScript(options) {
                         const table = backgroundScriptAddonTableTemplate();
                         document.body.insertAdjacentHTML("afterbegin", table);
                         let tableEl = document.getElementById("execution_history_table");
+                        let tbody = tableEl.querySelector("tbody");
                         let tableContent = "";
                         context.history.records.forEach((record, index) => {
                             tableContent += backgroundScriptAddonRowTemplate(record, index);
                         });
-                        tableEl.innerHTML += tableContent;
+                        tbody.innerHTML = tableContent;
 
                         const displayHistoryRecord = (index) => {
                             const script = context.history.records[index].script;
-                            if (!setMonacoContent(script)) {
-                                debugLog("*SNOW TOOL BELT* Could not set Monaco editor content");
+                            if (!setEditorContent(script)) {
+                                debugLog("*SNOW TOOL BELT* Could not set editor content");
                             }
                         }
 
-                        elements = document.querySelectorAll(".history_table tr");
+                        elements = document.querySelectorAll(".history_table tbody tr");
                         [].forEach.call(elements, (el) => {
                             el.onclick = (evt) => {
                                 let index = (evt.target.getAttribute("data-id") ? evt.target.getAttribute("data-id") : evt.target.parentNode.getAttribute("data-id"));
@@ -1124,10 +982,6 @@ function initScript(options) {
                 }).catch((error) => {
                     debugLog("*SNOW TOOL BELT* Error in background script enhancement:", error);
                 });
-        }).catch((error) => {
-            debugLog("*SNOW TOOL BELT* Monaco editor not found:", error);
-            debugLog("*SNOW TOOL BELT* Background script enhancements will not be available");
-        });
     }
 }
 
@@ -1149,16 +1003,20 @@ function backgroundScriptAddonTableTemplate() {
     return `
     <div class="history">
         <table id="execution_history_table" class="history_table">
-            <tr id="execution_history_header">
-                <th style="width:3%;" name="">
-                </th>
-                <th style="width:25%;" name="last_executed">
-                    <span style="white-space:nowrap">last executed</span>
-                </th>
-                <th style="width:72%;" name="script">
-                    <span style="white-space:nowrap">script</span>
-                </th>
-            </tr>
+            <thead>
+                <tr id="execution_history_header">
+                    <th style="width:40px;" name="">
+                    </th>
+                    <th style="width:180px;" name="last_executed">
+                        Last Executed
+                    </th>
+                    <th name="script">
+                        Script
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
         </table>
     </div>
     `
@@ -1332,7 +1190,7 @@ async function searchThroughTables(tableNames, sysId, host, token) {
         tablesSearched++;
         debugLog("*SNOW TOOL BELT* [SEARCH " + searchId + "] [START] Searching in table:", tableName, `(${i + 1}/${filteredTables.length})`, "- Tables searched so far:", tablesSearched);
         try {
-            // Use direct record access - single API call with display values
+            // First try direct sys_id lookup
             const tableApiUrl = `https://${host}/api/now/table/${tableName}/${sysId}?sysparm_display_value=all`;
             debugLog("*SNOW TOOL BELT* Fetching URL:", tableApiUrl);
 
@@ -1440,19 +1298,77 @@ async function searchThroughTables(tableNames, sysId, host, token) {
 }
 
 /**
+ * Scan cluster nodes from xmlstats.do
+ * @param {string} host - The ServiceNow instance host
+ * @param {string} statsUrl - The stats URL
+ * @returns {Promise} Promise that resolves with nodes data
+ */
+async function scanClusterNodes(host, statsUrl) {
+    debugLog("*SNOW TOOL BELT* Scanning cluster nodes");
+    
+    try {
+        // First fetch stats page to get current node name
+        const statsResponse = await fetch(statsUrl, { credentials: "same-origin" });
+        
+        if (!statsResponse.ok || statsResponse.status !== 200) {
+            debugLog("*SNOW TOOL BELT* Error fetching stats page:", statsResponse.status);
+            return { nodes: [], current: "", status: statsResponse.status };
+        }
+        
+        const statsText = await statsResponse.text();
+        if (!statsText) {
+            return { nodes: [], current: "", status: 404 };
+        }
+        
+        const current = getNameFromStatsPage(statsText);
+        
+        // Fetch xmlstats to get all nodes
+        const xmlStatsURL = `https://${host}/xmlstats.do`;
+        const xmlResponse = await fetch(xmlStatsURL, { credentials: "same-origin" });
+        
+        if (!xmlResponse.ok || xmlResponse.status !== 200) {
+            debugLog("*SNOW TOOL BELT* Error fetching xmlstats:", xmlResponse.status);
+            return { nodes: [], current: current, status: xmlResponse.status };
+        }
+        
+        const xmlText = await xmlResponse.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+        const nodesList = xmlDoc.querySelectorAll("node system_id");
+        
+        const nodes = [];
+        nodesList.forEach(function (node) {
+            if (node.textContent.includes(":")) {
+                nodes.push(node.textContent.split(":")[1]);
+            }
+        });
+        
+        debugLog("*SNOW TOOL BELT* Found nodes:", nodes);
+        return { nodes: nodes, current: current, status: 200 };
+        
+    } catch (error) {
+        debugLog("*SNOW TOOL BELT* Error scanning nodes:", error);
+        return { nodes: [], current: "", status: 500 };
+    }
+}
+
+/**
  * Search for sys_id with priority tables first, then all tables if needed
  * @param {string} sysId - The sys_id to search for
  * @param {string} host - The ServiceNow instance host
  * @param {string} token - Authentication token
+ * @param {boolean} globalSearch - If true, search all tables; if false, only search priority tables
  * @returns {Promise} Promise that resolves with search result
  */
-async function searchSysIdWithPriority(sysId, host, token) {
-    debugLog("*SNOW TOOL BELT* Starting priority sys_id search for:", sysId);
+async function searchSysIdWithPriority(sysId, host, token, globalSearch = true) {
+    debugLog("*SNOW TOOL BELT* Starting priority sys_id search for:", sysId, "globalSearch:", globalSearch);
 
     // Priority tables to search first
     const priorityTables = [
         "sys_metadata",
         "task",
+        "cmdb_ci",
+        "cmdb_rel_ci",
         "sn_jny_journey",
         "sys_flow_context",
         "sys_user",
@@ -1474,6 +1390,19 @@ async function searchSysIdWithPriority(sysId, host, token) {
     if (priorityResult.found) {
         debugLog("*SNOW TOOL BELT* Found in priority tables!");
         return priorityResult;
+    }
+
+    // If not found and global search is disabled, return not found
+    if (!globalSearch) {
+        debugLog("*SNOW TOOL BELT* Not found in priority tables and global search is disabled");
+        return {
+            status: 404,
+            searchValue: sysId,
+            searchType: 'sysId',
+            displayValue: "Not found in common tables. Enable global search to search all tables.",
+            instance: host,
+            found: false
+        };
     }
 
     debugLog("*SNOW TOOL BELT* Not found in priority tables, querying sys_db_object for all tables...");
@@ -1762,11 +1691,11 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             displayName: 'Object'
         },
         {
-            table: 'task',
-            query: isStartsWithSearch ? `numberSTARTSWITH${cleanSearchValue}` : `number=${cleanSearchValue}`,
-            fields: 'sys_id,number,short_description,state,sys_class_name,sys_updated_on',
-            nameField: 'number',
-            displayName: 'Task'
+            table: 'cmdb_ci',
+            query: isStartsWithSearch ? `nameSTARTSWITH${cleanSearchValue}` : `name=${cleanSearchValue}`,
+            fields: 'sys_id,name,sys_class_name,sys_updated_on',
+            nameField: 'name',
+            displayName: 'Configuration Item'
         },
         {
             table: 'sys_user',
@@ -1787,19 +1716,24 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
     // For backward compatibility, if searchType is 'objectName', only search sys_metadata
     const tablesToSearch = searchType === 'multiSearch' ? searchTables : [searchTables[0]];
 
+    // Collect all results from all tables
+    const allResults = [];
+    let hitLimit = false;
+    const searchedTables = [];
+
+    // Get the configured max search results limit once
+    const maxResults = await new Promise((resolve) => {
+        storageAPI.local.get("useSync", (result1) => {
+            const useSync = result1.useSync === "true" || result1.useSync === true;
+            const storageArea = useSync ? storageAPI.sync : storageAPI.local;
+            storageArea.get("maxSearchResults", (result) => {
+                resolve(result.maxSearchResults || 20);
+            });
+        });
+    });
+
     for (const searchConfig of tablesToSearch) {
         try {
-            // Get the configured max search results limit
-            const maxResults = await new Promise((resolve) => {
-                storageAPI.local.get("useSync", (result1) => {
-                    const useSync = result1.useSync === "true" || result1.useSync === true;
-                    const storageArea = useSync ? storageAPI.sync : storageAPI.local;
-                    storageArea.get("maxSearchResults", (result) => {
-                        resolve(result.maxSearchResults || 20);
-                    });
-                });
-            });
-
             const apiUrl = `${window.location.origin}/api/now/table/${searchConfig.table}?sysparm_query=${searchConfig.query}&sysparm_fields=${searchConfig.fields}&sysparm_limit=${maxResults}`;
 
             debugLog(`*SNOW TOOL BELT* Searching ${searchConfig.table} for exact match`);
@@ -1812,53 +1746,31 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             if (response.ok && response.status === 200) {
                 const data = await response.json();
                 debugLog(`*SNOW TOOL BELT* Found ${data.result.length} results in ${searchConfig.table}`);
+                
+                searchedTables.push(searchConfig.table);
+                
+                if (data.result.length === maxResults) {
+                    hitLimit = true;
+                }
 
                 if (data.result.length > 0) {
-                    const results = [];
                     for (const record of data.result) {
-                        let displayName;
+                        // Extract display name based on the nameField from searchConfig
+                        const displayName = getDisplayName(record[searchConfig.nameField]) || 
+                                          (searchConfig.table === 'sys_metadata' ? getDisplayName(record.name) : null) ||
+                                          (searchConfig.table === 'sys_user' ? getDisplayName(record.name) : null);
+
+                        // Get the actual class name from sys_class_name field if available
                         let actualClass = searchConfig.table;
-
-                        // Extract display name and class based on table type
-                        if (searchConfig.table === 'sys_metadata') {
-                            displayName = getDisplayName(record.sys_name) || getDisplayName(record.name);
-
-                            // Get the actual class name from sys_class_name field (same logic as sys_id search)
-                            actualClass = searchConfig.table; // fallback
-                            if (record.sys_class_name) {
-                                debugLog("*SNOW TOOL BELT* sys_class_name field:", record.sys_class_name, "type:", typeof record.sys_class_name);
-
-                                // Handle both string and object formats
-                                actualClass = typeof record.sys_class_name === 'string'
-                                    ? record.sys_class_name
-                                    : (record.sys_class_name.value || record.sys_class_name.display_value || searchConfig.table);
-                            }
-                            debugLog("*SNOW TOOL BELT* Final actualClass for object search:", actualClass);
-                        } else if (searchConfig.table === 'task') {
-                            displayName = getDisplayName(record.number);
-
-                            // Get the actual class name from sys_class_name field for tasks
-                            actualClass = searchConfig.table; // fallback
-                            if (record.sys_class_name) {
-                                debugLog("*SNOW TOOL BELT* task sys_class_name field:", record.sys_class_name, "type:", typeof record.sys_class_name);
-
-                                // Handle both string and object formats
-                                actualClass = typeof record.sys_class_name === 'string'
-                                    ? record.sys_class_name
-                                    : (record.sys_class_name.value || record.sys_class_name.display_value || searchConfig.table);
-                            }
-                            debugLog("*SNOW TOOL BELT* Final actualClass for task search:", actualClass);
-                        } else if (searchConfig.table === 'sys_user') {
-                            displayName = getDisplayName(record.name) || getDisplayName(record.user_name);
-                            actualClass = searchConfig.table;
-                        } else {
-                            displayName = getDisplayName(record.name);
-                            actualClass = searchConfig.table;
+                        if (record.sys_class_name) {
+                            actualClass = typeof record.sys_class_name === 'string'
+                                ? record.sys_class_name
+                                : (record.sys_class_name.value || record.sys_class_name.display_value || searchConfig.table);
                         }
 
                         // Only add records with valid names
                         if (displayName && displayName.trim() !== '') {
-                            results.push({
+                            allResults.push({
                                 sys_id: record.sys_id,
                                 name: displayName,
                                 username: searchConfig.table === 'sys_user' ? getDisplayName(record.user_name) : undefined,
@@ -1876,37 +1788,38 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                             });
                         }
                     }
-
-                    if (results.length > 0) {
-                        // Sort results by actual class name, then alphabetically by name
-                        results.sort((a, b) => {
-                            // First sort by actual class name
-                            if (a.actualClass !== b.actualClass) {
-                                return a.actualClass.localeCompare(b.actualClass);
-                            }
-                            // Then sort alphabetically by name
-                            return a.name.localeCompare(b.name);
-                        });
-
-                        return {
-                            status: 200,
-                            searchValue: searchValue,
-                            searchType: searchType,
-                            results: results,
-                            instance: host,
-                            found: true,
-                            totalResults: results.length,
-                            searchedTable: searchConfig.table,
-                            isStartsWithSearch: isStartsWithSearch,
-                            hitLimit: data.result.length === maxResults // Flag when we hit the API limit
-                        };
-                    }
                 }
             }
         } catch (error) {
             debugLog(`*SNOW TOOL BELT* Error searching ${searchConfig.table}:`, error);
             // Continue to next table on error
         }
+    }
+
+    // Return all collected results
+    if (allResults.length > 0) {
+        // Sort results by actual class name, then alphabetically by name
+        allResults.sort((a, b) => {
+            // First sort by actual class name
+            if (a.actualClass !== b.actualClass) {
+                return a.actualClass.localeCompare(b.actualClass);
+            }
+            // Then sort alphabetically by name
+            return a.name.localeCompare(b.name);
+        });
+
+        return {
+            status: 200,
+            searchValue: searchValue,
+            searchType: searchType,
+            results: allResults,
+            instance: host,
+            found: true,
+            totalResults: allResults.length,
+            searchedTables: searchedTables,
+            isStartsWithSearch: isStartsWithSearch,
+            hitLimit: hitLimit
+        };
     }
 
     // No results found in any table
@@ -2013,6 +1926,17 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                              * Simple ping to check if content script is responsive
                              */
                             sendResponse({ status: "ok" });
+                        } else if (request.command === "requestStateReport") {
+                            /**
+                             * Request to report current tab state (used after service worker restart)
+                             */
+                            debugLog("*SNOW TOOL BELT* Received request to report state");
+                            const tabInfo = getTabInfo();
+                            runtimeAPI.sendMessage({
+                                command: "reportTabState",
+                                tabInfo: tabInfo
+                            });
+                            sendResponse({ status: "reported" });
                         } else if (request.command === "updateFavicon") {
                             /**
                             *  change Favicon color
@@ -2068,54 +1992,11 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                             *  scanNodes
                             */
                             debugLog("*SNOW TOOL BELT* Using this tab to search for nodes");
-                            let nodes = [];
-                            fetch(statsUrl, { credentials: "same-origin" })
-                                .then(function (response) {
-                                    if (response.ok && response.status === 200) {
-                                        return response.text().then(function (text) {
-                                            if (text === undefined || !text) {
-                                                return false;
-                                            }
-                                            let current = getNameFromStatsPage(text);
-                                            // console.log("*SNOW TOOL BELT* current: " + current);
-
-                                            let xmlStatsURL = new Request("https://" + host + "/xmlstats.do");
-                                            fetch(xmlStatsURL, { credentials: "same-origin" })
-                                                .then(function (response) {
-                                                    if (response.ok && response.status === 200) {
-                                                        return response.text().then(function (txt) {
-                                                            let parser = new DOMParser();
-                                                            let xmlDoc = parser.parseFromString(txt, "text/xml");
-                                                            let nodesList = xmlDoc.querySelectorAll("node system_id");
-                                                            debugLog("*SNOW TOOL BELT* nodesList: ", nodesList);
-                                                            nodesList.forEach(function (node) {
-                                                                if (node.textContent.includes(":")) nodes.push(node.textContent.split(":")[1]);
-                                                            });
-                                                            debugLog("*SNOW TOOL BELT* nodes: ", nodes);
-                                                            sendResponse({ "nodes": nodes, "current": current, "status": 200 });
-                                                        });
-                                                    } else {
-                                                        // there was an error while fetching xmlstats, stop here
-                                                        debugLog("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now: " + response.status);
-                                                        sendResponse({ "nodes": [], "current": "", "status": response.status });
-                                                    }
-                                                })
-                                                .catch(function (err) {
-                                                    debugLog("*SNOW TOOL BELT* there was an error while fetching xmlstats, stopping now");
-                                                    debugLog(err);
-                                                    sendResponse({ "nodes": [], "current": "", "status": 500 });
-                                                });
-                                        });
-                                    } else {
-                                        // there was an error with this first fetch, stop here
-                                        debugLog("*SNOW TOOL BELT* there was an error with the first fetch, stopping now: " + response.status);
-                                        sendResponse({ "nodes": [], "current": "", "status": response.status });
-                                    }
-                                })
-                                .catch(function (err) {
-                                    debugLog("*SNOW TOOL BELT* there was an error with the first scan, stopping now");
-                                    debugLog(err);
-                                    sendResponse({ "nodes": [], "current": "", "status": 500 });
+                            scanClusterNodes(host, statsUrl)
+                                .then(result => sendResponse(result))
+                                .catch(error => {
+                                    debugLog("*SNOW TOOL BELT* Error in scanNodes:", error);
+                                    sendResponse({ nodes: [], current: "", status: 500 });
                                 });
                             return true;
                         } else if (request.command === "searchObject") {
@@ -2179,8 +2060,9 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                         sendResponse(errorResponse);
                                     });
                             } else if (request.searchType === 'sysId') {
-                                // sys_id search - first try priority tables, then all tables if needed
-                                searchSysIdWithPriority(request.searchValue, host, context.g_ck)
+                                // sys_id search - use globalSearch parameter from request (default false)
+                                const globalSearch = request.globalSearch !== undefined ? request.globalSearch : false;
+                                searchSysIdWithPriority(request.searchValue, host, context.g_ck, globalSearch)
                                     .then(function (searchResult) {
                                         sendResponse(searchResult);
                                     })
@@ -2300,6 +2182,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
     let isConsoleOpen = false;
     let searchHistory = [];
     let historyIndex = -1;
+    let logStreamInterval = null;
+    let displayedLogs = [];
     
     /**
      * Creates the console HTML structure
@@ -2310,8 +2194,12 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         console.className = 'sntb-console';
         console.innerHTML = `
             <div class="sntb-console-header">
-                <span class="sntb-console-title">▸ ServiceNow Tool Belt Console</span>
-                <span class="sntb-console-hint">ESC to close | ↑↓ for history</span>
+                <div class="sntb-console-header-left">
+                    <span class="sntb-console-title">▸ ServiceNow Tool Belt Console</span>
+                    <span class="sntb-console-separator">|</span>
+                    <a href="#" class="sntb-console-rating">Rate this extension</a>
+                </div>
+                <span class="sntb-console-hint"><a href="#" class="sntb-console-close">ESC to close</a> | ↑↓ for history</span>
             </div>
             <div class="sntb-console-input-container">
                 <span class="sntb-console-prompt">></span>
@@ -2355,15 +2243,50 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 border-top: 1px solid #00ff00;
             }
             
+            .sntb-console-header-left {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            
             .sntb-console-title {
                 font-weight: bold;
                 font-size: 14px;
                 letter-spacing: 2px;
             }
             
+            .sntb-console-separator {
+                color: #00aa00;
+                font-size: 12px;
+            }
+            
             .sntb-console-hint {
                 font-size: 11px;
                 color: #00aa00;
+            }
+            
+            .sntb-console-close {
+                color: #00aa00;
+                text-decoration: none;
+                cursor: pointer;
+                transition: color 0.2s;
+            }
+            
+            .sntb-console-close:hover {
+                color: #00ff00;
+                text-decoration: underline;
+            }
+            
+            .sntb-console-rating {
+                color: #00ff00;
+                text-decoration: none;
+                font-size: 12px;
+                transition: color 0.2s;
+            }
+            
+            .sntb-console-rating:hover {
+                color: #ffff00;
+                text-decoration: underline;
             }
             
             .sntb-console-input-container {
@@ -2495,6 +2418,137 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 text-align: left;
             }
             
+            .sntb-console-success {
+                color: #00ff00;
+                padding: 12px;
+            }
+            
+            .sntb-console-warning {
+                color: #ffaa00;
+                padding: 12px;
+            }
+            
+            .sntb-console-info {
+                padding: 12px;
+                line-height: 1.6;
+            }
+            
+            .sntb-console-section-title {
+                font-weight: bold;
+                margin-bottom: 8px;
+                color: #00ff00;
+            }
+            
+            .sntb-console-section-subtitle {
+                font-weight: bold;
+                margin-top: 16px;
+                margin-bottom: 8px;
+                color: #00ff00;
+            }
+            
+            .sntb-console-label {
+                color: #00aa00;
+                margin-bottom: 4px;
+            }
+            
+            .sntb-console-value {
+                color: #00ff00;
+            }
+            
+            .sntb-console-item {
+                margin-left: 8px;
+            }
+            
+            .sntb-console-item-active {
+                color: #00ff00;
+                font-weight: bold;
+            }
+            
+            .sntb-console-item-inactive {
+                color: #00aa00;
+            }
+            
+            .sntb-console-command {
+                color: #00ff00;
+                font-weight: bold;
+            }
+            
+            .sntb-console-command-desc {
+                color: #006600;
+                margin-left: 16px;
+            }
+            
+            .sntb-console-table {
+                border-collapse: collapse;
+                margin-top: 4px;
+                font-size: 11px;
+                width: 100%;
+            }
+            
+            .sntb-console-table th {
+                border: 1px solid #00aa00;
+                padding: 4px 8px;
+                color: #00ff00;
+                text-align: center;
+                background-color: #1a1a1a;
+            }
+            
+            .sntb-console-table td {
+                border: 1px solid #00aa00;
+                padding: 4px 8px;
+                color: #00ff00;
+                text-align: center;
+            }
+            
+            .sntb-console-log-entry {
+                font-family: 'Courier New', monospace;
+                font-size: 11px;
+                padding: 4px 0 4px 8px;
+                margin-bottom: 2px;
+                border-bottom: 1px solid #1a1a1a;
+                border-left: 2px solid #00aa00;
+                display: flex;
+                gap: 8px;
+                align-items: flex-start;
+            }
+            
+            .sntb-console-log-time {
+                color: #00aa00;
+                cursor: pointer;
+                text-decoration: none;
+                flex-shrink: 0;
+                width: 80px;
+            }
+            
+            .sntb-console-log-time:hover {
+                color: #00ff00;
+                text-decoration: underline;
+            }
+            
+            .sntb-console-log-level {
+                flex-shrink: 0;
+                width: 110px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            
+            .sntb-console-log-source {
+                color: #00aa00;
+                flex-shrink: 0;
+                width: 120px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            
+            .sntb-console-log-message {
+                color: #00ff00;
+                flex: 1;
+                word-break: break-word;
+                white-space: pre-wrap;
+            }
+            
             .sntb-console-results::-webkit-scrollbar {
                 width: 8px;
             }
@@ -2536,6 +2590,16 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             // Don't clear input or results - preserve state when reopening
         } else {
             consoleElement.classList.remove('open');
+            // Stop log stream when closing console
+            if (logStreamInterval) {
+                clearInterval(logStreamInterval);
+                logStreamInterval = null;
+                displayedLogs = [];
+                // Add stopped message so user knows stream was stopped when they reopen
+                consoleResults.innerHTML += '<div class="sntb-console-warning">▸ LOG STREAM STOPPED</div>';
+                // Scroll to bottom to show the message
+                consoleResults.scrollTop = consoleResults.scrollHeight;
+            }
         }
     };
     
@@ -2543,11 +2607,66 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
      * Setup console event listeners
      */
     const setupConsoleListeners = () => {
-        // ESC to close
+        // Rating link click handler
+        const ratingLink = consoleElement.querySelector('.sntb-console-rating');
+        if (ratingLink) {
+            ratingLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                
+                // Determine browser and open appropriate store
+                const isFirefox = typeof InstallTrigger !== 'undefined';
+                const isEdge = /Edg/.test(navigator.userAgent);
+                
+                let storeUrl;
+                if (isFirefox) {
+                    storeUrl = 'https://addons.mozilla.org/firefox/addon/servicenow-tool-belt/';
+                } else if (isEdge) {
+                    storeUrl = 'https://microsoftedge.microsoft.com/addons/detail/servicenow-tool-belt/ofefboehibiaekjaiaiacalcdeonfbil';
+                } else {
+                    // Chrome
+                    storeUrl = 'https://chrome.google.com/webstore/detail/servicenow-tool-belt/jflcifhpkilfaomlnikfaaccmpidkmln';
+                }
+                
+                window.open(storeUrl, '_blank');
+            });
+        }
+        
+        // Close link click handler
+        const closeLink = consoleElement.querySelector('.sntb-console-close');
+        if (closeLink) {
+            closeLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                toggleConsole();
+            });
+        }
+        
+        // ESC to close or stop log stream
         consoleInput.addEventListener('keydown', async (e) => {
             if (e.key === 'Escape') {
-                toggleConsole();
+                // If log stream is running, stop it instead of closing console
+                if (logStreamInterval) {
+                    clearInterval(logStreamInterval);
+                    logStreamInterval = null;
+                    displayedLogs = [];
+                    consoleResults.innerHTML += '<div class="sntb-console-warning">▸ LOG STREAM STOPPED</div>';
+                    // Scroll to bottom to show the message
+                    consoleResults.scrollTop = consoleResults.scrollHeight;
+                } else {
+                    toggleConsole();
+                }
             } else if (e.key === 'Enter') {
+                // If input is empty and there's exactly one result, open it
+                if (!consoleInput.value.trim()) {
+                    const resultItems = consoleResults.querySelectorAll('.sntb-console-result-item');
+                    if (resultItems.length === 1) {
+                        const url = resultItems[0].getAttribute('data-url');
+                        if (url && url !== '#') {
+                            window.open(url, '_blank');
+                            return;
+                        }
+                    }
+                }
+                
                 await performConsoleSearch();
                 consoleInput.value = ''; // Clear input after execution
             } else if (e.key === 'Tab') {
@@ -2584,8 +2703,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         
         // Only autocomplete if we're still on the command part (no spaces after)
         if (parts.length === 1 || (parts.length === 2 && input.endsWith(' '))) {
-            // Only complete to full command labels (exclude shortcuts like 's', 'h', 'v', 'n', 'bg', 'st')
-            const fullCommands = ['help', 'search', 'versions', 'names', 'background', 'stats'];
+            // Only complete to full command labels (exclude shortcuts like 's', 'h', 'v', 'n', 'bg', 'st', 'l', 'r')
+            const fullCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats'];
             const matches = fullCommands.filter(cmd => cmd.startsWith(commandPart));
             
             if (matches.length === 1) {
@@ -2593,10 +2712,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 consoleInput.value = matches[0] + ' ';
             } else if (matches.length > 1) {
                 // Multiple matches - show them
-                let html = '<div style="padding: 12px; line-height: 1.8;">';
-                html += '<div style="font-weight: bold; margin-bottom: 8px;">▸ MATCHING COMMANDS:</div>';
+                let html = '<div class="sntb-console-info" style="line-height: 1.8;">';
+                html += '<div class="sntb-console-section-title">▸ Matching commands:</div>';
                 matches.forEach(cmd => {
-                    html += `<div style="color: #00ff00; margin-left: 16px;">${cmd}</div>`;
+                    html += `<div class="sntb-console-item sntb-console-item-active">${cmd}</div>`;
                 });
                 html += '</div>';
                 consoleResults.innerHTML = html;
@@ -2612,11 +2731,11 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             description: 'Show available commands',
             usage: 'help | h',
             execute: () => {
-                let html = '<div style="padding: 12px; line-height: 1.6;">';
-                html += '<div style="font-weight: bold; margin-bottom: 8px;">▸ AVAILABLE COMMANDS:</div>';
+                let html = '<div class="sntb-console-info">';
+                html += '<div class="sntb-console-section-title">▸ AVAILABLE COMMANDS:</div>';
                 
-                // Only show main commands (not shortcuts)
-                const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'stats'];
+                // Only show main commands (not shortcuts), exclude help itself, and sort alphabetically
+                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes'].sort();
                 mainCommands.forEach(cmd => {
                     const command = commands[cmd];
                     // Escape HTML entities manually to preserve <term> display
@@ -2631,8 +2750,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     const safeDescription = escapeHtml(command.description);
                     html += `
                         <div style="margin-bottom: 4px;">
-                            <span style="color: #00ff00; font-weight: bold;">${safeUsage}</span>
-                            <span style="color: #006600; margin-left: 16px;">${safeDescription}</span>
+                            <span class="sntb-console-command">${safeUsage}</span>
+                            <span class="sntb-console-command-desc">${safeDescription}</span>
                         </div>
                     `;
                 });
@@ -2649,32 +2768,38 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
         },
         search: {
-            description: 'Search for records by sys_id, number, or name',
-            usage: 'search <term> | s <term>',
+            description: 'Search for records by sys_id (globally or only common tables), number, or name',
+            usage: 'search <term> [global] | s <term> [global]',
             execute: async (args) => {
-                const searchTerm = args.join(' ').trim();
+                // Check for global parameter
+                const hasGlobal = args[args.length - 1] === 'global';
+                const searchArgs = hasGlobal ? args.slice(0, -1) : args;
+                const searchTerm = searchArgs.join(' ').trim();
+                
                 if (!searchTerm) {
-                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ USAGE: search &lt;term&gt;</div>';
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Usage: search &lt;term&gt; [global]</div>';
                     return;
                 }
                 
                 // Show loading
-                consoleResults.innerHTML = '<div class="sntb-console-loading">▸ SEARCHING...</div>';
+                consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Searching...</div>';
                 
                 // Determine search type
                 const searchType = determineSearchType(searchTerm);
                 
                 if (searchType.type === 'invalid') {
-                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ INVALID SEARCH TERM: ' + (searchType.error || 'Unknown error') + '</div>';
+                    const errorMsg = DOMPurify.sanitize(searchType.error || 'Unknown error');
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Invalid search term: ' + errorMsg + '</div>';
                     return;
                 }
                 
-                // Perform search
+                // Perform search with global flag
                 try {
-                    const result = await performSearch(searchType.type, searchType.value);
+                    const result = await performSearch(searchType.type, searchType.value, hasGlobal);
                     displayConsoleResults(result);
                 } catch (error) {
-                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ SEARCH FAILED: ' + error.message + '</div>';
+                    const errorMsg = DOMPurify.sanitize(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Search failed: ' + errorMsg + '</div>';
                 }
             }
         },
@@ -2692,9 +2817,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 // Send command to background script to open versions
                 runtimeAPI.sendMessage({ "command": "execute-openversions" }, (response) => {
                     if (runtimeAPI.lastError) {
-                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ FAILED TO OPEN VERSIONS: ' + runtimeAPI.lastError.message + '</div>';
+                        const errorMsg = DOMPurify.sanitize(runtimeAPI.lastError.message);
+                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to open versions: ' + errorMsg + '</div>';
                     } else {
-                        consoleResults.innerHTML = '<div style="padding: 12px; color: #00ff00;">✓ Versions window opened</div>';
+                        consoleResults.innerHTML = '<div class="sntb-console-success">✓ Versions window opened</div>';
                     }
                 });
             }
@@ -2715,15 +2841,17 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     
                     // Check if the function returned an error (workspace detection)
                     if (result && !result.success) {
-                        consoleResults.innerHTML = `<div style="padding: 12px; color: #ffaa00;">${result.message}</div>`;
+                        const msg = DOMPurify.sanitize(result.message);
+                        consoleResults.innerHTML = `<div class="sntb-console-warning">${msg}</div>`;
                         return;
                     }
                     
                     const isNowTechnical = document.body.getAttribute("data-sntb-technical") === "true";
                     const mode = isNowTechnical ? "technical names" : "labels";
-                    consoleResults.innerHTML = `<div style="padding: 12px; color: #00ff00;">✓ Switched to ${mode}</div>`;
+                    consoleResults.innerHTML = `<div class="sntb-console-success">✓ Switched to ${mode}</div>`;
                 } catch (error) {
-                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ FAILED TO SWITCH FIELD NAMES: ' + error.message + '</div>';
+                    const errorMsg = DOMPurify.sanitize(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to switch field names: ' + errorMsg + '</div>';
                 }
             }
         },
@@ -2741,9 +2869,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 // Send command to background script to open background script editor
                 runtimeAPI.sendMessage({ "command": "execute-backgroundscript" }, (response) => {
                     if (runtimeAPI.lastError) {
-                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ FAILED TO OPEN BACKGROUND SCRIPT: ' + runtimeAPI.lastError.message + '</div>';
+                        const errorMsg = DOMPurify.sanitize(runtimeAPI.lastError.message);
+                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to open background script window: ' + errorMsg + '</div>';
                     } else {
-                        consoleResults.innerHTML = '<div style="padding: 12px; color: #00ff00;">✓ Background script window opened</div>';
+                        consoleResults.innerHTML = '<div class="sntb-console-success">✓ Background script window opened</div>';
                     }
                 });
             }
@@ -2762,12 +2891,49 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 commands.background.execute();
             }
         },
+        reload: {
+            description: 'Reload all tabs for current instance',
+            usage: 'reload | r',
+            execute: async () => {
+                try {
+                    const host = window.location.hostname;
+                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ RELOADING TABS...</div>';
+                    
+                    runtimeAPI.sendMessage({ 
+                        "command": "execute-reloadtabs",
+                        "instance": host,
+                        "windowId": null
+                    }, (response) => {
+                        if (runtimeAPI.lastError) {
+                            const errorMsg = DOMPurify.sanitize(runtimeAPI.lastError.message);
+                            consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to reload tabs: ' + errorMsg + '</div>';
+                        } else if (response && response.success) {
+                            const msg = DOMPurify.sanitize(response.message);
+                            consoleResults.innerHTML = '<div class="sntb-console-success">✓ ' + msg + '</div>';
+                        } else {
+                            const msg = response && response.message ? DOMPurify.sanitize(response.message) : 'Unknown error';
+                            consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to reload tabs: ' + msg + '</div>';
+                        }
+                    });
+                } catch (error) {
+                    const errorMsg = DOMPurify.sanitize(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Error: ' + errorMsg + '</div>';
+                }
+            }
+        },
+        r: {
+            description: 'Alias for reload',
+            usage: 'r',
+            execute: async () => {
+                await commands.reload.execute();
+            }
+        },
         stats: {
             description: 'Show instance statistics summary',
             usage: 'stats | st',
             execute: async () => {
                 try {
-                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ FETCHING STATS...</div>';
+                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Fetching stats...</div>';
                     
                     const statsUrl = window.location.origin + '/stats.do';
                     const response = await fetch(statsUrl);
@@ -2856,45 +3022,45 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                   .replace(/'/g, '&#039;');
                     };
                     
-                    let html = '<div style="padding: 12px; line-height: 1.8; font-size: 13px;">';
-                    html += '<div style="font-weight: bold; margin-bottom: 12px; color: #00ff00;">▸ INSTANCE STATISTICS</div>';
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Connected to cluster node: <span style="color: #00ff00;">${escapeHtml(nodeName)}</span></div>`;
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Build name: <span style="color: #00ff00;">${escapeHtml(buildName)}</span></div>`;
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Build date: <span style="color: #00ff00;">${escapeHtml(buildDate)}</span></div>`;
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Build tag: <span style="color: #00ff00;">${escapeHtml(buildTag)}</span></div>`;
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Instance name: <span style="color: #00ff00;">${escapeHtml(instanceName)}</span></div>`;
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">MID buildstamp: <span style="color: #00ff00;">${escapeHtml(midBuildstamp)}</span></div>`;
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Current Run Level: <span style="color: #00ff00;">${escapeHtml(runLevel)}</span></div>`;
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Maximum session concurrency: <span style="color: #00ff00;">${escapeHtml(maxConcurrency)}</span></div>`;
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Logged in sessions: <span style="color: #00ff00;">${escapeHtml(loggedIn)}</span></div>`;
-                    html += `<div style="color: #00aa00; margin-bottom: 4px;">Session timeout: <span style="color: #00ff00;">${escapeHtml(sessionTimeout)}</span></div>`;
+                    let html = '<div class="sntb-console-info" style="line-height: 1.8; font-size: 13px;">';
+                    html += '<div class="sntb-console-section-title">▸ INSTANCE STATISTICS</div>';
+                    html += `<div class="sntb-console-label">Connected to cluster node: <span class="sntb-console-value">${escapeHtml(nodeName)}</span></div>`;
+                    html += `<div class="sntb-console-label">Build name: <span class="sntb-console-value">${escapeHtml(buildName)}</span></div>`;
+                    html += `<div class="sntb-console-label">Build date: <span class="sntb-console-value">${escapeHtml(buildDate)}</span></div>`;
+                    html += `<div class="sntb-console-label">Build tag: <span class="sntb-console-value">${escapeHtml(buildTag)}</span></div>`;
+                    html += `<div class="sntb-console-label">Instance name: <span class="sntb-console-value">${escapeHtml(instanceName)}</span></div>`;
+                    html += `<div class="sntb-console-label">MID buildstamp: <span class="sntb-console-value">${escapeHtml(midBuildstamp)}</span></div>`;
+                    html += `<div class="sntb-console-label">Current Run Level: <span class="sntb-console-value">${escapeHtml(runLevel)}</span></div>`;
+                    html += `<div class="sntb-console-label">Maximum session concurrency: <span class="sntb-console-value">${escapeHtml(maxConcurrency)}</span></div>`;
+                    html += `<div class="sntb-console-label">Logged in sessions: <span class="sntb-console-value">${escapeHtml(loggedIn)}</span></div>`;
+                    html += `<div class="sntb-console-label">Session timeout: <span class="sntb-console-value">${escapeHtml(sessionTimeout)}</span></div>`;
                     
-                    html += '<div style="font-weight: bold; margin-top: 16px; margin-bottom: 8px; color: #00ff00;">▸ DATABASE CONNECTIONS</div>';
+                    html += '<div class="sntb-console-section-subtitle">▸ DATABASE CONNECTIONS</div>';
                     
                     // Display each database prefix in its own table
                     for (const prefix of dbPrefixes) {
-                        html += `<div style="color: #00aa00; margin-top: 12px; margin-bottom: 4px; font-weight: bold;">Prefix: ${escapeHtml(prefix.prefix)}</div>`;
-                        html += `<div style="color: #00aa00; margin-bottom: 4px; font-size: 11px;">DB Name: <span style="color: #00ff00;">${escapeHtml(prefix.dbName)}</span> | Status: <span style="color: #00ff00;">${escapeHtml(prefix.status)}</span></div>`;
+                        html += `<div class="sntb-console-label" style="margin-top: 12px; font-weight: bold;">Prefix: ${escapeHtml(prefix.prefix)}</div>`;
+                        html += `<div class="sntb-console-label" style="font-size: 11px;">DB Name: <span class="sntb-console-value">${escapeHtml(prefix.dbName)}</span> | Status: <span class="sntb-console-value">${escapeHtml(prefix.status)}</span></div>`;
                         
                         // Transposed horizontal table for database metrics
-                        html += '<table style="border-collapse: collapse; margin-top: 4px; font-size: 11px; width: 100%;">';
-                        html += '<tr style="background-color: #1a1a1a;">';
-                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Busy</th>';
-                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Closed</th>';
-                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Available</th>';
-                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Shared</th>';
-                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">SharedBusy</th>';
-                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Total</th>';
-                        html += '<th style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">Max</th>';
+                        html += '<table class="sntb-console-table">';
+                        html += '<tr>';
+                        html += '<th>Busy</th>';
+                        html += '<th>Closed</th>';
+                        html += '<th>Available</th>';
+                        html += '<th>Shared</th>';
+                        html += '<th>SharedBusy</th>';
+                        html += '<th>Total</th>';
+                        html += '<th>Max</th>';
                         html += '</tr>';
                         html += '<tr>';
-                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.busy)}</td>`;
-                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.closed)}</td>`;
-                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.available)}</td>`;
-                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.shared)}</td>`;
-                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.sharedBusy)}</td>`;
-                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.total)}</td>`;
-                        html += `<td style="border: 1px solid #00aa00; padding: 4px 8px; color: #00ff00; text-align: center;">${escapeHtml(prefix.max)}</td>`;
+                        html += `<td>${escapeHtml(prefix.busy)}</td>`;
+                        html += `<td>${escapeHtml(prefix.closed)}</td>`;
+                        html += `<td>${escapeHtml(prefix.available)}</td>`;
+                        html += `<td>${escapeHtml(prefix.shared)}</td>`;
+                        html += `<td>${escapeHtml(prefix.sharedBusy)}</td>`;
+                        html += `<td>${escapeHtml(prefix.total)}</td>`;
+                        html += `<td>${escapeHtml(prefix.max)}</td>`;
                         html += '</tr>';
                         html += '</table>';
                     }
@@ -2917,16 +3083,16 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                         { name: 'Background', pattern: 'Background Response Time' }
                     ];
                     
-                    html += '<div style="font-weight: bold; margin-top: 16px; margin-bottom: 8px; color: #00ff00;">▸ RESPONSE TIMES</div>';
-                    html += '<table style="border-collapse: collapse; margin-top: 8px; font-size: 11px; width: 100%;">';
-                    html += '<tr style="background-color: #1a1a1a;">';
-                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: left;">Type</th>';
-                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">5m count</th>';
-                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">5m/min</th>';
-                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">5m faster</th>';
-                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">60m count</th>';
-                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">60m/min</th>';
-                    html += '<th style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">60m faster</th>';
+                    html += '<div class="sntb-console-section-subtitle">▸ RESPONSE TIMES</div>';
+                    html += '<table class="sntb-console-table" style="margin-top: 8px;">';
+                    html += '<tr>';
+                    html += '<th style="text-align: left;">Type</th>';
+                    html += '<th>5m count</th>';
+                    html += '<th>5m/min</th>';
+                    html += '<th>5m faster</th>';
+                    html += '<th>60m count</th>';
+                    html += '<th>60m/min</th>';
+                    html += '<th>60m faster</th>';
                     html += '</tr>';
                     
                     for (const type of responseTypes) {
@@ -2935,13 +3101,13 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                         
                         if (data5 || data60) {
                             html += '<tr>';
-                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00aa00;">${escapeHtml(type.name)}</td>`;
-                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">${data5 ? escapeHtml(data5.count) : '-'}</td>`;
-                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">${data5 ? escapeHtml(data5.perMin) : '-'}</td>`;
-                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center; font-size: 10px;">${data5 ? escapeHtml(data5.fasterPercent) + '% (' + escapeHtml(data5.fasterThan) + ')' : '-'}</td>`;
-                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">${data60 ? escapeHtml(data60.count) : '-'}</td>`;
-                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center;">${data60 ? escapeHtml(data60.perMin) : '-'}</td>`;
-                            html += `<td style="border: 1px solid #00aa00; padding: 6px 8px; color: #00ff00; text-align: center; font-size: 10px;">${data60 ? escapeHtml(data60.fasterPercent) + '% (' + escapeHtml(data60.fasterThan) + ')' : '-'}</td>`;
+                            html += `<td style="text-align: left;">${escapeHtml(type.name)}</td>`;
+                            html += `<td>${data5 ? escapeHtml(data5.count) : '-'}</td>`;
+                            html += `<td>${data5 ? escapeHtml(data5.perMin) : '-'}</td>`;
+                            html += `<td style="font-size: 10px;">${data5 ? escapeHtml(data5.fasterPercent) + '% (' + escapeHtml(data5.fasterThan) + ')' : '-'}</td>`;
+                            html += `<td>${data60 ? escapeHtml(data60.count) : '-'}</td>`;
+                            html += `<td>${data60 ? escapeHtml(data60.perMin) : '-'}</td>`;
+                            html += `<td style="font-size: 10px;">${data60 ? escapeHtml(data60.fasterPercent) + '% (' + escapeHtml(data60.fasterThan) + ')' : '-'}</td>`;
                             html += '</tr>';
                         }
                     }
@@ -2951,7 +3117,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     
                     consoleResults.innerHTML = html;
                 } catch (error) {
-                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to fetch stats: ' + error.message + '</div>';
+                    const errorMsg = DOMPurify.sanitize(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to fetch stats: ' + errorMsg + '</div>';
                 }
             }
         },
@@ -2960,6 +3127,221 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             usage: 'st',
             execute: async () => {
                 await commands.stats.execute();
+            }
+        },
+        nodes: {
+            description: 'Scan and display cluster nodes',
+            usage: 'nodes',
+            execute: async () => {
+                try {
+                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Scanning cluster nodes...</div>';
+                    
+                    const host = window.location.hostname;
+                    const statsUrl = window.location.origin + '/stats.do';
+                    const result = await scanClusterNodes(host, statsUrl);
+                    
+                    if (result.status !== 200) {
+                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to scan nodes (status: ' + result.status + ')</div>';
+                        return;
+                    }
+                    
+                    if (result.nodes.length === 0) {
+                        consoleResults.innerHTML = '<div class="sntb-console-warning">⚠ No cluster nodes found</div>';
+                        return;
+                    }
+                    
+                    // Display results - compact format
+                    let html = '<div class="sntb-console-info">';
+                    html += '<div class="sntb-console-section-title">▸ CLUSTER NODES (' + result.nodes.length + '):</div>';
+                    
+                    result.nodes.forEach(node => {
+                        const safeNode = DOMPurify.sanitize(node);
+                        const isCurrent = result.current && node === result.current;
+                        const className = isCurrent ? 'sntb-console-item sntb-console-item-active' : 'sntb-console-item sntb-console-item-inactive';
+                        const marker = isCurrent ? '● ' : '○ ';
+                        html += '<div class="' + className + '">' + marker + safeNode + '</div>';
+                    });
+                    
+                    html += '</div>';
+                    consoleResults.innerHTML = html;
+                    
+                } catch (error) {
+                    const errorMsg = DOMPurify.sanitize(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Error scanning nodes: ' + errorMsg + '</div>';
+                }
+            }
+        },
+        logs: {
+            description: 'Stream syslog entries (updates every 3s, ESC to stop)',
+            usage: 'logs [term] | l [term]',
+            execute: async (args) => {
+                // Stop any existing log stream
+                if (logStreamInterval) {
+                    clearInterval(logStreamInterval);
+                    logStreamInterval = null;
+                }
+                
+                // Reset displayed logs
+                displayedLogs = [];
+                
+                const searchTerm = args.join(' ').trim();
+                const host = window.location.hostname;
+                
+                // Build query - logs from last minute
+                let query = 'sys_created_onONLast 1 minute@javascript:gs.minutesAgoStart(1)@javascript:gs.minutesAgoEnd(0)';
+                if (searchTerm) {
+                    query += '^messageLIKE' + encodeURIComponent(searchTerm);
+                }
+                
+                const fetchLogs = async () => {
+                    try {
+                        // Use sysparm_display_value=all to get both internal and display values
+                        const apiUrl = `${window.location.origin}/api/now/table/syslog?sysparm_query=${query}^ORDERBYDESCsys_created_on&sysparm_limit=50&sysparm_fields=sys_id,sys_created_on,level,source,message&sysparm_display_value=all`;
+                        
+                        const headers = new Headers();
+                        headers.append('Content-Type', 'application/json');
+                        headers.append('Accept', 'application/json');
+                        headers.append('X-UserToken', context.g_ck);
+                        
+                        const response = await fetch(apiUrl, {
+                            credentials: "same-origin",
+                            headers: headers
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error(`API returned ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        
+                        // Check if there are new logs
+                        if (data.result && data.result.length > 0) {
+                            // Get sys_ids of current logs
+                            const currentLogIds = data.result.map(log => {
+                                const id = log.sys_id.value || log.sys_id;
+                                return typeof id === 'string' ? id : id.toString();
+                            });
+                            
+                            // Find only the new logs that we haven't displayed yet
+                            const newLogs = data.result.filter(log => {
+                                const id = log.sys_id.value || log.sys_id;
+                                const idStr = typeof id === 'string' ? id : id.toString();
+                                return !displayedLogs.includes(idStr);
+                            });
+                            
+                            if (newLogs.length > 0) {
+                                // Add new log IDs to displayed list
+                                displayedLogs.push(...currentLogIds.filter(id => !displayedLogs.includes(id)));
+                                
+                                // If this is the first fetch, create the header
+                                if (displayedLogs.length === newLogs.length) {
+                                    let html = '<div id="syslog-stream-container" style="padding: 12px; font-family: monospace; font-size: 11px; line-height: 1.4;">';
+                                    html += '<div style="font-weight: bold; margin-bottom: 8px; color: #00ff00;">▸ SYSLOG STREAM';
+                                    if (searchTerm) {
+                                        html += ` (filter: ${DOMPurify.sanitize(searchTerm)})`;
+                                    }
+                                    html += ' <span style="color: #666; font-size: 10px;">[Press ESC to stop]</span></div>';
+                                    html += '<div id="syslog-entries"></div>';
+                                    html += '</div>';
+                                    consoleResults.innerHTML = html;
+                                }
+                                
+                                // Get the entries container
+                                const entriesContainer = document.getElementById('syslog-entries');
+                                if (!entriesContainer) return;
+                                
+                                // Reverse to show oldest first, then append new logs
+                                newLogs.reverse().forEach(log => {
+                                    // Get display values when available, fall back to internal values
+                                    const sysId = log.sys_id.value || log.sys_id;
+                                    const time = log.sys_created_on.value ? new Date(log.sys_created_on.value).toLocaleTimeString() : 'N/A';
+                                    const levelValue = log.level.value || log.level;
+                                    const levelDisplay = log.level.display_value || levelValue;
+                                    const sourceValue = log.source.value || log.source;
+                                    const sourceDisplay = log.source.display_value || sourceValue;
+                                    const messageValue = log.message.value || log.message;
+                                    const messageDisplay = log.message.display_value || messageValue;
+                                    
+                                    const source = DOMPurify.sanitize(sourceDisplay || '');
+                                    let message = DOMPurify.sanitize(messageDisplay || '');
+                                    
+                                    // Color based on level value (0=info/green, 1=warn/orange, 2=error/red)
+                                    let levelColor = '#00ff00';
+                                    if (levelValue === '2' || levelValue === 'error') levelColor = '#ff0000';
+                                    else if (levelValue === '1' || levelValue === 'warn') levelColor = '#ffaa00';
+                                    else if (levelValue === '0' || levelValue === 'info' || levelValue === 'information') levelColor = '#00ff00';
+                                    
+                                    // Format level display (no padding needed with flex layout)
+                                    const formattedLevel = DOMPurify.sanitize(levelDisplay.toUpperCase());
+                                    
+                                    // Truncate source to 20 characters with ellipsis if longer (no padding needed)
+                                    let truncatedSource = source;
+                                    let isTruncated = false;
+                                    if (source.length > 20) {
+                                        truncatedSource = source.substring(0, 17) + '...';
+                                        isTruncated = true;
+                                    }
+                                    
+                                    // Handle multi-line messages - trim trailing newlines
+                                    if (message.includes('\n')) {
+                                        message = message.replace(/\n+$/, '');
+                                    }
+                                    
+                                    // Build log URL
+                                    const logUrl = `${window.location.origin}/syslog.do?sys_id=${sysId}`;
+                                    
+                                    // Create log entry element
+                                    const logEntry = document.createElement('div');
+                                    logEntry.className = 'sntb-console-log-entry';
+                                    logEntry.style.borderLeftColor = levelColor;
+                                    logEntry.innerHTML = `<a href="${logUrl}" target="_blank" class="sntb-console-log-time" title="Open log record">${time}</a>` +
+                                        `<span class="sntb-console-log-level" style="color: ${levelColor}; font-weight: bold;">[${formattedLevel}]</span>` +
+                                        `<span class="sntb-console-log-source"${isTruncated ? ` title="${source}"` : ''}>${truncatedSource}</span>` +
+                                        `<span class="sntb-console-log-message">${message}</span>`;
+                                    
+                                    entriesContainer.appendChild(logEntry);
+                                });
+                                
+                                // Auto-scroll to bottom
+                                consoleResults.scrollTop = consoleResults.scrollHeight;
+                            }
+                        } else if (displayedLogs.length === 0) {
+                            // Only show "no logs" message on first fetch if there are no logs
+                            let html = '<div class="sntb-console-info" style="font-family: monospace; font-size: 11px; line-height: 1.4;">';
+                            html += '<div class="sntb-console-section-title">▸ SYSLOG STREAM';
+                            if (searchTerm) {
+                                html += ` (filter: ${DOMPurify.sanitize(searchTerm)})`;
+                            }
+                            html += ' <span style="color: #666; font-size: 10px;">[Press ESC to stop]</span></div>';
+                            html += '<div class="sntb-console-warning" style="color: #666; margin-top: 8px;">No logs found in the last minute...</div>';
+                            html += '</div>';
+                            consoleResults.innerHTML = html;
+                        }
+                        // If no new logs and we already have displayed logs, don't update the display
+                        
+                    } catch (error) {
+                        const errorMsg = DOMPurify.sanitize(error.message);
+                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to fetch logs: ' + errorMsg + '</div>';
+                        if (logStreamInterval) {
+                            clearInterval(logStreamInterval);
+                            logStreamInterval = null;
+                        }
+                    }
+                };
+                
+                // Initial fetch
+                consoleResults.innerHTML = '<div class="sntb-console-loading">▸ STARTING LOG STREAM...</div>';
+                await fetchLogs();
+                
+                // Set up interval to refresh every 3 seconds
+                logStreamInterval = setInterval(fetchLogs, 3000);
+            }
+        },
+        l: {
+            description: 'Alias for logs',
+            usage: 'l [term]',
+            execute: async (args) => {
+                await commands.logs.execute(args);
             }
         }
     };
@@ -2970,6 +3352,13 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
     const performConsoleSearch = async () => {
         const input = consoleInput.value.trim();
         if (!input) return;
+        
+        // Stop any running log stream when executing a new command
+        if (logStreamInterval) {
+            clearInterval(logStreamInterval);
+            logStreamInterval = null;
+            displayedLogs = [];
+        }
         
         // Add to history
         searchHistory.unshift(input);
@@ -2994,25 +3383,21 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                           .replace(/'/g, '&#039;');
             };
             
-            let html = `
-                <div class="sntb-console-error" style="margin-bottom: 12px;">
-                    ✖ Unknown command: ${escapeHtml(command)}
-                </div>
-            `;
+            let html = `<div class="sntb-console-error" style="margin-bottom: 12px;">✖ Unknown command: ${escapeHtml(command)}</div>`;
             
             // Add help content
-            html += '<div style="padding: 12px; line-height: 1.6;">';
-            html += '<div style="font-weight: bold; margin-bottom: 8px;">▸ AVAILABLE COMMANDS:</div>';
+            html += '<div class="sntb-console-info">';
+            html += '<div class="sntb-console-section-title">▸ Available commands:</div>';
             
-            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'stats'];
+            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes'];
             mainCommands.forEach(cmd => {
                 const cmdObj = commands[cmd];
                 const safeUsage = escapeHtml(cmdObj.usage);
                 const safeDescription = escapeHtml(cmdObj.description);
                 html += `
                     <div style="margin-bottom: 4px;">
-                        <span style="color: #00ff00; font-weight: bold;">${safeUsage}</span>
-                        <span style="color: #006600; margin-left: 16px;">${safeDescription}</span>
+                        <span class="sntb-console-command">${safeUsage}</span>
+                        <span class="sntb-console-command-desc">${safeDescription}</span>
                     </div>
                 `;
             });
@@ -3032,8 +3417,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             return { type: 'number', value: input };
         } else {
             const isStartsWith = input.endsWith('*');
-            if (isStartsWith && input.slice(0, -1).length < 5) {
-                return { type: 'invalid', error: 'Wildcard requires 5+ chars' };
+            if (isStartsWith && input.slice(0, -1).length < 4) {
+                return { type: 'invalid', error: 'Wildcard requires 4+ chars' };
             }
             return { type: 'multiSearch', value: input, isStartsWith };
         }
@@ -3042,7 +3427,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
     /**
      * Perform search using content script functions
      */
-    const performSearch = async (searchType, searchValue) => {
+    const performSearch = async (searchType, searchValue, globalSearch = false) => {
         if (!context.g_ck) {
             throw new Error('Not authenticated');
         }
@@ -3050,7 +3435,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         const host = window.location.hostname;
         
         if (searchType === 'sysId') {
-            return await searchSysIdWithPriority(searchValue, host, context.g_ck);
+            return await searchSysIdWithPriority(searchValue, host, context.g_ck, globalSearch);
         } else if (searchType === 'number') {
             return await searchByNumber(searchValue, host, context.g_ck);
         } else {
@@ -3063,7 +3448,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
      */
     const displayConsoleResults = (result) => {
         if (!result) {
-            consoleResults.innerHTML = '<div class="sntb-console-error">✖ NO RESULT RETURNED</div>';
+            consoleResults.innerHTML = '<div class="sntb-console-error">✖ No results returned</div>';
             return;
         }
         
@@ -3086,7 +3471,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         }
         
         if (results.length === 0) {
-            consoleResults.innerHTML = '<div class="sntb-console-error">✖ NO RESULTS FOUND</div>';
+            consoleResults.innerHTML = '<div class="sntb-console-error">✖ No results found</div>';
             return;
         }
         

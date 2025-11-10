@@ -373,6 +373,31 @@ const groupTabs = (evt) => {
 };
 
 /**
+ * Reloads all tabs for a specific instance
+ * @param {object} evt - The event object
+ */
+const reloadInstanceTabs = (evt) => {
+    const instance = context.clicked.getAttribute("data-instance");
+    const windowId = context.clicked.getAttribute("data-window-id");
+    
+    if (instance) {
+        chrome.runtime.sendMessage({
+            "command": "execute-reloadtabs",
+            "instance": instance,
+            "windowId": windowId ? parseInt(windowId) : null
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                displayMessage("Failed to reload tabs: " + chrome.runtime.lastError.message, true);
+            } else if (response && response.success) {
+                displayMessage(response.message, false);
+            } else {
+                displayMessage("Failed to reload tabs: " + (response && response.message ? response.message : "Unknown error"), true);
+            }
+        });
+    }
+};
+
+/**
  * Groups tabs for a specific instance (Chrome only)
  * @param {string} instance - The instance hostname
  */
@@ -802,6 +827,7 @@ const determineSearchType = (input) => {
 const performSearch = () => {
     const searchInputElement = document.getElementById("objectSearchInput");
     const searchResults = document.getElementById("searchResults");
+    const globalSearchCheckbox = document.getElementById("globalSearchCheckbox");
 
     if (!searchInputElement || !searchResults) return;
 
@@ -819,6 +845,9 @@ const performSearch = () => {
         searchResults.innerHTML = '<div class="search-empty">Please enter a valid search term</div>';
         return;
     }
+
+    // Get global search preference (only relevant for sys_id searches)
+    const globalSearch = globalSearchCheckbox ? globalSearchCheckbox.checked : false;
 
     // Hide help text during search
     const searchHelp = document.getElementById("searchHelp");
@@ -847,11 +876,15 @@ const performSearch = () => {
 
         // Show appropriate loading message
         if (searchType.type === 'sysId') {
-            showSearchProgress("Searching popular tables first.");
-            // After 2 seconds, update message to indicate extended search
-            context.searchProgressTimeout = setTimeout(() => {
-                showSearchProgress("The record was not found in popular tables. Now searching everywhere.<br><small>It may take a while.</small>");
-            }, 2000);
+            if (globalSearch) {
+                showSearchProgress("Searching popular tables first.");
+                // After 2 seconds, update message to indicate extended search
+                context.searchProgressTimeout = setTimeout(() => {
+                    showSearchProgress("The record was not found in popular tables. Now searching everywhere.<br><small>It may take a while.</small>");
+                }, 2000);
+            } else {
+                showSearchProgress("Searching common tables.");
+            }
         }
 
         // Send message to content script
@@ -859,7 +892,8 @@ const performSearch = () => {
             "command": "searchObject",
             "searchType": searchType.type,
             "searchValue": searchType.value,
-            "instance": targetInstance
+            "instance": targetInstance,
+            "globalSearch": globalSearch
         }, (response) => {
         showSearchLoader(false);
 
@@ -983,12 +1017,15 @@ const displaySearchResults = (response) => {
 
         if (response.searchType === 'sysId' || response.searchType === 'number') {
             // Single sys_id or number result - use same compact format as other results
+            const safeUrl = DOMPurify.sanitize(response.directUrl);
+            const safeDisplayValue = DOMPurify.sanitize(response.displayValue);
+            const safeClass = DOMPurify.sanitize(response.actualClass);
             resultHtml = `
                 <div class="search-results-list single-result">
                     <div class="search-result-item">
                         <div class="result-content">
-                            <a href="#" class="result-name-link" data-url="${response.directUrl}">${response.displayValue}</a>
-                            <span class="result-class">${response.actualClass}</span>
+                            <a href="#" class="result-name-link" data-url="${safeUrl}">${safeDisplayValue}</a>
+                            <span class="result-class">${safeClass}</span>
                         </div>
                     </div>
                 </div>
@@ -1024,12 +1061,13 @@ const displaySearchResults = (response) => {
 
                     const groupId = `group-${className.replace(/[^a-zA-Z0-9]/g, '-')}`;
                     const isExpanded = classResults.length <= 3; // Auto-expand small groups
+                    const safeClassName = DOMPurify.sanitize(className);
 
                     resultHtml += `
                         <div class="result-group">
                             <div class="result-group-header" data-group="${groupId}">
                                 <span class="group-toggle ${isExpanded ? 'expanded' : 'collapsed'}">${isExpanded ? '▼' : '▶'}</span>
-                                <span class="group-title">${className}</span>
+                                <span class="group-title">${safeClassName}</span>
                                 <span class="group-count">(${classResults.length})</span>
                             </div>
                             <div class="result-group-content ${isExpanded ? 'expanded' : 'collapsed'}" id="${groupId}">
@@ -1037,11 +1075,13 @@ const displaySearchResults = (response) => {
 
                     classResults.forEach((result, index) => {
                         const displayName = result.displayName || result.name || result.username || result.value;
+                        const safeDisplayName = DOMPurify.sanitize(displayName);
+                        const safeUrl = DOMPurify.sanitize(result.directUrl);
 
                         resultHtml += `
                             <div class="search-result-item grouped" data-index="${index}">
                                 <div class="result-content">
-                                    <a href="#" class="result-name-link" data-url="${result.directUrl}">${displayName}</a>
+                                    <a href="#" class="result-name-link" data-url="${safeUrl}">${safeDisplayName}</a>
                                 </div>
                             </div>
                         `;
@@ -1066,12 +1106,15 @@ const displaySearchResults = (response) => {
                 classResults.forEach((result, index) => {
                     const displayName = result.displayName || result.name || result.username || result.value;
                     const classToDisplay = result.actualClass || result.sourceTable || 'unknown';
+                    const safeDisplayName = DOMPurify.sanitize(displayName);
+                    const safeClass = DOMPurify.sanitize(classToDisplay);
+                    const safeUrl = DOMPurify.sanitize(result.directUrl);
 
                     resultHtml += `
                         <div class="search-result-item" data-index="${index}">
                             <div class="result-content">
-                                <a href="#" class="result-name-link" data-url="${result.directUrl}">${displayName}</a>
-                                <span class="result-class">${classToDisplay}</span>
+                                <a href="#" class="result-name-link" data-url="${safeUrl}">${safeDisplayName}</a>
+                                <span class="result-class">${safeClass}</span>
                             </div>
                         </div>
                     `;
@@ -1711,6 +1754,7 @@ const refreshList = () => {
                 let items = [
                     { title: "&#8681; Nodes", fn: scanNodes },
                     { title: "&#10000; Script", fn: openBackgroundScriptWindow },
+                    { title: "&#8635; Reload tabs", fn: reloadInstanceTabs },
                     { title: "&#9088; Rename", fn: renameInstance },
                     { title: "&#128065; Hide", fn: hideInstance },
                     { title: "&#9776; Group", fn: groupTabs }
@@ -1973,36 +2017,40 @@ const updateTabDisplayFromCache = (tabId, tabState) => {
                 tab.snt_details = tabState.details || "";
                 tab.snt_tabs = tabState.tabs || [];
                 
-                // Update UI
-                const typeEl = document.getElementById("tab" + tabId + "_type");
-                if (typeEl) {
-                    switch (tabState.type) {
-                        case "loading":
-                            typeEl.innerText = "⏳";
-                            typeEl.title = "Loading...";
-                            break;
-                        case "non responsive":
-                            typeEl.innerText = "😴";
-                            typeEl.title = "Content script is not available yet";
-                            break;
-                        case "portal":
-                            typeEl.innerText = "⎆";
-                            typeEl.title = "Service Portal";
-                            break;
-                        case "app studio":
-                            typeEl.innerText = "✬";
-                            typeEl.title = "App Studio: " + tabState.details;
-                            break;
-                        case "workspace":
-                            typeEl.innerText = "⚒";
-                            typeEl.title = "Workspace: " + JSON.stringify(tabState.tabs);
-                            break;
-                        default:
-                            typeEl.innerText = "";
-                            typeEl.title = "";
+                // Update UI (only if debug mode is enabled)
+                chrome.storage.local.get("debugMode", (result) => {
+                    if (result.debugMode !== true) return;
+                    
+                    const typeEl = document.getElementById("tab" + tabId + "_type");
+                    if (typeEl) {
+                        switch (tabState.type) {
+                            case "loading":
+                                typeEl.innerText = "⏳";
+                                typeEl.title = "Loading...";
+                                break;
+                            case "non responsive":
+                                typeEl.innerText = "😴";
+                                typeEl.title = "Content script is not available yet";
+                                break;
+                            case "portal":
+                                typeEl.innerText = "⎆";
+                                typeEl.title = "Service Portal";
+                                break;
+                            case "app studio":
+                                typeEl.innerText = "✬";
+                                typeEl.title = "App Studio: " + tabState.details;
+                                break;
+                            case "workspace":
+                                typeEl.innerText = "⚒";
+                                typeEl.title = "Workspace: " + JSON.stringify(tabState.tabs);
+                                break;
+                            default:
+                                typeEl.innerText = "";
+                                typeEl.title = "";
+                        }
+                        console.log("*SNOW TOOL BELT* Phase 3: Updated UI for tab", tabId, "type:", tabState.type);
                     }
-                    console.log("*SNOW TOOL BELT* Phase 3: Updated UI for tab", tabId, "type:", tabState.type);
-                }
+                });
                 
                 // Update update set if provided
                 if (tabState.updateSet && tabState.updateSet.current) {
@@ -2078,35 +2126,39 @@ const updateTabInfoFromCache = (instance, windowId, index, cache) => {
         console.log("*SNOW TOOL BELT* Phase 2: No cache for tab", tab.id, "marking as loading");
     }
     
-    // Update UI
-    let typeEl = document.getElementById("tab" + tab.id + "_type");
-    if (typeEl) {
-        switch (tab.snt_type) {
-            case "loading":
-                typeEl.innerText = "⏳";
-                typeEl.title = "Loading...";
-                break;
-            case "non responsive":
-                typeEl.innerText = "😴";
-                typeEl.title = "Content script is not available yet";
-                break;
-            case "portal":
-                typeEl.innerText = "⎆";
-                typeEl.title = "Service Portal";
-                break;
-            case "app studio":
-                typeEl.innerText = "✬";
-                typeEl.title = "App Studio: " + tab.snt_details;
-                break;
-            case "workspace":
-                typeEl.innerText = "⚒";
-                typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
-                break;
-            default:
-                typeEl.innerText = "";
-                typeEl.title = "";
+    // Update UI (only if debug mode is enabled)
+    chrome.storage.local.get("debugMode", (result) => {
+        if (result.debugMode !== true) return;
+        
+        let typeEl = document.getElementById("tab" + tab.id + "_type");
+        if (typeEl) {
+            switch (tab.snt_type) {
+                case "loading":
+                    typeEl.innerText = "⏳";
+                    typeEl.title = "Loading...";
+                    break;
+                case "non responsive":
+                    typeEl.innerText = "😴";
+                    typeEl.title = "Content script is not available yet";
+                    break;
+                case "portal":
+                    typeEl.innerText = "⎆";
+                    typeEl.title = "Service Portal";
+                    break;
+                case "app studio":
+                    typeEl.innerText = "✬";
+                    typeEl.title = "App Studio: " + tab.snt_details;
+                    break;
+                case "workspace":
+                    typeEl.innerText = "⚒";
+                    typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
+                    break;
+                default:
+                    typeEl.innerText = "";
+                    typeEl.title = "";
+            }
         }
-    }
+    });
     
     // Update update sets from cache if available
     if (context.showUpdatesets && cache.updateSets && cache.updateSets[instance]) {
@@ -2212,34 +2264,38 @@ const updateTabInfo = (instance, windowId, index) => {
                 reframeButton.classList.add("hidden");
             }
         }
-        let typeEl = document.getElementById("tab" + tab.id + "_type");
-        if (typeEl) {
-            switch (tab.snt_type) {
-                case "non responsive":
-                    typeEl.innerText = "😴"; // sleepy face
-                    typeEl.title = "Content script is not available yet";
-                    // Phase 4: No retry needed - real-time updates will handle this
-                    break;
-                case "portal":
-                    typeEl.innerText = "⎆";
-                    typeEl.title = "Service Portal";
-                    break;
-                case "app studio":
-                    typeEl.innerText = "✬";
-                    typeEl.title = "App Studio: " + tab.snt_details;
-                    break;
-                case "workspace":
-                    typeEl.innerText = "⚒"; // briefcase
-                    typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
-                    break;
-                default:
-                    typeEl.innerText = "";
-                    typeEl.title = "";
-                    break;
+        chrome.storage.local.get("debugMode", (result) => {
+            if (result.debugMode !== true) return;
+            
+            let typeEl = document.getElementById("tab" + tab.id + "_type");
+            if (typeEl) {
+                switch (tab.snt_type) {
+                    case "non responsive":
+                        typeEl.innerText = "😴"; // sleepy face
+                        typeEl.title = "Content script is not available yet";
+                        // Phase 4: No retry needed - real-time updates will handle this
+                        break;
+                    case "portal":
+                        typeEl.innerText = "⎆";
+                        typeEl.title = "Service Portal";
+                        break;
+                    case "app studio":
+                        typeEl.innerText = "✬";
+                        typeEl.title = "App Studio: " + tab.snt_details;
+                        break;
+                    case "workspace":
+                        typeEl.innerText = "⚒"; // briefcase
+                        typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
+                        break;
+                    default:
+                        typeEl.innerText = "";
+                        typeEl.title = "";
+                        break;
+                }
+            } else {
+                console.warn("tab type element " + "tab" + tab.id + "_type" + " is not available yet");
             }
-        } else {
-            console.warn("tab type element " + "tab" + tab.id + "_type" + " is not available yet");
-        }
+        });
     });
 };
 

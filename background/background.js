@@ -122,6 +122,11 @@ const getOptions = () => {
             // Phase 1: Load tab state cache from storage
             loadTabStateCache();
             
+            // Request fresh state from all tabs after a short delay to allow cache to load
+            setTimeout(() => {
+                requestFreshStateFromAllTabs();
+            }, 500);
+            
             try {
                 context.instanceOptions = JSON.parse(context.instanceOptions);
             } catch (e) {
@@ -227,6 +232,26 @@ function loadTabStateCache() {
         } else {
             console.log("*SNOW TOOL BELT BG* No cached tab state found, starting fresh");
         }
+    });
+}
+
+/**
+ * Request fresh state from all ServiceNow tabs after service worker restart
+ */
+function requestFreshStateFromAllTabs() {
+    console.log("*SNOW TOOL BELT BG* Requesting fresh state from all tabs");
+    chrome.tabs.query({}, (tabs) => {
+        tabs.forEach(tab => {
+            if (tab.url && (tab.url.includes('service-now.com') || tab.url.includes('.service-now.com'))) {
+                // Send message to content script to report its state
+                chrome.tabs.sendMessage(tab.id, { "command": "requestStateReport" }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        // Content script not loaded or not responsive
+                        console.log("*SNOW TOOL BELT BG* Tab", tab.id, "not responsive:", chrome.runtime.lastError.message);
+                    }
+                });
+            }
+        });
     });
 }
 
@@ -413,6 +438,42 @@ const openBackgroundScriptWindow = (tab) => {
 }
 
 /**
+ * Reloads all tabs for a specific instance
+ * @param {string} instance The instance hostname
+ * @param {number} windowId Optional window ID to filter tabs
+ * @returns {Promise} Promise that resolves with result object
+ */
+const reloadInstanceTabs = async (instance, windowId) => {
+    try {
+        console.log("*SNOW TOOL BELT BG* Reloading tabs for instance:", instance, "windowId:", windowId);
+        
+        // Query for all tabs matching the instance
+        const queryInfo = { url: `*://${instance}/*` };
+        if (windowId !== undefined && windowId !== null) {
+            queryInfo.windowId = windowId;
+        }
+        
+        const tabs = await chrome.tabs.query(queryInfo);
+        console.log("*SNOW TOOL BELT BG* Found", tabs.length, "tabs to reload");
+        
+        if (tabs.length === 0) {
+            return { success: false, message: "No tabs found for this instance", count: 0 };
+        }
+        
+        // Reload all matching tabs
+        const reloadPromises = tabs.map(tab => chrome.tabs.reload(tab.id));
+        await Promise.all(reloadPromises);
+        
+        console.log("*SNOW TOOL BELT BG* Successfully reloaded", tabs.length, "tabs");
+        return { success: true, message: `Reloaded ${tabs.length} tab(s)`, count: tabs.length };
+        
+    } catch (error) {
+        console.error("*SNOW TOOL BELT BG* Error reloading tabs:", error);
+        return { success: false, message: error.message, count: 0 };
+    }
+}
+
+/**
  * Handles a change event coming from storage
  * @param {Object} objChanged an object that contains the items that changed with newValue and oldValue
  * @param {String} area Storage area (should be "sync")
@@ -594,6 +655,14 @@ const msgListener = (message, sender, sendResponse) => {
         return true;
     }
     
+    if (message.command === "execute-reloadtabs") {
+        console.log("*SNOW TOOL BELT BG* Reloading tabs for instance", message.instance, "windowId", message.windowId);
+        reloadInstanceTabs(message.instance, message.windowId).then(result => {
+            sendResponse(result);
+        });
+        return true;
+    }
+    
     // Phase 1: Handle tab state cache messages
     if (message.command === "reportTabState" && sender.tab) {
         console.log("*SNOW TOOL BELT BG* Received tab state report from tab", sender.tab.id);
@@ -644,19 +713,28 @@ chromeAPI.tabs.onRemoved.addListener((tabId, removeInfo) => {
 chromeAPI.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' && tab.url) {
         // Tab finished loading, content script should report soon
-        // If no report after 5 seconds, mark as non-responsive
+        // Record the load time to check against later
+        const loadTime = Date.now();
+        
+        // If no report after 10 seconds, mark as non-responsive
         setTimeout(() => {
             const cachedState = tabStateCache.tabs[tabId];
-            if (!cachedState || Date.now() - cachedState.lastUpdated > 5000) {
-                console.log("*SNOW TOOL BELT BG* Tab", tabId, "loaded but no state report received");
+            // Only mark as non-responsive if:
+            // 1. No cached state exists, OR
+            // 2. Cached state hasn't been updated since this page load
+            if (!cachedState || cachedState.lastUpdated < loadTime) {
+                console.log("*SNOW TOOL BELT BG* Tab", tabId, "loaded but no state report received within 10 seconds");
                 tabStateCache.tabs[tabId] = {
                     type: "non responsive",
                     lastUpdated: Date.now(),
-                    url: tab.url
+                    url: tab.url,
+                    instance: new URL(tab.url).hostname
                 };
                 debouncedSaveCache();
+            } else {
+                console.log("*SNOW TOOL BELT BG* Tab", tabId, "reported state successfully after load");
             }
-        }, 5000);
+        }, 10000);
     }
 });
 
