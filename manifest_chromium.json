@@ -29,11 +29,11 @@
       },
       "description": "View versions of current object"
     },
-    "execute-backgroundscript": {
+    "execute-console": {
       "suggested_key": {
-        "default": "Alt+B"
+        "default": "Alt+K"
       },
-      "description": "Open a background script window on current instance"
+      "description": "Open the tool belt console"
     }
   },
   "background": {

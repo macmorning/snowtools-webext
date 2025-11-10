@@ -28,12 +28,6 @@
       },
       "description": "View versions of current object"
     },
-    "execute-backgroundscript": {
-      "suggested_key": {
-        "default": "Alt+B"
-      },
-      "description": "Open a background script window on current instance"
-    },
     "execute-console": {
       "suggested_key": {
         "default": "Ctrl+Shift+K"

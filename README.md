@@ -18,10 +18,11 @@ Browser extension for ServiceNow developers and administrators. Manage multiple 
 - **Cross-instance**: Search on any available instance
 
 ### Developer Tools
-- **Field name toggle**: Switch between display names and technical field names
+- **Field name toggle**: Switch between display names and technical field names (disabled in modern workspaces)
 - **Background scripts**: Enhanced script editor with better UX
 - **Version history**: Quick access to record versions for any object, incl. from Flow Designer
 - **Frame navigation**: Reopen pages in ServiceNow's navigation frame
+- **Console**: Built-in command console with search, stats, and navigation commands
 
 ### Configuration
 - **Auto-discovery**: Automatically detect visited instances
