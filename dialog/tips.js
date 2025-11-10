@@ -1,4 +1,5 @@
 const chromeURL = "https://chrome.google.com/webstore/detail/servicenow-tool-belt/jflcifhpkilfaomlnikfaaccmpidkmln";
+const edgeURL = "https://microsoftedge.microsoft.com/addons/detail/servicenow-tool-belt/ofefboehibiaekjaiaiacalcdeonfbil";
 const mozURL = "https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/";
 const gitURL = "https://github.com/macmorning/snowtools-webext";
 
@@ -7,6 +8,10 @@ const gitURL = "https://github.com/macmorning/snowtools-webext";
 if (typeof isChromium === 'undefined') {
     window.isChromium = (typeof browser === "undefined");
 }
+
+// Detect specific browser (Chrome vs Edge)
+const isEdge = isChromium && navigator.userAgent.includes('Edg/');
+const isChrome = isChromium && !isEdge;
 
 const shortcutsURL = (isChromium ? "chrome://extensions/shortcuts" : "Firefox shortcuts settings");
 
@@ -92,10 +97,31 @@ const loadTipsData = async () => {
 
         // Process tips with dynamic content
         tips = tipsData.map(tip => {
+            // Determine current and other browser info
+            let currentBrowserName, currentBrowserURL, otherBrowserName, otherBrowserURL;
+            
+            if (isEdge) {
+                currentBrowserName = "Edge";
+                currentBrowserURL = edgeURL;
+                otherBrowserName = "Chrome";
+                otherBrowserURL = chromeURL;
+            } else if (isChrome) {
+                currentBrowserName = "Chrome";
+                currentBrowserURL = chromeURL;
+                otherBrowserName = "Edge";
+                otherBrowserURL = edgeURL;
+            } else {
+                // Firefox
+                currentBrowserName = "Firefox";
+                currentBrowserURL = mozURL;
+                otherBrowserName = "Chrome";
+                otherBrowserURL = chromeURL;
+            }
+            
             return tip
-                .replace('{otherBrowser}', isChromium ? "Firefox" : "Chrome")
-                .replace('{currentBrowserURL}', isChromium ? chromeURL : mozURL)
-                .replace('{otherBrowserURL}', isChromium ? mozURL : chromeURL)
+                .replace('{otherBrowser}', otherBrowserName)
+                .replace('{currentBrowserURL}', currentBrowserURL)
+                .replace('{otherBrowserURL}', otherBrowserURL)
                 .replace('{gitURL}', gitURL)
                 .replace('{commands}', getCommands() || 'Commands not available');
         });

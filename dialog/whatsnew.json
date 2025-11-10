@@ -1,5 +1,22 @@
 [
     {
+        "version": "7.5.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Added a nerdy console to access search faster and new features, check it out in the shortcuts!"
+        ]
+    },
+    {
+        "version": "7.4.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Refactored how tab informations are gathered to make the extension popup lighter",
+            "You can now search for any number handled by the sys_number mechanism",
+            "Updated the popup window to use all available space when larger than 700px",
+            "Updated the 'show update set' feature to make it a bit more useful"
+        ]
+    },
+    {
         "version": "7.3.0",
         "msg": "Most notable changes:",
         "items": [

@@ -5,6 +5,7 @@
 <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="../css/snowbelt.css" />
+    <script src="../content-script/purify.js"></script>
     <script src="basicContext.js"></script>
     <link rel="stylesheet" href="basicContext.min.css" />
     <script async src="autocomplete.js"></script>
@@ -13,7 +14,7 @@
 <body>
     <img src="../icons/external.png" id="open_in_panel" class="top-commands" title="open in a panel" />
     <img src="../icons/newspaper.png" id="show_news" class="top-commands" title="what's new" />
-    <a href="https://github.com/macmorning/snowtools-webext/issues" title="get some help or post a request on github"
+    <a href="https://github.com/macmorning/snowtools-webext" title="get some help or post a request on github"
         target="_blank"><img id="help" src="../icons/question.png" class="top-commands" /></a>
     <img src="../icons/lightning.png" id="shortcuts" class="top-commands" title="keyboard shortcuts" />
     <img src="../icons/options.png" id="config" class="top-commands" title="options" />
@@ -60,7 +61,7 @@
                 class="no_underline button-muted instance-commands" title="open a new tab">&#10010;</a> <!-- ✚ -->
             <a data-instance="{{instance}}" data-window-id="{{windowId}}"
                 class="no_underline button-muted instance-commands" title="search objects">⌕</a> <!-- Search -->
-            <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="updateset">US: <span
+            <div data-instance="{{instance}}" data-window-id="{{windowId}}" class="updateset">US: <span class="updateset-name"
                     title="make sure content script is active in a tab and you are logged in as an admin">unknown <img
                         src="../icons/question.png" width="8px" /></span></div>
             <ul class="links-to-tabs">{{linksToTabs}}</ul>
@@ -75,7 +76,7 @@
             <span id="tab{{tabid}}_type"></span>
             <span id="tab{{tabid}}_title">{{title}}</span>
             <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}"
-                class="no_underline button-muted tab-commands" title="reopen in a frame">&#8690;</a>
+                class="no_underline button-muted tab-commands hidden" title="reopen in a frame">&#8690;</a>
 
         </li>
     </template>
@@ -115,13 +116,18 @@
                     <div class="search-container">
                         <div class="search-input-container">
                             <input type="text" id="objectSearchInput"
-                                placeholder="sys_id, object, task number, username, group (use * for starts with)">
+                                placeholder="">
                             <button id="objectSearchButton" class="btn-primary search-btn-inline">⌕</button>
                         </div>
                         <div class="search-help" id="searchHelp">
-                            <small>Enter a sys_id, object name, task number, username, or group name. Add * at the end
-                                for "starts
-                                with" search.</small>
+                            <small>sys_id, number, object name, username, group (use * for starts with)</small>
+                        </div>
+                        <div class="search-options">
+                            <label class="search-option-label">
+                                <input type="checkbox" id="globalSearchCheckbox">
+                                <span>Global search</span>
+                                <img src="../icons/question.png" width="8px" class="search-hint" title="If sys_id not found in common tables, search all tables in the instance" />
+                            </label>
                         </div>
                     </div>
                     <div id="searchResults">

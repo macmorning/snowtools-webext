@@ -68,6 +68,158 @@ const getValidWindowId = (callback) => {
 };
 
 /**
+ * Opens an update set record in a popup window
+ * @param {string} instance - The instance hostname
+ * @param {string} sysId - The sys_id of the update set
+ * @param {string} name - The name of the update set (for display)
+ */
+const openUpdateSet = (instance, sysId, name) => {
+    if (!sysId) {
+        debugLog("*SNOW TOOL BELT* No sys_id provided for update set");
+        return;
+    }
+
+    const url = `https://${instance}/sys_update_set.do?sys_id=${sysId}`;
+    
+    const createData = {
+        type: "popup",
+        url: url,
+        width: 1200,
+        height: 600
+    };
+
+    chrome.windows.create(createData);
+    debugLog("*SNOW TOOL BELT* Opened update set:", name, "sys_id:", sysId);
+};
+
+/**
+ * Makes an update set name clickable
+ * @param {HTMLElement} element - The span element containing the update set name
+ * @param {string} instance - The instance hostname
+ * @param {number} windowId - The window ID
+ */
+const makeUpdateSetClickable = (element, instance, windowId) => {
+    console.log("*SNOW TOOL BELT* makeUpdateSetClickable called for", instance, windowId);
+    
+    if (!element) {
+        console.log("*SNOW TOOL BELT* No element provided");
+        return;
+    }
+    
+    if (!context.updateSets[windowId]) {
+        console.log("*SNOW TOOL BELT* No updateSets for windowId", windowId);
+        return;
+    }
+    
+    if (!context.updateSets[windowId][instance]) {
+        console.log("*SNOW TOOL BELT* No updateSets for instance", instance);
+        return;
+    }
+
+    const updateSetData = context.updateSets[windowId][instance];
+    console.log("*SNOW TOOL BELT* Update set data:", updateSetData);
+    
+    // Check for both sys_id and sysId (API returns sysId in camelCase)
+    const sysId = updateSetData.current?.sys_id || updateSetData.current?.sysId;
+    
+    if (updateSetData.current && sysId) {
+        console.log("*SNOW TOOL BELT* Making update set clickable:", updateSetData.current.name, "sys_id:", sysId);
+        
+        element.style.cursor = 'pointer';
+        element.style.textDecoration = 'underline';
+        element.title = `Click to open: ${updateSetData.current.name}`;
+        
+        // Store data attributes for the click handler
+        element.setAttribute('data-update-set-sys-id', sysId);
+        element.setAttribute('data-update-set-name', updateSetData.current.name);
+        element.setAttribute('data-update-set-instance', instance);
+        
+        // Remove any existing click handlers by cloning
+        const newElement = element.cloneNode(true);
+        element.parentNode.replaceChild(newElement, element);
+        
+        // Add click handler to the new element
+        newElement.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const sysId = newElement.getAttribute('data-update-set-sys-id');
+            const name = newElement.getAttribute('data-update-set-name');
+            const inst = newElement.getAttribute('data-update-set-instance');
+            console.log("*SNOW TOOL BELT* Update set clicked:", name, "sys_id:", sysId);
+            openUpdateSet(inst, sysId, name);
+        });
+        
+        console.log("*SNOW TOOL BELT* Update set is now clickable");
+    } else {
+        console.log("*SNOW TOOL BELT* No sys_id in update set data");
+    }
+};
+
+/**
+ * Finds the first active and responsive tab for a given instance
+ * Searches through the tabs cache and pings each non-discarded tab to verify content script availability
+ * @param {string} instance - The instance hostname to search for
+ * @param {Function} callback - Callback function that receives the tab ID (or null if none found)
+ */
+const findFirstActiveTab = (instance, callback) => {
+    if (!context.tabs[instance]) {
+        debugLog("*SNOW TOOL BELT* No tabs found for instance:", instance);
+        callback(null);
+        return;
+    }
+
+    // Collect all non-discarded tabs for this instance
+    const candidateTabs = [];
+    for (const winkey in context.tabs[instance]) {
+        for (let i = 0; i < context.tabs[instance][winkey].length; i++) {
+            const tab = context.tabs[instance][winkey][i];
+            if (!tab.discarded) {
+                candidateTabs.push(tab);
+            }
+        }
+    }
+
+    if (candidateTabs.length === 0) {
+        debugLog("*SNOW TOOL BELT* No non-discarded tabs found for instance:", instance);
+        callback(null);
+        return;
+    }
+
+    debugLog("*SNOW TOOL BELT* Found", candidateTabs.length, "candidate tabs for instance:", instance);
+
+    // Try each candidate tab until we find one that responds
+    let currentIndex = 0;
+
+    const tryNextTab = () => {
+        if (currentIndex >= candidateTabs.length) {
+            // No responsive tabs found
+            debugLog("*SNOW TOOL BELT* No responsive tabs found for instance:", instance);
+            callback(null);
+            return;
+        }
+
+        const tab = candidateTabs[currentIndex];
+        debugLog("*SNOW TOOL BELT* Pinging tab", tab.id, "for instance:", instance);
+
+        // Ping the tab with a simple command to check if content script is available
+        chrome.tabs.sendMessage(tab.id, { command: "ping" }, (response) => {
+            if (chrome.runtime.lastError) {
+                // Content script not available, try next tab
+                debugLog("*SNOW TOOL BELT* Tab", tab.id, "not responsive:", chrome.runtime.lastError.message);
+                currentIndex++;
+                tryNextTab();
+            } else {
+                // Found a responsive tab
+                debugLog("*SNOW TOOL BELT* Found responsive tab:", tab.id);
+                callback(tab.id);
+            }
+        });
+    };
+
+    tryNextTab();
+};
+
+/**
  * Displays a toast notification in the top right corner
  * @param {String} txt Message to display.
  * @param {boolean} autohide Automatically hide after n seconds (default: true)
@@ -217,6 +369,31 @@ const groupTabs = (evt) => {
         debugLog("*SNOW TOOL BELT* chrome.tabGroups.update exists:", !!(chrome.tabGroups && chrome.tabGroups.update));
 
         groupInstanceTabs(instance);
+    }
+};
+
+/**
+ * Reloads all tabs for a specific instance
+ * @param {object} evt - The event object
+ */
+const reloadInstanceTabs = (evt) => {
+    const instance = context.clicked.getAttribute("data-instance");
+    const windowId = context.clicked.getAttribute("data-window-id");
+    
+    if (instance) {
+        chrome.runtime.sendMessage({
+            "command": "execute-reloadtabs",
+            "instance": instance,
+            "windowId": windowId ? parseInt(windowId) : null
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                displayMessage("Failed to reload tabs: " + chrome.runtime.lastError.message, true);
+            } else if (response && response.success) {
+                displayMessage(response.message, false);
+            } else {
+                displayMessage("Failed to reload tabs: " + (response && response.message ? response.message : "Unknown error"), true);
+            }
+        });
     }
 };
 
@@ -447,11 +624,19 @@ const popIn = (evt) => {
     }
     tabid = parseInt(tabid);
     chrome.tabs.get(tabid, (tab) => {
-        let url = new URL(tab.url);
-        if (url.pathname !== "/nav_to.do") {
-            chrome.runtime.sendMessage({ command: "execute-reframe", tabid: tabid });
-        } else {
-            displayMessage("Already in a frame");
+        if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('about:') || tab.url.startsWith('edge://')) {
+            displayMessage("Cannot reframe this type of page");
+            return;
+        }
+        try {
+            let url = new URL(tab.url);
+            if (url.pathname !== "/nav_to.do") {
+                chrome.runtime.sendMessage({ command: "execute-reframe", tabid: tabid });
+            } else {
+                displayMessage("Already in a frame");
+            }
+        } catch (e) {
+            displayMessage("Cannot reframe this page");
         }
     });
 };
@@ -572,7 +757,7 @@ const openSearchDialog = (evt) => {
             searchInput.value = "";
             searchInput.classList.remove("valid", "invalid", "sys-id", "object-name");
         }
-        if (searchResults) searchResults.innerHTML = "";
+        if (searchResults) searchResults.innerText = "";
 
         // Show the search dialog
         location.hash = "searchDialog";
@@ -613,11 +798,20 @@ const determineSearchType = (input) => {
         const isStartsWith = trimmedInput.endsWith('*');
 
         if (isStartsWith) {
-            // For wildcard searches, require at least 5 characters before the *
+            // For wildcard searches, require at least 4 characters before the *
             const searchTerm = trimmedInput.slice(0, -1); // Remove the *
-            if (searchTerm.length < 5) {
-                return { type: 'invalid', value: trimmedInput, error: 'Wildcard searches require at least 5 characters before the *' };
+            if (searchTerm.length < 4) {
+                return { type: 'invalid', value: trimmedInput, error: 'Wildcard searches require at least 4 characters before the *' };
             }
+        }
+
+        // Check if it looks like a ServiceNow number (letters followed by digits, no wildcard)
+        // Examples: INC0001234, REQ0005678, RITM0012345, CHG0001234
+        if (!isStartsWith && /^[A-Za-z]+\d+$/.test(trimmedInput)) {
+            return {
+                type: 'number',
+                value: trimmedInput
+            };
         }
 
         return {
@@ -633,6 +827,7 @@ const determineSearchType = (input) => {
 const performSearch = () => {
     const searchInputElement = document.getElementById("objectSearchInput");
     const searchResults = document.getElementById("searchResults");
+    const globalSearchCheckbox = document.getElementById("globalSearchCheckbox");
 
     if (!searchInputElement || !searchResults) return;
 
@@ -651,6 +846,9 @@ const performSearch = () => {
         return;
     }
 
+    // Get global search preference (only relevant for sys_id searches)
+    const globalSearch = globalSearchCheckbox ? globalSearchCheckbox.checked : false;
+
     // Hide help text during search
     const searchHelp = document.getElementById("searchHelp");
     if (searchHelp) searchHelp.classList.add("hidden");
@@ -658,50 +856,45 @@ const performSearch = () => {
     const targetInstance = context.searchTargetInstance;
     const windowId = context.searchWindowId;
 
-    // Find a non-discarded tab for the instance to run the search
-    let tabId = -1;
-    if (context.tabs[targetInstance]) {
-        for (var winkey in context.tabs[targetInstance]) {
-            for (var i = 0; i < context.tabs[targetInstance][winkey].length; i++) {
-                if (tabId < 0 && !context.tabs[targetInstance][winkey][i].discarded) {
-                    tabId = context.tabs[targetInstance][winkey][i].id;
-                }
-            }
-        }
-    }
-
-    if (tabId < 0) {
-        searchResults.innerHTML = "No active tab available for this instance to perform the search.";
-        return;
-    }
-
     // Disable UI elements during search
     searchInputElement.disabled = true;
     const searchButton = document.getElementById("searchButton");
     if (searchButton) searchButton.disabled = true;
 
-    // Show loading animation with progress indication
-    if (searchType.type === 'sysId') {
-        showSearchProgress("Searching popular tables first.");
-        // After 2 seconds, update message to indicate extended search
-        context.searchProgressTimeout = setTimeout(() => {
-            showSearchProgress("The record was not found in popular tables. Now searching everywhere.<br><small>It may take a while.</small>");
-        }, 2000);
-    } else {
-        showSearchLoader(true);
-    }
+    // Show loading animation
+    showSearchLoader(true);
 
-    // Send message to content script
-    // For multiSearch type, content script should search in this order:
-    // 1. sys_metadata (field: sys_name) - includes roles since sys_user_role extends sys_metadata
-    // 2. sys_user (field: user_name) 
-    // 3. sys_user_group (field: name)
-    chrome.tabs.sendMessage(tabId, {
-        "command": "searchObject",
-        "searchType": searchType.type,
-        "searchValue": searchType.value,
-        "instance": targetInstance
-    }, (response) => {
+    // Find a responsive tab for the instance
+    findFirstActiveTab(targetInstance, (tabId) => {
+        if (tabId === null) {
+            showSearchLoader(false);
+            searchInputElement.disabled = false;
+            if (searchButton) searchButton.disabled = false;
+            searchResults.innerText = "No active tab available for this instance to perform the search.";
+            return;
+        }
+
+        // Show appropriate loading message
+        if (searchType.type === 'sysId') {
+            if (globalSearch) {
+                showSearchProgress("Searching popular tables first.");
+                // After 2 seconds, update message to indicate extended search
+                context.searchProgressTimeout = setTimeout(() => {
+                    showSearchProgress("The record was not found in popular tables. Now searching everywhere.<br><small>It may take a while.</small>");
+                }, 2000);
+            } else {
+                showSearchProgress("Searching common tables.");
+            }
+        }
+
+        // Send message to content script
+        chrome.tabs.sendMessage(tabId, {
+            "command": "searchObject",
+            "searchType": searchType.type,
+            "searchValue": searchType.value,
+            "instance": targetInstance,
+            "globalSearch": globalSearch
+        }, (response) => {
         showSearchLoader(false);
 
         // Clear progress timeout if it exists
@@ -731,10 +924,11 @@ const performSearch = () => {
         if (response && (response.status === 200 || response.status === 404)) {
             displaySearchResults(response);
         } else if (response && response.status !== 200 && response.status !== 404) {
-            searchResults.innerHTML = `Search failed with status: ${response.status}`;
+            searchResults.innerText = `Search failed with status: ${response.status}`;
         } else {
-            searchResults.innerHTML = "No response from the tab. Try refreshing the page.";
+            searchResults.innerText = "No response from the tab. Try refreshing the page.";
         }
+        });
     });
 };
 
@@ -821,14 +1015,17 @@ const displaySearchResults = (response) => {
     if (response.found) {
         let resultHtml = '';
 
-        if (response.searchType === 'sysId') {
-            // Single sys_id result - use same compact format as other results
+        if (response.searchType === 'sysId' || response.searchType === 'number') {
+            // Single sys_id or number result - use same compact format as other results
+            const safeUrl = DOMPurify.sanitize(response.directUrl);
+            const safeDisplayValue = DOMPurify.sanitize(response.displayValue);
+            const safeClass = DOMPurify.sanitize(response.actualClass);
             resultHtml = `
                 <div class="search-results-list single-result">
                     <div class="search-result-item">
                         <div class="result-content">
-                            <a href="#" class="result-name-link" data-url="${response.directUrl}">${response.displayValue}</a>
-                            <span class="result-class">${response.actualClass}</span>
+                            <a href="#" class="result-name-link" data-url="${safeUrl}">${safeDisplayValue}</a>
+                            <span class="result-class">${safeClass}</span>
                         </div>
                     </div>
                 </div>
@@ -864,12 +1061,13 @@ const displaySearchResults = (response) => {
 
                     const groupId = `group-${className.replace(/[^a-zA-Z0-9]/g, '-')}`;
                     const isExpanded = classResults.length <= 3; // Auto-expand small groups
+                    const safeClassName = DOMPurify.sanitize(className);
 
                     resultHtml += `
                         <div class="result-group">
                             <div class="result-group-header" data-group="${groupId}">
                                 <span class="group-toggle ${isExpanded ? 'expanded' : 'collapsed'}">${isExpanded ? '▼' : '▶'}</span>
-                                <span class="group-title">${className}</span>
+                                <span class="group-title">${safeClassName}</span>
                                 <span class="group-count">(${classResults.length})</span>
                             </div>
                             <div class="result-group-content ${isExpanded ? 'expanded' : 'collapsed'}" id="${groupId}">
@@ -877,11 +1075,13 @@ const displaySearchResults = (response) => {
 
                     classResults.forEach((result, index) => {
                         const displayName = result.displayName || result.name || result.username || result.value;
+                        const safeDisplayName = DOMPurify.sanitize(displayName);
+                        const safeUrl = DOMPurify.sanitize(result.directUrl);
 
                         resultHtml += `
                             <div class="search-result-item grouped" data-index="${index}">
                                 <div class="result-content">
-                                    <a href="#" class="result-name-link" data-url="${result.directUrl}">${displayName}</a>
+                                    <a href="#" class="result-name-link" data-url="${safeUrl}">${safeDisplayName}</a>
                                 </div>
                             </div>
                         `;
@@ -906,12 +1106,15 @@ const displaySearchResults = (response) => {
                 classResults.forEach((result, index) => {
                     const displayName = result.displayName || result.name || result.username || result.value;
                     const classToDisplay = result.actualClass || result.sourceTable || 'unknown';
+                    const safeDisplayName = DOMPurify.sanitize(displayName);
+                    const safeClass = DOMPurify.sanitize(classToDisplay);
+                    const safeUrl = DOMPurify.sanitize(result.directUrl);
 
                     resultHtml += `
                         <div class="search-result-item" data-index="${index}">
                             <div class="result-content">
-                                <a href="#" class="result-name-link" data-url="${result.directUrl}">${displayName}</a>
-                                <span class="result-class">${classToDisplay}</span>
+                                <a href="#" class="result-name-link" data-url="${safeUrl}">${safeDisplayName}</a>
+                                <span class="result-class">${safeClass}</span>
                             </div>
                         </div>
                     `;
@@ -998,6 +1201,9 @@ const displaySearchResults = (response) => {
         if (response.searchType === 'sysId' && response.searchedTables) {
             resultHtml += `<strong>Tables searched:</strong> ${response.searchedTables}<br>`;
             resultHtml += `The sys_id was not found in any accessible table on this instance.`;
+        } else if (response.searchType === 'number') {
+            resultHtml += `<strong>Table:</strong> ${response.table || 'unknown'}<br>`;
+            resultHtml += `${response.displayValue || 'No record found with that number.'}`;
         } else if (response.searchType === 'objectName') {
             resultHtml += `No objects found with that exact name in sys_metadata.`;
         } else if (response.searchType === 'multiSearch') {
@@ -1053,34 +1259,30 @@ const scanNodes = (evt) => {
         windowId = context.clicked.getAttribute("data-window-id");
     }
 
-    // try to find a non discarded tab for the instance to run the scan
-    let id = -1;
-    for (var winkey in context.tabs[targetInstance]) {
-        for (var i = 0; i < context.tabs[targetInstance][winkey].length; i++) {
-            if (id < 0 && !context.tabs[targetInstance][winkey][i].discarded) {
-                id = context.tabs[targetInstance][winkey][i].id;
-            }
-        }
-    }
-    if (id < 0) {
-        displayMessage("No tab is available to fetch nodes informations.");
-        return false;
-    }
-
     if (context.tempInformations[targetInstance] === undefined || context.tempInformations[targetInstance].nodes === undefined || context.tempInformations[targetInstance].nodes.length === 0) {
         showLoader(targetInstance, windowId, true);
-        chrome.tabs.sendMessage(id, { "command": "scanNodes" }, (response) => {
-            showLoader(targetInstance, windowId, false);
-            if (response !== undefined && response && response.status !== undefined && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
-                let nodes = response.nodes;
-                nodes.sort();
-                saveNodes(targetInstance, nodes, response.current);
-                refreshNodes(targetInstance, evt);
-            } else if (response !== undefined && response.status !== undefined && response.status !== 200) {
-                displayMessage("Got http status " + response.status + "...");
-            } else if (response === undefined) {
-                displayMessage("Couldn't get an answer from tab; try refreshing it.");
+        
+        // Find a responsive tab for the instance
+        findFirstActiveTab(targetInstance, (id) => {
+            if (id === null) {
+                showLoader(targetInstance, windowId, false);
+                displayMessage("No tab is available to fetch nodes informations.");
+                return;
             }
+
+            chrome.tabs.sendMessage(id, { "command": "scanNodes" }, (response) => {
+                showLoader(targetInstance, windowId, false);
+                if (response !== undefined && response && response.status !== undefined && response.status === 200 && response.nodes !== undefined && response.nodes.length > 0) {
+                    let nodes = response.nodes;
+                    nodes.sort();
+                    saveNodes(targetInstance, nodes, response.current);
+                    refreshNodes(targetInstance, evt);
+                } else if (response !== undefined && response.status !== undefined && response.status !== 200) {
+                    displayMessage("Got http status " + response.status + "...");
+                } else if (response === undefined) {
+                    displayMessage("Couldn't get an answer from tab; try refreshing it.");
+                }
+            });
         });
     } else {
         refreshNodes(targetInstance, evt);
@@ -1109,33 +1311,35 @@ const switchNode = (targetInstance, targetNode) => {
     if (targetInstance === undefined || !targetInstance || targetNode === undefined || !targetNode) {
         console.warn("*switchNode* Missing targetInstance (" + targetInstance + ") or targetNode (" + targetNode + ")");
     }
-    // try to find a non discarded tab for the instance to run the scan
-    let id = -1;
-    let windowId = context.windowId;
-    for (var winkey in context.tabs[targetInstance]) {
-        for (var i = 0; i < context.tabs[targetInstance][winkey].length; i++) {
-            if (id < 0 && !context.tabs[targetInstance][winkey][i].discarded) {
-                id = context.tabs[targetInstance][winkey][i].id;
-                windowId = context.tabs[targetInstance][winkey][i].windowId;
+    // Find a responsive tab for the instance
+    findFirstActiveTab(targetInstance, (id) => {
+        if (id === null) {
+            displayMessage("No tab is available for node switch.");
+            return;
+        }
+
+        // Get window ID from the found tab
+        let windowId = context.windowId;
+        for (var winkey in context.tabs[targetInstance]) {
+            for (var i = 0; i < context.tabs[targetInstance][winkey].length; i++) {
+                if (context.tabs[targetInstance][winkey][i].id === id) {
+                    windowId = context.tabs[targetInstance][winkey][i].windowId;
+                    break;
+                }
             }
         }
-    }
 
-    if (id < 0) {
-        displayMessage("No tab is available for node switch.");
-        return false;
-    }
-
-    console.log("*switchNode* Switching " + targetInstance + " to " + targetNode);
-    showLoader(targetInstance, windowId, true);
-    chrome.tabs.sendMessage(id, { "command": "switchNode", "node": targetNode }, (response) => {
-        showLoader(targetInstance, windowId, false);
-        if (response && response.status === 200) {
-            context.tempInformations[targetInstance].currentNode = response.current;
-            displayMessage("Node switched to " + response.current);
-        } else if (response.status !== 200) {
-            displayMessage("Error switching to " + targetNode + " (" + response.message + ")");
-        }
+        console.log("*switchNode* Switching " + targetInstance + " to " + targetNode);
+        showLoader(targetInstance, windowId, true);
+        chrome.tabs.sendMessage(id, { "command": "switchNode", "node": targetNode }, (response) => {
+            showLoader(targetInstance, windowId, false);
+            if (response && response.status === 200) {
+                context.tempInformations[targetInstance].currentNode = response.current;
+                displayMessage("Node switched to " + response.current);
+            } else if (response.status !== 200) {
+                displayMessage("Error switching to " + targetNode + " (" + response.message + ")");
+            }
+        });
     });
 };
 
@@ -1311,6 +1515,14 @@ const getOptions = () => {
 
             // Load and display keyboard shortcuts in tooltip
             loadShortcutsTooltip();
+            
+            // Phase 3: Listen for real-time tab state updates from background
+            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+                if (message.command === "tabStateUpdated") {
+                    console.log("*SNOW TOOL BELT* Phase 3: Received tab state update for tab", message.tabId);
+                    updateTabDisplayFromCache(message.tabId, message.tabState);
+                }
+            });
 
 
             document.getElementById("new_tab").addEventListener("change", newTab);
@@ -1349,28 +1561,25 @@ const getOptions = () => {
 
                     if (value === "") {
                         // Empty input - neutral state
-                        event.target.classList.remove("valid", "invalid", "sys-id", "object-name");
                         if (searchButton) searchButton.disabled = false;
-                        if (searchHelp) searchHelp.innerHTML = '<small>Enter a sys_id, object name, task number, username, or group name. Add * at the end for "starts with" search.</small>';
-                    } else if (searchType.type === 'sysId') {
-                        // Valid sys_id - blue border
-                        event.target.classList.remove("invalid", "object-name");
-                        event.target.classList.add("valid", "sys-id");
-                        if (searchButton) searchButton.disabled = false;
-                        if (searchHelp) searchHelp.innerHTML = '<small>Enter a sys_id, object name, task number, username, or group name. Add * at the end for "starts with" search.</small>';
-                    } else if (searchType.type === 'objectName' || searchType.type === 'multiSearch') {
-                        // Object name or multi-search - green border
-                        event.target.classList.remove("invalid", "sys-id");
-                        event.target.classList.add("valid", "object-name");
-                        if (searchButton) searchButton.disabled = false;
-                        if (searchHelp) searchHelp.innerHTML = '<small>Enter a sys_id, object name, task number, username, or group name. Add * at the end for "starts with" search.</small>';
-                    } else {
-                        // Invalid input - red border
-                        event.target.classList.remove("valid", "sys-id", "object-name");
-                        event.target.classList.add("invalid");
+                        if (searchHelp) searchHelp.innerHTML = '<small>Enter a sys_id, number, object name, user name, group name... Add * at the end to force "starts with" search.</small>';
+                    } else if (searchType.type === 'invalid') {
+                        // Invalid input - disable search
                         if (searchButton) searchButton.disabled = true;
                         if (searchHelp && searchType.error) {
                             searchHelp.innerHTML = `<small class="error-text">${searchType.error}</small>`;
+                        }
+                    } else {
+                        // Valid input (sysId, number, objectName, multiSearch) - enable search
+                        if (searchButton) searchButton.disabled = false;
+                        if (searchHelp) {
+                            if (searchType.type === 'sysId') {
+                                searchHelp.innerHTML = '<small>Searching by sys_id</small>';
+                            } else if (searchType.type === 'number') {
+                                searchHelp.innerHTML = '<small>Searching by ServiceNow number</small>';
+                            } else {
+                                searchHelp.innerHTML = '<small>Searching by name</small>';
+                            }
                         }
                     }
                 });
@@ -1485,9 +1694,17 @@ const refreshList = () => {
                             title: "<span class='small-instance-label" + (context.tabs[instance] !== undefined ? " enhanced" : "") + "'>" + context.knownInstances[instance] + "</span>",
                             fn: () => {
                                 chrome.tabs.get(parseInt(tabid), (tab) => {
-                                    let url = new URL(tab.url);
-                                    let newURL = "https://" + instance + url.pathname + url.search;
-                                    newTab(e, newURL, tab.windowId);
+                                    if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('about:') || tab.url.startsWith('edge://')) {
+                                        displayMessage("Cannot open this type of page on another instance");
+                                        return;
+                                    }
+                                    try {
+                                        let url = new URL(tab.url);
+                                        let newURL = "https://" + instance + url.pathname + url.search;
+                                        newTab(e, newURL, tab.windowId);
+                                    } catch (e) {
+                                        displayMessage("Cannot open this page on another instance");
+                                    }
                                 });
                             }
                         });
@@ -1537,6 +1754,7 @@ const refreshList = () => {
                 let items = [
                     { title: "&#8681; Nodes", fn: scanNodes },
                     { title: "&#10000; Script", fn: openBackgroundScriptWindow },
+                    { title: "&#8635; Reload tabs", fn: reloadInstanceTabs },
                     { title: "&#9088; Rename", fn: renameInstance },
                     { title: "&#128065; Hide", fn: hideInstance },
                     { title: "&#9776; Group", fn: groupTabs }
@@ -1612,13 +1830,32 @@ const refreshList = () => {
         document.getElementById("popin_color").addEventListener("click", saveColor);
         document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
 
-        for (let key2 in context.tabs) {
-            for (let key3 in context.tabs[key2]) {
-                context.tabs[key2][key3].forEach((tab, index) => {
-                    updateTabInfo(key2, key3, index);
-                });
+        // Phase 2: Load tab info from cache instead of making API calls
+        console.log("*SNOW TOOL BELT* Phase 2: Loading tab states from cache");
+        chrome.runtime.sendMessage({ command: "getTabStateCache" }, (response) => {
+            if (response && response.cache) {
+                console.log("*SNOW TOOL BELT* Phase 2: Received cache with", Object.keys(response.cache.tabs).length, "tabs");
+                const cache = response.cache;
+                
+                for (let key2 in context.tabs) {
+                    for (let key3 in context.tabs[key2]) {
+                        context.tabs[key2][key3].forEach((tab, index) => {
+                            updateTabInfoFromCache(key2, key3, index, cache);
+                        });
+                    }
+                }
+            } else {
+                console.log("*SNOW TOOL BELT* Phase 2: No cache available, falling back to legacy method");
+                // Fallback to legacy method if cache not available
+                for (let key2 in context.tabs) {
+                    for (let key3 in context.tabs[key2]) {
+                        context.tabs[key2][key3].forEach((tab, index) => {
+                            updateTabInfo(key2, key3, index);
+                        });
+                    }
+                }
             }
-        }
+        });
 
         // Update set indicator
         if (context.showUpdatesets) {
@@ -1715,11 +1952,21 @@ const transformTitle = (title) => {
  * @param {Tab} tab the Tab object itself
  */
 const tabCreated = (tab) => {
+    // Ignore special browser pages and empty tabs
+    if (!tab.url || 
+        tab.url.startsWith('chrome://') || 
+        tab.url.startsWith('about:') || 
+        tab.url.startsWith('edge://') ||
+        tab.url === '') {
+        return false;
+    }
+    
     let url;
     try {
         url = new URL(tab.url);
     } catch (e) {
-        displayMessage("Error accessing tab definition. Do we have the tabs permission?");
+        // Invalid URL, silently ignore
+        console.log("*SNOW TOOL BELT* Could not parse tab URL:", tab.url);
         return false;
     }
     tab.instance = url.hostname;
@@ -1754,7 +2001,209 @@ const tabCreated = (tab) => {
 };
 
 /**
- * Updates tab informations: type, tabs, ...
+ * Phase 3: Update tab display from real-time cache update
+ * @param {number} tabId - The tab ID
+ * @param {Object} tabState - The updated tab state
+ */
+const updateTabDisplayFromCache = (tabId, tabState) => {
+    // Find the tab in context.tabs
+    let found = false;
+    for (let instance in context.tabs) {
+        for (let windowId in context.tabs[instance]) {
+            const tabIndex = context.tabs[instance][windowId].findIndex(t => t.id === tabId);
+            if (tabIndex !== -1) {
+                const tab = context.tabs[instance][windowId][tabIndex];
+                tab.snt_type = tabState.type;
+                tab.snt_details = tabState.details || "";
+                tab.snt_tabs = tabState.tabs || [];
+                
+                // Update UI (only if debug mode is enabled)
+                chrome.storage.local.get("debugMode", (result) => {
+                    if (result.debugMode !== true) return;
+                    
+                    const typeEl = document.getElementById("tab" + tabId + "_type");
+                    if (typeEl) {
+                        switch (tabState.type) {
+                            case "loading":
+                                typeEl.innerText = "⏳";
+                                typeEl.title = "Loading...";
+                                break;
+                            case "non responsive":
+                                typeEl.innerText = "😴";
+                                typeEl.title = "Content script is not available yet";
+                                break;
+                            case "portal":
+                                typeEl.innerText = "⎆";
+                                typeEl.title = "Service Portal";
+                                break;
+                            case "app studio":
+                                typeEl.innerText = "✬";
+                                typeEl.title = "App Studio: " + tabState.details;
+                                break;
+                            case "workspace":
+                                typeEl.innerText = "⚒";
+                                typeEl.title = "Workspace: " + JSON.stringify(tabState.tabs);
+                                break;
+                            default:
+                                typeEl.innerText = "";
+                                typeEl.title = "";
+                        }
+                        console.log("*SNOW TOOL BELT* Phase 3: Updated UI for tab", tabId, "type:", tabState.type);
+                    }
+                });
+                
+                // Update update set if provided
+                if (tabState.updateSet && tabState.updateSet.current) {
+                    if (context.updateSets[windowId] === undefined) { context.updateSets[windowId] = {}; }
+                    context.updateSets[windowId][instance] = tabState.updateSet;
+                    
+                    const updateSetEl = document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span");
+                    if (updateSetEl && tabState.updateSet.current.name) {
+                        updateSetEl.innerText = tabState.updateSet.current.name;
+                        updateSetEl.title = `Click to open: ${tabState.updateSet.current.name}`;
+                        console.log("*SNOW TOOL BELT* Phase 3: Updated update set for", instance);
+                        
+                        // Make it clickable
+                        makeUpdateSetClickable(updateSetEl, instance, windowId);
+                    }
+                }
+                
+                // Show/hide "reopen in frame" button based on URL
+                try {
+                    const url = new URL(tab.url);
+                    const shouldShowReframeButton = url.pathname.endsWith(".do")
+                        && context.frameExceptions.indexOf(url.pathname) === -1
+                        && !url.pathname.startsWith("/$")
+                        && !url.pathname.includes("now/nav/ui/classic/params/target");
+
+                    const reframeButton = document.querySelector("a[data-id=\"" + tabId + "\"][title=\"reopen in a frame\"]");
+                    if (reframeButton) {
+                        if (shouldShowReframeButton) {
+                            reframeButton.classList.remove("hidden");
+                            reframeButton.classList.add("visible");
+                        } else {
+                            reframeButton.classList.remove("visible");
+                            reframeButton.classList.add("hidden");
+                        }
+                    }
+                } catch (e) {
+                    console.log("*SNOW TOOL BELT* Phase 3: Error checking reframe button visibility:", e);
+                }
+                
+                found = true;
+                break;
+            }
+        }
+        if (found) break;
+    }
+};
+
+/**
+ * Phase 2: Update tab info from cache
+ * @param {*} instance
+ * @param {*} windowId
+ * @param {*} index
+ * @param {Object} cache - The tab state cache from background
+ */
+const updateTabInfoFromCache = (instance, windowId, index, cache) => {
+    if (!context.tabs[instance] || !context.tabs[instance][windowId] || !context.tabs[instance][windowId][index]) {
+        return false;
+    }
+    
+    let tab = context.tabs[instance][windowId][index];
+    const cachedState = cache.tabs[tab.id];
+    
+    if (cachedState) {
+        // Use cached state
+        tab.snt_type = cachedState.type;
+        tab.snt_details = cachedState.details || "";
+        tab.snt_tabs = cachedState.tabs || [];
+        
+        console.log("*SNOW TOOL BELT* Phase 2: Using cached state for tab", tab.id, "type:", cachedState.type);
+    } else {
+        // No cache yet, mark as loading
+        tab.snt_type = "loading";
+        console.log("*SNOW TOOL BELT* Phase 2: No cache for tab", tab.id, "marking as loading");
+    }
+    
+    // Update UI (only if debug mode is enabled)
+    chrome.storage.local.get("debugMode", (result) => {
+        if (result.debugMode !== true) return;
+        
+        let typeEl = document.getElementById("tab" + tab.id + "_type");
+        if (typeEl) {
+            switch (tab.snt_type) {
+                case "loading":
+                    typeEl.innerText = "⏳";
+                    typeEl.title = "Loading...";
+                    break;
+                case "non responsive":
+                    typeEl.innerText = "😴";
+                    typeEl.title = "Content script is not available yet";
+                    break;
+                case "portal":
+                    typeEl.innerText = "⎆";
+                    typeEl.title = "Service Portal";
+                    break;
+                case "app studio":
+                    typeEl.innerText = "✬";
+                    typeEl.title = "App Studio: " + tab.snt_details;
+                    break;
+                case "workspace":
+                    typeEl.innerText = "⚒";
+                    typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
+                    break;
+                default:
+                    typeEl.innerText = "";
+                    typeEl.title = "";
+            }
+        }
+    });
+    
+    // Update update sets from cache if available
+    if (context.showUpdatesets && cache.updateSets && cache.updateSets[instance]) {
+        if (context.updateSets[windowId] === undefined) { context.updateSets[windowId] = {}; }
+        context.updateSets[windowId][instance] = cache.updateSets[instance];
+        
+        const updateSetEl = document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span");
+        if (updateSetEl && cache.updateSets[instance].current && cache.updateSets[instance].current.name) {
+            const current = cache.updateSets[instance].current.name;
+            updateSetEl.innerText = current;
+            updateSetEl.title = `Click to open: ${current}`;
+            console.log("*SNOW TOOL BELT* Phase 2: Using cached update set for", instance, ":", current);
+            
+            // Make it clickable
+            makeUpdateSetClickable(updateSetEl, instance, windowId);
+        }
+    }
+    
+    // Show/hide "reopen in frame" button based on URL
+    try {
+        const url = new URL(tab.url);
+        const shouldShowReframeButton = url.pathname.endsWith(".do")
+            && context.frameExceptions.indexOf(url.pathname) === -1
+            && !url.pathname.startsWith("/$")
+            && !url.pathname.includes("now/nav/ui/classic/params/target");
+
+        const reframeButton = document.querySelector("a[data-id=\"" + tab.id + "\"][title=\"reopen in a frame\"]");
+        if (reframeButton) {
+            if (shouldShowReframeButton) {
+                reframeButton.classList.remove("hidden");
+                reframeButton.classList.add("visible");
+            } else {
+                reframeButton.classList.remove("visible");
+                reframeButton.classList.add("hidden");
+            }
+        }
+    } catch (e) {
+        console.log("*SNOW TOOL BELT* Error checking reframe button visibility:", e);
+    }
+    
+    return true;
+};
+
+/**
+ * Updates tab informations: type, tabs, ... (Legacy - Phase 4 will remove this)
  * @param {*} instance
  * @param {*} windowId
  * @param {*} index
@@ -1783,8 +2232,14 @@ const updateTabInfo = (instance, windowId, index) => {
                     if (response.current && response.current.name) {
                         context.updateSets[windowId][instance] = response;
                         current = response.current.name;
-                        document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").innerText = current;
-                        document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span").title = current;
+                        const updateSetEl = document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span");
+                        if (updateSetEl) {
+                            updateSetEl.innerText = current;
+                            updateSetEl.title = `Click to open: ${current}`;
+                            
+                            // Make it clickable
+                            makeUpdateSetClickable(updateSetEl, instance, windowId);
+                        }
                     } else {
                         // let it be
                     }
@@ -1809,37 +2264,38 @@ const updateTabInfo = (instance, windowId, index) => {
                 reframeButton.classList.add("hidden");
             }
         }
-        let typeEl = document.getElementById("tab" + tab.id + "_type");
-        if (typeEl) {
-            switch (tab.snt_type) {
-                case "non responsive":
-                    typeEl.innerText = "😴"; // sleepy face
-                    typeEl.title = "Content script is not available yet";
-                    // retry in 2 seconds
-                    window.setTimeout(() => {
-                        updateTabInfo(instance, windowId, index);
-                    }, 3000);
-                    break;
-                case "portal":
-                    typeEl.innerText = "⎆";
-                    typeEl.title = "Service Portal";
-                    break;
-                case "app studio":
-                    typeEl.innerText = "✬";
-                    typeEl.title = "App Studio: " + tab.snt_details;
-                    break;
-                case "workspace":
-                    typeEl.innerText = "⚒"; // briefcase
-                    typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
-                    break;
-                default:
-                    typeEl.innerText = "";
-                    typeEl.title = "";
-                    break;
+        chrome.storage.local.get("debugMode", (result) => {
+            if (result.debugMode !== true) return;
+            
+            let typeEl = document.getElementById("tab" + tab.id + "_type");
+            if (typeEl) {
+                switch (tab.snt_type) {
+                    case "non responsive":
+                        typeEl.innerText = "😴"; // sleepy face
+                        typeEl.title = "Content script is not available yet";
+                        // Phase 4: No retry needed - real-time updates will handle this
+                        break;
+                    case "portal":
+                        typeEl.innerText = "⎆";
+                        typeEl.title = "Service Portal";
+                        break;
+                    case "app studio":
+                        typeEl.innerText = "✬";
+                        typeEl.title = "App Studio: " + tab.snt_details;
+                        break;
+                    case "workspace":
+                        typeEl.innerText = "⚒"; // briefcase
+                        typeEl.title = "Workspace: " + JSON.stringify(tab.snt_tabs);
+                        break;
+                    default:
+                        typeEl.innerText = "";
+                        typeEl.title = "";
+                        break;
+                }
+            } else {
+                console.warn("tab type element " + "tab" + tab.id + "_type" + " is not available yet");
             }
-        } else {
-            console.warn("tab type element " + "tab" + tab.id + "_type" + " is not available yet");
-        }
+        });
     });
 };
 
@@ -1853,8 +2309,19 @@ const tabUpdated = (tabId, changeInfo, tab) => {
     let tabLi = document.querySelector("#tab" + tabId + "_title");
 
     if (tabLi && changeInfo.title !== undefined) {
+        // Ignore special browser pages
+        if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('about:') || tab.url.startsWith('edge://')) {
+            return;
+        }
+        
         let instance = tabLi.parentElement.getAttribute("data-instance");
-        tab.instance = new URL(tab.url).hostname;
+        try {
+            tab.instance = new URL(tab.url).hostname;
+        } catch (e) {
+            console.log("*SNOW TOOL BELT* Could not parse tab URL in tabUpdated:", tab.url);
+            return;
+        }
+        
         if (tab.instance !== instance) {
             // frack it, just redraw everything
             bootStrap();
@@ -1863,7 +2330,7 @@ const tabUpdated = (tabId, changeInfo, tab) => {
             for (let tabSearch in context.tabs[instance][tab.windowId]) {
                 if (context.tabs[instance][tab.windowId][tabSearch].id == tab.id) {
                     context.tabs[instance][tab.windowId][tabSearch].url = tab.url;
-                    updateTabInfo(instance, tab.windowId, tabSearch);
+                    // Phase 4: No need to call updateTabInfo - real-time updates will handle this
                     break;
                 }
             }
