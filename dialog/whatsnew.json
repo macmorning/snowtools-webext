@@ -1,5 +1,15 @@
 [
     {
+        "version": "7.6.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Added a CodeSearch-like feature in the console",
+            "Enhanced the console to make it resizable",
+            "Search from the console now shows result previews for users and tasks",
+            "Users can be searched by username, employee_number or email"
+        ]
+    },
+    {
         "version": "7.5.0",
         "msg": "Most notable changes:",
         "items": [

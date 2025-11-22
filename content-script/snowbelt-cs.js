@@ -1502,16 +1502,9 @@ async function searchByNumber(numberValue, host, token) {
         debugLog("*SNOW TOOL BELT* sys_number result:", sysNumberData);
 
         if (!sysNumberData.result || sysNumberData.result.length === 0) {
-            debugLog("*SNOW TOOL BELT* No table found for prefix:", prefix);
-            return {
-                status: 404,
-                searchValue: numberValue,
-                searchType: 'number',
-                table: "none",
-                displayValue: `No table found for prefix: ${prefix}`,
-                instance: host,
-                found: false
-            };
+            debugLog("*SNOW TOOL BELT* No table found for prefix:", prefix, "- falling back to multi-search");
+            // Fallback to multi-search by name
+            return await searchByObjectName(numberValue, host, token, 'multiSearch');
         }
 
         // Get the table name from sys_number result
@@ -1539,16 +1532,9 @@ async function searchByNumber(numberValue, host, token) {
         }
         
         if (!tableName) {
-            debugLog("*SNOW TOOL BELT* Could not extract table name from sys_number result. Available fields:", Object.keys(sysNumberRecord));
-            return {
-                status: 404,
-                searchValue: numberValue,
-                searchType: 'number',
-                table: "none",
-                displayValue: `Could not determine table for prefix: ${prefix}. The sys_number record may not have a table reference.`,
-                instance: host,
-                found: false
-            };
+            debugLog("*SNOW TOOL BELT* Could not extract table name from sys_number result - falling back to multi-search");
+            // Fallback to multi-search by name
+            return await searchByObjectName(numberValue, host, token, 'multiSearch');
         }
 
         debugLog("*SNOW TOOL BELT* Found table for prefix:", tableName);
@@ -1579,16 +1565,9 @@ async function searchByNumber(numberValue, host, token) {
         debugLog("*SNOW TOOL BELT* Record result:", recordData);
 
         if (!recordData.result || recordData.result.length === 0) {
-            debugLog("*SNOW TOOL BELT* No record found with number:", numberValue);
-            return {
-                status: 404,
-                searchValue: numberValue,
-                searchType: 'number',
-                table: tableName,
-                displayValue: `Record not found: ${numberValue}`,
-                instance: host,
-                found: false
-            };
+            debugLog("*SNOW TOOL BELT* No record found with number:", numberValue, "- falling back to multi-search");
+            // Fallback to multi-search by name
+            return await searchByObjectName(numberValue, host, token, 'multiSearch');
         }
 
         // Extract record details
@@ -1638,6 +1617,156 @@ async function searchByNumber(numberValue, host, token) {
             searchValue: numberValue,
             searchType: 'number',
             table: "error",
+            displayValue: "Error: " + error.message,
+            instance: host,
+            found: false
+        };
+    }
+}
+
+/**
+ * Code search - searches across configured tables and fields from sn_codesearch_table
+ * @param {string} searchTerm - The term to search for
+ * @param {string} host - The ServiceNow instance host
+ * @param {string} token - Authentication token
+ * @returns {Promise} Promise that resolves with search results
+ */
+async function performCodeSearch(searchTerm, host, token) {
+    debugLog("*SNOW TOOL BELT* Code search for:", searchTerm);
+
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    headers.append('Accept', 'application/json');
+    headers.append('Cache-Control', 'no-cache');
+    headers.append('X-UserToken', token);
+
+    try {
+        // Define code search tables and fields based on sn_codesearch_table configuration
+        const codeSearchConfig = [
+            { table: 'bsm_action', fields: ['name', 'script'] },
+            { table: 'cmn_map_page', fields: ['name', 'script'] },
+            { table: 'content_block_programmatic', fields: ['name', 'programmatic_content'] },
+            { table: 'ecc_agent_script_include', fields: ['name', 'script'] },
+            { table: 'kb_navons', fields: ['name', 'script'] },
+            { table: 'process_step_approval', fields: ['name', 'approver_script'] },
+            { table: 'sysauto_script', fields: ['name', 'script'] },
+            { table: 'sysevent_email_action', fields: ['name', 'advanced_condition', 'message', 'sms_alternate'] },
+            { table: 'sysevent_email_template', fields: ['name', 'message'] },
+            { table: 'sysevent_in_email_action', fields: ['name', 'script'] },
+            { table: 'sysevent_script_action', fields: ['name', 'script'] },
+            { table: 'sys_installation_exit', fields: ['name', 'script'] },
+            { table: 'sys_processor', fields: ['name', 'script', 'description'] },
+            { table: 'sys_relationship', fields: ['name', 'apply_to', 'query_from', 'query_with'] },
+            { table: 'sys_script', fields: ['name', 'script', 'condition'] },
+            { table: 'sys_script_ajax', fields: ['name', 'script'] },
+            { table: 'sys_script_client', fields: ['name', 'script'] },
+            { table: 'sys_script_include', fields: ['name', 'script'] },
+            { table: 'sys_script_validator', fields: ['description', 'validator'] },
+            { table: 'sys_security_acl', fields: ['name', 'script'] },
+            { table: 'sys_transform_map', fields: ['name', 'script'] },
+            { table: 'sys_transform_script', fields: ['script'] },
+            { table: 'sys_trigger', fields: ['name', 'script', 'job_context'] },
+            { table: 'sys_ui_action', fields: ['name', 'script'] },
+            { table: 'sys_ui_macro', fields: ['name', 'xml'] },
+            { table: 'sys_ui_page', fields: ['name', 'client_script', 'html', 'processing_script'] },
+            { table: 'sys_ui_policy', fields: ['short_description', 'script_false', 'script_true'] },
+            { table: 'sys_ui_script', fields: ['name', 'script'] },
+            { table: 'sys_ui_style', fields: ['element', 'value'] },
+            { table: 'sys_widgets', fields: ['name', 'script'] },
+            { table: 'wf_activity_definition', fields: ['name', 'script'] }
+        ];
+
+        // Search each configured table
+        const allResults = [];
+        const maxResultsPerTable = 5;
+
+        for (const config of codeSearchConfig) {
+            const tableName = config.table;
+            const fields = config.fields;
+
+            // Build query: field1LIKE{term}^ORfield2LIKE{term}^OR...
+            const queryParts = fields.map(field => `${field}LIKE${searchTerm}`);
+            const query = queryParts.join('^OR');
+
+            // Fields to retrieve: sys_id, sys_class_name, name, and all search fields
+            const fieldsToRetrieve = ['sys_id', 'sys_class_name', 'name', ...fields].join(',');
+
+            const searchUrl = `${window.location.origin}/api/now/table/${tableName}?sysparm_query=${encodeURIComponent(query)}&sysparm_fields=${fieldsToRetrieve}&sysparm_limit=${maxResultsPerTable}`;
+
+            debugLog("*SNOW TOOL BELT* Searching table:", tableName, "fields:", fields);
+
+            try {
+                const searchResponse = await fetch(searchUrl, {
+                    credentials: "same-origin",
+                    headers: headers
+                });
+
+                if (searchResponse.ok && searchResponse.status === 200) {
+                    const searchData = await searchResponse.json();
+                    debugLog("*SNOW TOOL BELT* Found", searchData.result.length, "results in", tableName);
+
+                    searchData.result.forEach(record => {
+                        const actualClass = typeof record.sys_class_name === 'string'
+                            ? record.sys_class_name
+                            : (record.sys_class_name?.value || record.sys_class_name?.display_value || tableName);
+
+                        const name = typeof record.name === 'string'
+                            ? record.name
+                            : (record.name?.display_value || record.name?.value || record.sys_id);
+
+                        allResults.push({
+                            sys_id: record.sys_id,
+                            name: name,
+                            table: tableName,
+                            sourceTable: tableName,
+                            actualClass: actualClass,
+                            directUrl: `https://${host}/${actualClass}.do?sys_id=${record.sys_id}`,
+                            description: `Code search match in ${actualClass}`,
+                            matchedFields: fields
+                        });
+                    });
+                }
+            } catch (error) {
+                debugLog("*SNOW TOOL BELT* Error searching table", tableName, ":", error);
+                // Continue with other tables
+            }
+        }
+
+        if (allResults.length === 0) {
+            return {
+                status: 404,
+                searchValue: searchTerm,
+                searchType: 'codeSearch',
+                displayValue: "No code matches found",
+                instance: host,
+                found: false
+            };
+        }
+
+        // Sort results by table/class name
+        allResults.sort((a, b) => {
+            if (a.actualClass !== b.actualClass) {
+                return a.actualClass.localeCompare(b.actualClass);
+            }
+            return a.name.localeCompare(b.name);
+        });
+
+        return {
+            status: 200,
+            searchValue: searchTerm,
+            searchType: 'codeSearch',
+            results: allResults,
+            instance: host,
+            found: true,
+            totalResults: allResults.length
+        };
+
+    } catch (error) {
+        debugLog("*SNOW TOOL BELT* Error in code search:", error);
+        return {
+            status: 500,
+            searchValue: searchTerm,
+            searchType: 'codeSearch',
             displayValue: "Error: " + error.message,
             instance: host,
             found: false
@@ -1699,8 +1828,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         },
         {
             table: 'sys_user',
-            query: isStartsWithSearch ? `user_nameSTARTSWITH${cleanSearchValue}` : `user_name=${cleanSearchValue}`,
-            fields: 'sys_id,user_name,name,email,active',
+            query: isStartsWithSearch 
+                ? `user_nameSTARTSWITH${cleanSearchValue}^ORemployee_numberSTARTSWITH${cleanSearchValue}^ORemailSTARTSWITH${cleanSearchValue}`
+                : `user_name=${cleanSearchValue}^ORemployee_number=${cleanSearchValue}^ORemail=${cleanSearchValue}`,
+            fields: 'sys_id,user_name,name,first_name,last_name,email,employee_number,active',
             nameField: 'user_name',
             displayName: 'User'
         },
@@ -1781,6 +1912,9 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                 description: `${searchConfig.displayName} ${isStartsWithSearch ? 'starts with' : 'exact'} match`,
                                 updated: record.sys_updated_on,
                                 email: searchConfig.table === 'sys_user' ? getDisplayName(record.email) : undefined,
+                                employeeNumber: searchConfig.table === 'sys_user' ? getDisplayName(record.employee_number) : undefined,
+                                firstName: searchConfig.table === 'sys_user' ? getDisplayName(record.first_name) : undefined,
+                                lastName: searchConfig.table === 'sys_user' ? getDisplayName(record.last_name) : undefined,
                                 active: record.active,
                                 // Task-specific fields
                                 shortDescription: searchConfig.table === 'task' ? getDisplayName(record.short_description) : undefined,
@@ -2185,6 +2319,34 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
     let logStreamInterval = null;
     let displayedLogs = [];
     
+    const HISTORY_STORAGE_KEY = 'sntb-console-history';
+    const MAX_HISTORY_SIZE = 50;
+    
+    /**
+     * Load command history from localStorage
+     */
+    const loadHistory = () => {
+        try {
+            const stored = localStorage.getItem(HISTORY_STORAGE_KEY);
+            if (stored) {
+                searchHistory = JSON.parse(stored);
+            }
+        } catch (e) {
+            debugLog('*SNOW TOOL BELT* Error loading history:', e);
+        }
+    };
+    
+    /**
+     * Save command history to localStorage
+     */
+    const saveHistory = () => {
+        try {
+            localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory));
+        } catch (e) {
+            debugLog('*SNOW TOOL BELT* Error saving history:', e);
+        }
+    };
+    
     /**
      * Creates the console HTML structure
      */
@@ -2193,13 +2355,19 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         console.id = 'sntb-console';
         console.className = 'sntb-console';
         console.innerHTML = `
+            <div class="sntb-console-resize-handle"></div>
             <div class="sntb-console-header">
                 <div class="sntb-console-header-left">
                     <span class="sntb-console-title">▸ ServiceNow Tool Belt Console</span>
                     <span class="sntb-console-separator">|</span>
                     <a href="#" class="sntb-console-rating">Rate this extension</a>
                 </div>
-                <span class="sntb-console-hint"><a href="#" class="sntb-console-close">ESC to close</a> | ↑↓ for history</span>
+                <div class="sntb-console-header-right">
+                    <span class="sntb-console-hint">↑↓ for history</span>
+                    <button class="sntb-console-btn sntb-console-btn-minus" title="Decrease size">−</button>
+                    <button class="sntb-console-btn sntb-console-btn-plus" title="Increase size">+</button>
+                    <button class="sntb-console-btn sntb-console-btn-close" title="Close (ESC)">×</button>
+                </div>
             </div>
             <div class="sntb-console-input-container">
                 <span class="sntb-console-prompt">></span>
@@ -2216,6 +2384,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 bottom: 0;
                 left: 0;
                 right: 0;
+                height: 500px;
                 background: linear-gradient(0deg, #1a1a1a 0%, #0d0d0d 100%);
                 border-top: 3px solid #00ff00;
                 box-shadow: 0 -4px 20px rgba(0, 255, 0, 0.3);
@@ -2227,11 +2396,31 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 transform: translateY(calc(100% + 30px));
                 transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
                 pointer-events: none;
+                overflow: hidden;
+                min-height: 200px;
+                max-height: 90vh;
+                display: flex;
+                flex-direction: column;
             }
             
             .sntb-console.open {
                 transform: translateY(0);
                 pointer-events: auto;
+            }
+            
+            .sntb-console-resize-handle {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 5px;
+                cursor: ns-resize;
+                background: transparent;
+                z-index: 10;
+            }
+            
+            .sntb-console-resize-handle:hover {
+                background: rgba(0, 255, 0, 0.3);
             }
             
             .sntb-console-header {
@@ -2249,6 +2438,12 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 gap: 12px;
             }
             
+            .sntb-console-header-right {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
             .sntb-console-title {
                 font-weight: bold;
                 font-size: 14px;
@@ -2263,18 +2458,35 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             .sntb-console-hint {
                 font-size: 11px;
                 color: #00aa00;
+                margin-right: 8px;
             }
             
-            .sntb-console-close {
+            .sntb-console-btn {
+                background: transparent;
+                border: 1px solid #00aa00;
                 color: #00aa00;
-                text-decoration: none;
+                font-family: 'Courier New', monospace;
+                font-size: 16px;
+                font-weight: bold;
+                width: 24px;
+                height: 24px;
                 cursor: pointer;
-                transition: color 0.2s;
+                transition: all 0.2s;
+                padding: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                line-height: 1;
             }
             
-            .sntb-console-close:hover {
+            .sntb-console-btn:hover {
+                background: rgba(0, 255, 0, 0.2);
+                border-color: #00ff00;
                 color: #00ff00;
-                text-decoration: underline;
+            }
+            
+            .sntb-console-btn-close {
+                font-size: 20px;
             }
             
             .sntb-console-rating {
@@ -2318,7 +2530,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-results {
-                height: 400px;
+                flex: 1;
                 overflow-y: auto;
                 padding: 0 16px 16px 16px;
             }
@@ -2371,6 +2583,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 border-left: 3px solid #00ff00;
                 cursor: pointer;
                 transition: all 0.2s;
+                white-space: nowrap;
+                overflow: hidden;
             }
             
             .sntb-console-result-item.grouped {
@@ -2398,6 +2612,18 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 font-size: 12px;
                 color: #00aa00;
                 margin-left: 8px;
+            }
+            
+            .sntb-console-result-details {
+                font-size: 12px;
+                color: #00aa00;
+                margin-left: 8px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                max-width: 400px;
+                display: inline-block;
+                vertical-align: bottom;
             }
             
             .sntb-console-loading {
@@ -2578,6 +2804,9 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             consoleInput = consoleElement.querySelector('.sntb-console-input');
             consoleResults = consoleElement.querySelector('.sntb-console-results');
             
+            // Load command history from localStorage
+            loadHistory();
+            
             // Setup event listeners
             setupConsoleListeners();
         }
@@ -2607,6 +2836,33 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
      * Setup console event listeners
      */
     const setupConsoleListeners = () => {
+        // Resize handle functionality
+        const resizeHandle = consoleElement.querySelector('.sntb-console-resize-handle');
+        if (resizeHandle) {
+            let isResizing = false;
+            let startY = 0;
+            let startHeight = 0;
+            
+            resizeHandle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startY = e.clientY;
+                startHeight = consoleElement.offsetHeight;
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                
+                const deltaY = startY - e.clientY;
+                const newHeight = Math.min(Math.max(startHeight + deltaY, 200), window.innerHeight * 0.9);
+                consoleElement.style.height = newHeight + 'px';
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isResizing = false;
+            });
+        }
+        
         // Rating link click handler
         const ratingLink = consoleElement.querySelector('.sntb-console-rating');
         if (ratingLink) {
@@ -2631,12 +2887,41 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             });
         }
         
-        // Close link click handler
-        const closeLink = consoleElement.querySelector('.sntb-console-close');
-        if (closeLink) {
-            closeLink.addEventListener('click', (e) => {
+        // Size positions: 15%, 50%, 90% of viewport height
+        const sizePositions = [0.15, 0.5, 0.9];
+        let currentSizeIndex = 1; // Start at 50%
+        
+        // Function to set console size by index
+        const setConsoleSize = (index) => {
+            currentSizeIndex = Math.max(0, Math.min(index, sizePositions.length - 1));
+            const newHeight = window.innerHeight * sizePositions[currentSizeIndex];
+            consoleElement.style.height = newHeight + 'px';
+        };
+        
+        // Close button click handler
+        const closeBtn = consoleElement.querySelector('.sntb-console-btn-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 toggleConsole();
+            });
+        }
+        
+        // Minus button click handler (decrease size)
+        const minusBtn = consoleElement.querySelector('.sntb-console-btn-minus');
+        if (minusBtn) {
+            minusBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                setConsoleSize(currentSizeIndex - 1);
+            });
+        }
+        
+        // Plus button click handler (increase size)
+        const plusBtn = consoleElement.querySelector('.sntb-console-btn-plus');
+        if (plusBtn) {
+            plusBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                setConsoleSize(currentSizeIndex + 1);
             });
         }
         
@@ -2674,6 +2959,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 handleTabComplete();
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
+                // Reload history from localStorage on first up arrow press
+                if (historyIndex === -1) {
+                    loadHistory();
+                }
                 if (historyIndex < searchHistory.length - 1) {
                     historyIndex++;
                     consoleInput.value = searchHistory[historyIndex];
@@ -2703,8 +2992,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         
         // Only autocomplete if we're still on the command part (no spaces after)
         if (parts.length === 1 || (parts.length === 2 && input.endsWith(' '))) {
-            // Only complete to full command labels (exclude shortcuts like 's', 'h', 'v', 'n', 'bg', 'st', 'l', 'r')
-            const fullCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats'];
+            // Only complete to full command labels (exclude shortcuts like 's', 'h', 'v', 'n', 'bg', 'st', 'l', 'r', 'cs')
+            const fullCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch'];
             const matches = fullCommands.filter(cmd => cmd.startsWith(commandPart));
             
             if (matches.length === 1) {
@@ -2735,7 +3024,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 html += '<div class="sntb-console-section-title">▸ AVAILABLE COMMANDS:</div>';
                 
                 // Only show main commands (not shortcuts), exclude help itself, and sort alphabetically
-                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes'].sort();
+                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch'].sort();
                 mainCommands.forEach(cmd => {
                     const command = commands[cmd];
                     // Escape HTML entities manually to preserve <term> display
@@ -3171,6 +3460,37 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 }
             }
         },
+        codesearch: {
+            description: 'Search for code across configured tables',
+            usage: 'codesearch <term> | cs <term>',
+            execute: async (args) => {
+                const searchTerm = args.join(' ').trim();
+                
+                if (!searchTerm) {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Usage: codesearch &lt;term&gt;</div>';
+                    return;
+                }
+                
+                // Show loading
+                consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Searching code...</div>';
+                
+                try {
+                    const host = window.location.hostname;
+                    const result = await performCodeSearch(searchTerm, host, context.g_ck);
+                    displayConsoleResults(result);
+                } catch (error) {
+                    const errorMsg = DOMPurify.sanitize(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Code search failed: ' + errorMsg + '</div>';
+                }
+            }
+        },
+        cs: {
+            description: 'Alias for codesearch',
+            usage: 'cs <term>',
+            execute: async (args) => {
+                await commands.codesearch.execute(args);
+            }
+        },
         logs: {
             description: 'Stream syslog entries (updates every 3s, ESC to stop)',
             usage: 'logs [term] | l [term]',
@@ -3360,9 +3680,14 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             displayedLogs = [];
         }
         
-        // Add to history
-        searchHistory.unshift(input);
-        if (searchHistory.length > 10) searchHistory.pop();
+        // Add to history (avoid duplicates at the top)
+        if (searchHistory[0] !== input) {
+            searchHistory.unshift(input);
+            if (searchHistory.length > MAX_HISTORY_SIZE) {
+                searchHistory.pop();
+            }
+            saveHistory();
+        }
         historyIndex = -1;
         
         // Parse command and arguments
@@ -3389,7 +3714,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             html += '<div class="sntb-console-info">';
             html += '<div class="sntb-console-section-title">▸ Available commands:</div>';
             
-            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes'];
+            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch'];
             mainCommands.forEach(cmd => {
                 const cmdObj = commands[cmd];
                 const safeUsage = escapeHtml(cmdObj.usage);
@@ -3521,10 +3846,21 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     const url = item.directUrl || '#';
                     const safeName = DOMPurify.sanitize(name);
                     const safeUrl = DOMPurify.sanitize(url);
-                    const safeClassName = DOMPurify.sanitize(className);
+                    
+                    // Add additional details based on table type
+                    let details = '';
+                    if (item.shortDescription) {
+                        details = `<span class="sntb-console-result-details" title="${DOMPurify.sanitize(item.shortDescription)}">${DOMPurify.sanitize(item.shortDescription)}</span>`;
+                    } else if (item.firstName || item.lastName) {
+                        const fullName = [item.firstName, item.lastName].filter(Boolean).join(' ');
+                        if (fullName) {
+                            details = `<span class="sntb-console-result-details">${DOMPurify.sanitize(fullName)}</span>`;
+                        }
+                    }
+                    
                     html += `
                         <div class="sntb-console-result-item grouped" data-url="${safeUrl}">
-                            <span class="sntb-console-result-name">${safeName}</span>
+                            <span class="sntb-console-result-name">${safeName}</span>${details}
                         </div>
                     `;
                 });
@@ -3552,10 +3888,22 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 const safeName = DOMPurify.sanitize(name);
                 const safeClass = DOMPurify.sanitize(classToDisplay);
                 const safeUrl = DOMPurify.sanitize(url);
+                
+                // Add additional details based on table type
+                let details = '';
+                if (item.shortDescription) {
+                    details = `<span class="sntb-console-result-details" title="${DOMPurify.sanitize(item.shortDescription)}">${DOMPurify.sanitize(item.shortDescription)}</span>`;
+                } else if (item.firstName || item.lastName) {
+                    const fullName = [item.firstName, item.lastName].filter(Boolean).join(' ');
+                    if (fullName) {
+                        details = `<span class="sntb-console-result-details">${DOMPurify.sanitize(fullName)}</span>`;
+                    }
+                }
+                
                 html += `
                     <div class="sntb-console-result-item" data-url="${safeUrl}">
                         <span class="sntb-console-result-name">${safeName}</span>
-                        <span class="sntb-console-result-class">[${safeClass}]</span>
+                        <span class="sntb-console-result-class">[${safeClass}]</span>${details}
                     </div>
                 `;
             });
