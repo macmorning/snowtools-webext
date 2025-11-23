@@ -3,7 +3,7 @@ dist/*.zip
 
 # Directory for VSCode
 .vscode
-.*
+.kiro
 
 # Grunt intermediate storage (http://gruntjs.com/creating-plugins#storing-task-files)
 .grunt

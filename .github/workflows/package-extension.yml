@@ -106,6 +106,31 @@ jobs:
       with:
         name: snowtools-chromium-${{ github.ref_name }}
         
+    - name: Extract release notes for Firefox
+      id: release-notes
+      run: |
+        # Extract version number (remove 'v' prefix if present)
+        VERSION="${{ github.ref_name }}"
+        VERSION="${VERSION#v}"
+        
+        # Extract release notes from whatsnew.json for this version
+        NOTES=$(node -e "
+          const data = require('./dialog/whatsnew.json');
+          const release = data.find(r => r.version === '$VERSION');
+          if (release) {
+            let notes = release.msg + '\n';
+            release.items.forEach(item => notes += '- ' + item + '\n');
+            console.log(notes);
+          } else {
+            console.log('Release notes for version $VERSION');
+          }
+        ")
+        
+        # Save to file for Firefox API
+        echo "$NOTES" > release-notes.txt
+        echo "Release notes extracted for version $VERSION"
+        cat release-notes.txt
+        
     - name: Publish to Firefox Add-ons
       uses: browser-actions/release-firefox-addon@latest
       with:
@@ -113,6 +138,7 @@ jobs:
         auth-api-issuer: ${{ secrets.FIREFOX_API_ISSUER }}
         auth-api-secret: ${{ secrets.FIREFOX_API_SECRET }}
         addon-path: snowtools-firefox-${{ github.ref_name }}.zip
+        release-notes-file: release-notes.txt
         
     - name: Publish to Chrome Web Store
       uses: browser-actions/release-chrome-extension@latest
