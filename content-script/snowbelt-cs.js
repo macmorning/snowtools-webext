@@ -103,21 +103,16 @@ function querySelectorDeep(root, selector) {
  * Now supports shadow DOM traversal for modern ServiceNow interfaces
  */
 function switchFieldNames() {
-    debugLog("*SNOW TOOL BELT* Switching field names (with shadow DOM support)");
-
-    // Check if we're in a modern workspace - if so, disable this feature for now
-    // Look for sn-canvas-toolbar which is present in workspaces but not in classic UI
-    // Need to search in shadow DOM as well
-    const hasCanvasToolbar = querySelectorAllDeep(document, "sn-canvas-toolbar").length > 0;
-    
-    if (hasCanvasToolbar) {
-        debugLog("*SNOW TOOL BELT* Field name switching disabled in modern workspace (detected sn-canvas-toolbar in shadow DOM)");
-        return { success: false, message: "Sorry! Switching field names is not supported in Workspaces at this time." };
-    }
+    debugLog("*SNOW TOOL BELT* Switching field names (with shadow DOM and workspace support)");
 
     // Global state management - check if we're currently showing technical names
     const isCurrentlyTechnical = document.body.getAttribute("data-sntb-technical") === "true";
     debugLog("*SNOW TOOL BELT* Current state:", isCurrentlyTechnical ? "showing technical names" : "showing labels");
+    
+    // Check if we're in a modern workspace
+    const hasCanvasToolbar = querySelectorAllDeep(document, "sn-canvas-toolbar").length > 0;
+    const isWorkspace = hasCanvasToolbar;
+    debugLog("*SNOW TOOL BELT* Environment:", isWorkspace ? "Workspace" : "Classic UI");
 
     // Get the document context - now with enhanced shadow DOM + iframe detection
     let doc = document;
@@ -272,6 +267,14 @@ function switchFieldNames() {
     fields.forEach((el, index) => {
         try {
             const forAttr = el.getAttribute("for");
+            
+            // Skip workspace labels (they are handled separately)
+            if (el.classList.contains("now-form-field-label-label") || 
+                el.classList.contains("now-checkbox-label") ||
+                el.closest("[class*='now-']")) {
+                debugLog(`*SNOW TOOL BELT* Form element ${index + 1}: Skipping (workspace label)`);
+                return;
+            }
             
             // Skip checkbox labels (allcheck, check_)
             if (forAttr && (forAttr.includes("allcheck") || forAttr.startsWith("check_"))) {
@@ -429,186 +432,444 @@ function switchFieldNames() {
         debugLog("*SNOW TOOL BELT* Shadow host tags:", shadowHosts.map(el => el.tagName).slice(0, 10));
     }
 
-    // For modern workspace/shadow DOM elements
-    // Only process modern elements if we're in a modern workspace (not classic UI)
-    // Look for sn-canvas-toolbar which is present in workspaces but not in classic UI
-    // Need to search in shadow DOM as well
-    const hasCanvasToolbarElement = querySelectorAllDeep(doc, "sn-canvas-toolbar").length > 0;
-    const isModernWorkspace = hasCanvasToolbarElement;
-    
-    if (isModernWorkspace) {
-        debugLog("*SNOW TOOL BELT* Processing modern workspace elements...");
-    } else {
-        debugLog("*SNOW TOOL BELT* Skipping modern workspace processing (classic UI detected)");
+    // Old modern workspace processing code removed - now using dedicated workspace field handling below
+
+    // Process workspace fields (generic approach for all field types)
+    if (isWorkspace) {
+        debugLog("*SNOW TOOL BELT* Processing workspace fields...");
+        
+        // Find all workspace field containers
+        // Look for specific container types (not inner elements like now-checkbox, now-input, etc.)
+        const containerSelectors = [
+            'sn-record-input-connected',
+            'sn-record-reference-connected', 
+            'sn-record-choice-connected',
+            'now-record-date-picker',
+            'now-record-checkbox'
+        ];
+        
+        let allContainers = [];
+        containerSelectors.forEach(selector => {
+            const found = querySelectorAllDeep(document, selector);
+            allContainers.push(...found);
+        });
+        
+        // Remove duplicates and nested containers (keep only the outermost ones)
+        allContainers = allContainers.filter((container, index, arr) => {
+            // Check if this container is nested inside another container in our list
+            return !arr.some((other, otherIndex) => {
+                if (index === otherIndex) return false;
+                return other.contains(container);
+            });
+        });
+        
+        debugLog("*SNOW TOOL BELT* Found", allContainers.length, "workspace field containers");
+        
+        allContainers.forEach((container, index) => {
+            try {
+                const nameAttr = container.getAttribute("name");
+                debugLog(`*SNOW TOOL BELT* Container ${index + 1}: ${container.tagName}, name="${nameAttr}"`);
+                
+                if (!nameAttr) {
+                    return;
+                }
+                
+                // Generic label finding - search for common label patterns in shadow DOM
+                let labelTextSpan = null;
+                
+                // Helper function to recursively search shadow roots for label text
+                const findLabelInShadowRoots = (root, depth = 0) => {
+                    if (depth > 5 || !root) return null; // Limit recursion depth
+                    
+                    // Try different label patterns (most specific first)
+                    const patterns = [
+                        'label.now-checkbox-label span.now-line-height-crop',      // Checkboxes (most specific)
+                        'span.now-form-field-label-label span.will-truncate',      // Some selects
+                        'span.will-truncate'                                        // Most inputs, dates (most generic)
+                    ];
+                    
+                    for (const selector of patterns) {
+                        const found = root.querySelector(selector);
+                        if (found && found.textContent.trim()) {
+                            return found;
+                        }
+                    }
+                    
+                    // Recursively search child shadow roots
+                    const elementsWithShadow = root.querySelectorAll('*');
+                    for (const el of elementsWithShadow) {
+                        if (el.shadowRoot) {
+                            const found = findLabelInShadowRoots(el.shadowRoot, depth + 1);
+                            if (found) return found;
+                        }
+                    }
+                    
+                    return null;
+                };
+                
+                // Start search from container's shadow root
+                if (container.shadowRoot) {
+                    labelTextSpan = findLabelInShadowRoots(container.shadowRoot);
+                }
+                
+                if (!labelTextSpan) {
+                    debugLog(`*SNOW TOOL BELT* Container ${index + 1}: No label found for ${nameAttr}`);
+                    return;
+                }
+                
+                const savedLabel = container.getAttribute("data-sntb-original-label");
+                const currentLabel = labelTextSpan.textContent.trim();
+                
+                // Skip if label is empty
+                if (!currentLabel) {
+                    return;
+                }
+                
+                debugLog(`*SNOW TOOL BELT* Workspace field ${index + 1}:`, {
+                    name: nameAttr,
+                    currentLabel: currentLabel,
+                    savedLabel: savedLabel,
+                    type: container.tagName,
+                    componentId: container.getAttribute('component-id'),
+                    nowId: container.getAttribute('now-id')
+                });
+                
+                if (isCurrentlyTechnical && savedLabel) {
+                    // Currently showing technical name, switch back to label
+                    labelTextSpan.textContent = savedLabel;
+                    debugLog(`*SNOW TOOL BELT* Workspace: Restored "${savedLabel}" from technical name`);
+                } else if (!isCurrentlyTechnical) {
+                    // Currently showing label, switch to technical
+                    if (!savedLabel) {
+                        // First time - save original label
+                        container.setAttribute("data-sntb-original-label", currentLabel);
+                    }
+                    labelTextSpan.textContent = nameAttr;
+                    debugLog(`*SNOW TOOL BELT* Workspace: Switched to technical "${nameAttr}"`);
+                }
+            } catch (e) {
+                debugLog("*SNOW TOOL BELT* Error processing workspace field:", e);
+            }
+        });
     }
 
-    if (isModernWorkspace) {
-        // Try multiple modern selectors with comprehensive coverage
-        const modernSelectors = [
-        // ServiceNow specific components
-        "sn-form-field", "now-form-field", "sn-record-form", "now-record-form",
-        // Data attributes
-        "[data-field-name]", "[field-name]", "[data-field]", "[name*='field']",
-        // Label selectors
-        "label[for]", ".control-label", ".field-label", ".form-label",
-        // Generic form elements
-        ".form-field", ".sn-form-field", ".now-form-field",
-        // Modern UI components
-        "macroponent-f51912f4c700201072b211d4d8c26010", // ServiceNow form component
-        "now-highlighted-value", "sn-highlighted-value",
-        // Broader selectors for debugging
-        "*[class*='field']", "*[class*='label']", "*[id*='field']"
-    ];
+    // Process select dropdowns to show/hide choice values
+    debugLog("*SNOW TOOL BELT* Processing select dropdowns...");
+    const selectElements = querySelectorAllDeep(doc, "select");
+    debugLog("*SNOW TOOL BELT* Found", selectElements.length, "select elements");
 
-    let totalModernElements = 0;
-    modernSelectors.forEach(selector => {
+    selectElements.forEach((selectEl, index) => {
         try {
-            const elements = querySelectorAllDeep(doc, selector);
-            if (elements.length > 0) {
-                debugLog(`*SNOW TOOL BELT* Found ${elements.length} elements for selector: ${selector}`);
-                totalModernElements += elements.length;
-
-                // Process first few elements for debugging
-                elements.slice(0, 5).forEach((el, index) => {
-                    debugLog(`*SNOW TOOL BELT* Element ${index + 1}:`, {
-                        id: el.id,
-                        tag: el.tagName,
-                        classes: el.className,
-                        attributes: Array.from(el.attributes).map(attr => `${attr.name}="${attr.value}"`),
-                        text: el.innerText ? el.innerText.substring(0, 50) : 'no text'
-                    });
-                });
-            }
-
-            elements.forEach((el) => {
-                try {
-                    // Skip elements that were already processed by form or list processing
-                    if (el.getAttribute("data-sntb-processed")) {
-                        debugLog(`*SNOW TOOL BELT* Skipping already processed element (${el.getAttribute("data-sntb-processed")}):`, el.tagName);
-                        return;
+            const options = selectEl.querySelectorAll("option");
+            
+            options.forEach((option) => {
+                const value = option.getAttribute("value");
+                const savedText = option.getAttribute("data-sntb-original-text");
+                const currentText = option.textContent;
+                
+                // Skip empty options or options without values
+                if (!value || value === "" || value === "null") {
+                    return;
+                }
+                
+                if (isCurrentlyTechnical && savedText) {
+                    // Currently showing technical (value), switch back to original text
+                    option.textContent = savedText;
+                    debugLog(`*SNOW TOOL BELT* Select option: Restored "${savedText}" from value "${value}"`);
+                } else if (!isCurrentlyTechnical) {
+                    // Currently showing original text, switch to show value
+                    if (!savedText) {
+                        // First time - save original text
+                        option.setAttribute("data-sntb-original-text", currentText);
                     }
-
-                    // Multiple strategies to find labels and field names
-                    let labelEl = null;
-                    let fieldName = null;
-
-                    // Strategy 1: Direct label elements
-                    if (el.tagName === 'LABEL') {
-                        labelEl = el;
-                        fieldName = el.getAttribute('for') || el.getAttribute('data-field-name') || el.getAttribute('field-name');
-                    }
-
-                    // Strategy 2: Find label within element
-                    if (!labelEl) {
-                        labelEl = el.querySelector("label, .label, [role='label'], .field-label, .control-label, span, div");
-                    }
-
-                    // Strategy 3: Check if element itself has text content
-                    if (!labelEl && el.innerText && el.innerText.trim()) {
-                        labelEl = el;
-                    }
-
-                    // Get field name from various attributes
-                    if (!fieldName) {
-                        fieldName = el.getAttribute("data-field-name") ||
-                            el.getAttribute("field-name") ||
-                            el.getAttribute("data-field") ||
-                            el.getAttribute("name");
-
-                        // For modern workspace, try to find the actual field name from associated input/select elements
-                        if (!fieldName || fieldName.startsWith("form-field-")) {
-                            const forAttr = el.getAttribute("for");
-                            if (forAttr) {
-                                // Look for the actual input/select element this label is for
-                                const targetElement = doc.getElementById(forAttr) || doc.querySelector(`[id="${forAttr}"]`);
-                                if (targetElement) {
-                                    fieldName = targetElement.getAttribute("data-field-name") ||
-                                        targetElement.getAttribute("field-name") ||
-                                        targetElement.getAttribute("data-field") ||
-                                        targetElement.getAttribute("name") ||
-                                        targetElement.getAttribute("data-ref-field") ||
-                                        targetElement.getAttribute("data-table-field");
-                                }
-                            }
-                        }
-
-                        // If still no good field name, try parent elements
-                        if (!fieldName || fieldName.startsWith("form-field-")) {
-                            let parent = el.parentElement;
-                            for (let i = 0; i < 5 && parent; i++) {
-                                const parentFieldName = parent.getAttribute("data-field-name") ||
-                                    parent.getAttribute("field-name") ||
-                                    parent.getAttribute("data-field") ||
-                                    parent.getAttribute("name") ||
-                                    parent.getAttribute("data-ref-field") ||
-                                    parent.getAttribute("data-table-field");
-                                if (parentFieldName && !parentFieldName.startsWith("form-field-")) {
-                                    fieldName = parentFieldName;
-                                    break;
-                                }
-                                parent = parent.parentElement;
-                            }
-                        }
-
-                        // Last resort: use for/id but clean it up
-                        if (!fieldName || fieldName.startsWith("form-field-")) {
-                            fieldName = el.getAttribute("for") || el.id;
-                        }
-                    }
-
-
-
-                    if (labelEl && fieldName && labelEl.innerText) {
-                        // Skip checkbox labels and action labels
-                        if (fieldName.includes("allcheck") || fieldName.startsWith("check_") || fieldName.includes("labelAction")) {
-                            debugLog(`*SNOW TOOL BELT* Modern: Skipping checkbox/action label: ${fieldName}`);
-                            return;
-                        }
-                        
-                        // Clean up the field name
-                        let cleanFieldName = fieldName.replace("sys_display.", "").replace("select_0", "");
-
-                        const savedName = el.getAttribute("data-sntb-original");
-                        const currentText = labelEl.innerText.trim();
-
-                        debugLog(`*SNOW TOOL BELT* Modern field detection:`, {
-                            element: el.tagName,
-                            originalFieldName: fieldName,
-                            cleanFieldName: cleanFieldName,
-                            currentText: currentText,
-                            savedName: savedName,
-                            isGenerated: fieldName.startsWith("form-field-")
-                        });
-
-                        if (isCurrentlyTechnical && savedName) {
-                            // Currently showing technical name, switch back to original
-                            labelEl.innerText = savedName;
-                            debugLog(`*SNOW TOOL BELT* Modern: Restored "${savedName}" from technical name`);
-                        } else if (!isCurrentlyTechnical && currentText && currentText !== cleanFieldName && !cleanFieldName.startsWith("form-field-")) {
-                            // Currently showing original name, switch to technical
-                            if (!savedName) {
-                                // First time - save original
-                                el.setAttribute("data-sntb-original", currentText);
-                            }
-                            labelEl.innerText = cleanFieldName;
-                            debugLog(`*SNOW TOOL BELT* Modern: Switched to technical "${cleanFieldName}" (saved: "${savedName || currentText}")`);
-                        }
-                    }
-                } catch (e) {
-                    debugLog("*SNOW TOOL BELT* Error processing modern element:", e);
+                    // Show value in format: "originalText (value)"
+                    option.textContent = `${currentText} (${value})`;
+                    debugLog(`*SNOW TOOL BELT* Select option: Added value "${value}" to "${currentText}"`);
                 }
             });
+            
+            debugLog(`*SNOW TOOL BELT* Processed select ${index + 1} with ${options.length} options`);
         } catch (e) {
-            debugLog(`*SNOW TOOL BELT* Error with selector ${selector}:`, e);
+            debugLog("*SNOW TOOL BELT* Error processing select element:", e);
         }
     });
 
-        debugLog("*SNOW TOOL BELT* Total modern elements found:", totalModernElements);
-    } // End of isModernWorkspace check
+    // Process workspace choice lists (now-select with role="option" divs)
+    if (isWorkspace) {
+        debugLog("*SNOW TOOL BELT* Processing workspace choice lists...");
+        const workspaceOptions = querySelectorAllDeep(document, 'div[role="option"]');
+        debugLog("*SNOW TOOL BELT* Found", workspaceOptions.length, "workspace choice options");
+        
+        workspaceOptions.forEach((option, index) => {
+            try {
+                // Extract value from the option ID (format: now-dropdown-list-xxx-option-VALUE)
+                const optionId = option.getAttribute("id");
+                if (!optionId || !optionId.includes("-option-")) {
+                    return;
+                }
+                
+                // Skip the "none" option
+                if (optionId.includes("NOW_CHOICE_NONE_OPTION")) {
+                    return;
+                }
+                
+                // Extract the value (everything after the last "-option-")
+                const value = optionId.substring(optionId.lastIndexOf("-option-") + 8);
+                
+                // Find ALL text content divs (there may be multiple - one for screenreader, one for visible)
+                const textDivs = option.querySelectorAll("div");
+                const targetDivs = [];
+                for (const div of textDivs) {
+                    const text = div.textContent.trim();
+                    // Find divs that have text but no child divs with text
+                    if (text && !Array.from(div.children).some(child => child.textContent.trim())) {
+                        targetDivs.push(div);
+                    }
+                }
+                
+                if (targetDivs.length === 0) {
+                    return;
+                }
+                
+                const savedText = option.getAttribute("data-sntb-original-text");
+                const currentText = targetDivs[0].textContent.trim();
+                
+                if (!currentText || !value) {
+                    return;
+                }
+                
+                debugLog(`*SNOW TOOL BELT* Workspace option ${index + 1}:`, {
+                    value: value,
+                    currentText: currentText,
+                    savedText: savedText,
+                    targetDivsCount: targetDivs.length
+                });
+                
+                if (isCurrentlyTechnical && savedText) {
+                    // Currently showing technical (value), switch back to original text
+                    targetDivs.forEach(div => div.textContent = savedText);
+                    debugLog(`*SNOW TOOL BELT* Workspace option: Restored "${savedText}" from value "${value}"`);
+                } else if (!isCurrentlyTechnical) {
+                    // Currently showing original text, switch to show value
+                    if (!savedText) {
+                        // First time - save original text
+                        option.setAttribute("data-sntb-original-text", currentText);
+                    }
+                    // Show value in format: "originalText (value)" - update ALL target divs
+                    const newText = `${currentText} (${value})`;
+                    targetDivs.forEach(div => div.textContent = newText);
+                    debugLog(`*SNOW TOOL BELT* Workspace option: Added value "${value}" to "${currentText}" (${targetDivs.length} divs updated)`);
+                }
+            } catch (e) {
+                debugLog("*SNOW TOOL BELT* Error processing workspace option:", e);
+            }
+        });
+    }
 
     // Toggle global state
     document.body.setAttribute("data-sntb-technical", isCurrentlyTechnical ? "false" : "true");
     debugLog("*SNOW TOOL BELT* New state:", isCurrentlyTechnical ? "showing labels" : "showing technical names");
+
+    // Set up MutationObserver for workspace dropdown popovers (created dynamically)
+    if (isWorkspace) {
+        // Remove any existing observer
+        if (window.sntbDropdownObserver) {
+            window.sntbDropdownObserver.disconnect();
+        }
+        
+        // Check if we're showing technical names (after toggle)
+        const shouldShowTechnical = document.body.getAttribute("data-sntb-technical") === "true";
+        
+        // Process any already-open dropdowns to update them immediately
+        const existingPanels = document.querySelectorAll('now-popover-panel');
+        if (existingPanels.length > 0) {
+            debugLog(`*SNOW TOOL BELT* Found ${existingPanels.length} already-open dropdown panels`);
+            
+            existingPanels.forEach(panel => {
+                const hoistElements = panel.querySelectorAll('seismic-hoist');
+                hoistElements.forEach(hoist => {
+                    if (hoist.shadowRoot) {
+                        const options = hoist.shadowRoot.querySelectorAll('div[role="option"]');
+                        options.forEach(option => {
+                            const optionId = option.getAttribute("id");
+                            if (!optionId || optionId === "NOW_CHOICE_NONE_OPTION") return;
+                            
+                            const value = optionId;
+                            const savedText = option.getAttribute("data-sntb-original-text");
+                            
+                            const textDivs = option.querySelectorAll("div");
+                            const targetDivs = [];
+                            for (const div of textDivs) {
+                                const text = div.textContent.trim();
+                                if (text && div.children.length === 0) {
+                                    targetDivs.push(div);
+                                }
+                            }
+                            
+                            if (targetDivs.length > 0) {
+                                if (shouldShowTechnical && !savedText) {
+                                    // Switching to technical - add values
+                                    const currentText = targetDivs[0].textContent.trim();
+                                    if (!currentText.includes(`(${value})`) && currentText !== "-- None --") {
+                                        option.setAttribute("data-sntb-original-text", currentText);
+                                        targetDivs.forEach(div => div.textContent = `${currentText} (${value})`);
+                                        debugLog(`*SNOW TOOL BELT* Updated existing option to "${currentText} (${value})"`);
+                                    }
+                                } else if (!shouldShowTechnical && savedText) {
+                                    // Switching back to labels - restore original
+                                    targetDivs.forEach(div => div.textContent = savedText);
+                                    option.removeAttribute("data-sntb-original-text");
+                                    debugLog(`*SNOW TOOL BELT* Restored existing option to "${savedText}"`);
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+        }
+        
+        if (shouldShowTechnical) {
+            debugLog("*SNOW TOOL BELT* Setting up MutationObserver for workspace dropdown popovers");
+            
+            const processOption = (option) => {
+                try {
+                    const optionId = option.getAttribute("id");
+                    if (!optionId || optionId === "NOW_CHOICE_NONE_OPTION") {
+                        return;
+                    }
+                    
+                    // Check if already processed
+                    if (option.getAttribute("data-sntb-processed")) {
+                        return;
+                    }
+                    
+                    // The ID is the value itself (e.g., "Mme", "M.")
+                    const value = optionId;
+                    
+                    // Find the text div (deeply nested)
+                    const textDivs = option.querySelectorAll("div");
+                    const targetDivs = [];
+                    for (const div of textDivs) {
+                        const text = div.textContent.trim();
+                        // Find leaf divs with text
+                        if (text && div.children.length === 0) {
+                            targetDivs.push(div);
+                        }
+                    }
+                    
+                    if (targetDivs.length > 0 && value) {
+                        const currentText = targetDivs[0].textContent.trim();
+                        // Only update if not already showing value
+                        if (!currentText.includes(`(${value})`) && currentText !== "-- None --") {
+                            const newText = `${currentText} (${value})`;
+                            targetDivs.forEach(div => div.textContent = newText);
+                            option.setAttribute("data-sntb-processed", "true");
+                            debugLog(`*SNOW TOOL BELT* Updated option "${currentText}" to "${newText}"`);
+                        }
+                    }
+                } catch (e) {
+                    debugLog("*SNOW TOOL BELT* Error processing option:", e);
+                }
+            };
+            
+            const processPopoverPanel = (panel) => {
+                // Wait for shadow root to be ready
+                const checkShadowRoot = () => {
+                    if (!panel.shadowRoot) {
+                        setTimeout(checkShadowRoot, 10);
+                        return;
+                    }
+                    
+                    debugLog("*SNOW TOOL BELT* Shadow root ready, setting up observer for options");
+                    
+                    // Create an observer for this specific panel's shadow root
+                    const panelObserver = new MutationObserver((mutations) => {
+                        mutations.forEach((mutation) => {
+                            mutation.addedNodes.forEach((node) => {
+                                if (node.nodeType === Node.ELEMENT_NODE) {
+                                    // Check if this node is an option or contains options
+                                    if (node.getAttribute && node.getAttribute('role') === 'option') {
+                                        debugLog("*SNOW TOOL BELT* Detected new option added");
+                                        processOption(node);
+                                    } else if (node.querySelectorAll) {
+                                        const options = node.querySelectorAll('div[role="option"]');
+                                        if (options.length > 0) {
+                                            debugLog(`*SNOW TOOL BELT* Detected ${options.length} options added`);
+                                            options.forEach(processOption);
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                    });
+                    
+                    // Observe the shadow root for added options
+                    panelObserver.observe(panel.shadowRoot, {
+                        childList: true,
+                        subtree: true
+                    });
+                    
+                    // Check for existing options multiple times (they load asynchronously)
+                    // Options are in nested shadow roots: panel > seismic-hoist > options
+                    const checkForOptions = (attempt = 0) => {
+                        // Search through nested shadow roots
+                        let existingOptions = [];
+                        
+                        // seismic-hoist is in the light DOM (slotted), not shadow DOM!
+                        // Look for it as a child of the panel element itself
+                        const hoistElements = panel.querySelectorAll('seismic-hoist');
+                        debugLog(`*SNOW TOOL BELT* Attempt ${attempt + 1}: Found ${hoistElements.length} seismic-hoist elements in light DOM`);
+                        
+                        hoistElements.forEach((hoist, idx) => {
+                            debugLog(`*SNOW TOOL BELT* Hoist ${idx + 1}: shadowRoot=${!!hoist.shadowRoot}`);
+                            if (hoist.shadowRoot) {
+                                const hoistOptions = hoist.shadowRoot.querySelectorAll('div[role="option"]');
+                                debugLog(`*SNOW TOOL BELT* Hoist ${idx + 1}: Found ${hoistOptions.length} options in shadow root`);
+                                existingOptions.push(...hoistOptions);
+                            }
+                        });
+                        
+                        debugLog(`*SNOW TOOL BELT* Check attempt ${attempt + 1}: Total found ${existingOptions.length} options`);
+                        
+                        if (existingOptions.length > 0) {
+                            debugLog(`*SNOW TOOL BELT* Processing ${existingOptions.length} existing options`);
+                            existingOptions.forEach(processOption);
+                        } else if (attempt < 15) {
+                            // Try again after a short delay (increased attempts and delay)
+                            setTimeout(() => checkForOptions(attempt + 1), 100);
+                        } else {
+                            debugLog("*SNOW TOOL BELT* Gave up waiting for options after 15 attempts");
+                        }
+                    };
+                    
+                    checkForOptions();
+                };
+                
+                checkShadowRoot();
+            };
+            
+            window.sntbDropdownObserver = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    mutation.addedNodes.forEach((node) => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            // Check if this is a now-popover-panel
+                            if (node.tagName === 'NOW-POPOVER-PANEL') {
+                                debugLog("*SNOW TOOL BELT* Detected new now-popover-panel");
+                                processPopoverPanel(node);
+                            }
+                        }
+                    });
+                });
+            });
+            
+            // Observe the body for added now-popover-panel elements
+            window.sntbDropdownObserver.observe(document.body, {
+                childList: true
+            });
+            
+            debugLog("*SNOW TOOL BELT* MutationObserver active, watching for now-popover-panel creation");
+        }
+    }
 
     debugLog("*SNOW TOOL BELT* Field name switching completed");
 }
@@ -1170,6 +1431,59 @@ function hexToRgb(hex) {
 }
 
 /**
+ * Helper function to safely extract display value from a field
+ * @param {*} field - The field value (can be string or object)
+ * @returns {string|null} The display value or null
+ */
+function getDisplayValue(field) {
+    if (!field) return null;
+    if (typeof field === 'string') return field;
+    return field.display_value || field.value || null;
+}
+
+/**
+ * Helper function to check if a string looks like a sys_id
+ * @param {string} str - The string to check
+ * @returns {boolean} True if the string looks like a sys_id
+ */
+function isSysId(str) {
+    if (!str || typeof str !== 'string') return false;
+    return /^[0-9a-f]{32}$/i.test(str);
+}
+
+/**
+ * Fetch short_description and name from the actual record
+ * @param {string} actualClass - The actual class/table name
+ * @param {string} sysId - The sys_id of the record
+ * @param {string} origin - The origin URL (e.g., window.location.origin)
+ * @param {Headers} headers - HTTP headers for the request
+ * @returns {Promise<{shortDescription: string|null, name: string|null}>}
+ */
+async function fetchActualRecordDetails(actualClass, sysId, origin, headers) {
+    try {
+        const actualRecordUrl = `${origin}/api/now/table/${actualClass}/${sysId}?sysparm_fields=short_description,name&sysparm_display_value=all`;
+        const response = await fetch(actualRecordUrl, {
+            credentials: "same-origin",
+            headers: headers
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.result) {
+                return {
+                    shortDescription: getDisplayValue(data.result.short_description),
+                    name: getDisplayValue(data.result.name)
+                };
+            }
+        }
+    } catch (err) {
+        debugLog('*SNOW TOOL BELT* Error fetching actual record details:', err);
+    }
+    
+    return { shortDescription: null, name: null };
+}
+
+/**
  * Search through multiple tables to find a record with the given sys_id
  * @param {Array} tableNames - Array of table names to search
  * @param {string} sysId - The sys_id to search for
@@ -1705,14 +2019,18 @@ async function performCodeSearch(searchTerm, host, token) {
                     const searchData = await searchResponse.json();
                     debugLog("*SNOW TOOL BELT* Found", searchData.result.length, "results in", tableName);
 
-                    searchData.result.forEach(record => {
-                        const actualClass = typeof record.sys_class_name === 'string'
-                            ? record.sys_class_name
-                            : (record.sys_class_name?.value || record.sys_class_name?.display_value || tableName);
-
-                        const name = typeof record.name === 'string'
-                            ? record.name
-                            : (record.name?.display_value || record.name?.value || record.sys_id);
+                    for (const record of searchData.result) {
+                        const actualClass = getDisplayValue(record.sys_class_name) || tableName;
+                        let name = getDisplayValue(record.name) || record.sys_id;
+                        let shortDescription = undefined;
+                        
+                        // If name is a sys_id, fetch actual record details
+                        if (isSysId(name)) {
+                            const details = await fetchActualRecordDetails(actualClass, record.sys_id, window.location.origin, headers);
+                            if (details.name) name = details.name;
+                            shortDescription = details.shortDescription;
+                            debugLog(`*SNOW TOOL BELT* Fetched details for ${actualClass}: name=${name}, short_description=${shortDescription}`);
+                        }
 
                         allResults.push({
                             sys_id: record.sys_id,
@@ -1722,9 +2040,10 @@ async function performCodeSearch(searchTerm, host, token) {
                             actualClass: actualClass,
                             directUrl: `https://${host}/${actualClass}.do?sys_id=${record.sys_id}`,
                             description: `Code search match in ${actualClass}`,
-                            matchedFields: fields
+                            matchedFields: fields,
+                            shortDescription: shortDescription
                         });
-                    });
+                    }
                 }
             } catch (error) {
                 debugLog("*SNOW TOOL BELT* Error searching table", tableName, ":", error);
@@ -1790,19 +2109,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
     headers.append('Cache-Control', 'no-cache');
     headers.append('X-UserToken', token);
 
-    // Helper function to safely extract display name
-    const getDisplayName = (nameField) => {
-        if (!nameField) return null;
-        if (typeof nameField === 'string') return nameField;
-        return nameField.display_value || nameField.value || null;
-    };
 
-    // Helper function to safely extract class name
-    const getClassName = (classField, fallback) => {
-        if (!classField) return fallback;
-        if (typeof classField === 'string') return classField;
-        return classField.display_value || classField.value || fallback;
-    };
 
     // Check if this is a "starts with" search (ends with *)
     const isStartsWithSearch = searchValue.endsWith('*');
@@ -1887,16 +2194,19 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 if (data.result.length > 0) {
                     for (const record of data.result) {
                         // Extract display name based on the nameField from searchConfig
-                        const displayName = getDisplayName(record[searchConfig.nameField]) || 
-                                          (searchConfig.table === 'sys_metadata' ? getDisplayName(record.name) : null) ||
-                                          (searchConfig.table === 'sys_user' ? getDisplayName(record.name) : null);
+                        const displayName = getDisplayValue(record[searchConfig.nameField]) || 
+                                          (searchConfig.table === 'sys_metadata' ? getDisplayValue(record.name) : null) ||
+                                          (searchConfig.table === 'sys_user' ? getDisplayValue(record.name) : null);
 
                         // Get the actual class name from sys_class_name field if available
-                        let actualClass = searchConfig.table;
-                        if (record.sys_class_name) {
-                            actualClass = typeof record.sys_class_name === 'string'
-                                ? record.sys_class_name
-                                : (record.sys_class_name.value || record.sys_class_name.display_value || searchConfig.table);
+                        const actualClass = getDisplayValue(record.sys_class_name) || searchConfig.table;
+
+                        // For sys_metadata records, fetch the actual record to get short_description
+                        let shortDescription = undefined;
+                        if (searchConfig.table === 'sys_metadata' && actualClass !== 'sys_metadata') {
+                            const details = await fetchActualRecordDetails(actualClass, record.sys_id, window.location.origin, headers);
+                            shortDescription = details.shortDescription;
+                            debugLog(`*SNOW TOOL BELT* Fetched short_description for ${actualClass}: ${shortDescription}`);
                         }
 
                         // Only add records with valid names
@@ -1904,20 +2214,20 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                             allResults.push({
                                 sys_id: record.sys_id,
                                 name: displayName,
-                                username: searchConfig.table === 'sys_user' ? getDisplayName(record.user_name) : undefined,
+                                username: searchConfig.table === 'sys_user' ? getDisplayValue(record.user_name) : undefined,
                                 table: searchConfig.table,
                                 sourceTable: searchConfig.table,
                                 actualClass: actualClass,
                                 directUrl: `https://${host}/${actualClass}.do?sys_id=${record.sys_id}`,
                                 description: `${searchConfig.displayName} ${isStartsWithSearch ? 'starts with' : 'exact'} match`,
                                 updated: record.sys_updated_on,
-                                email: searchConfig.table === 'sys_user' ? getDisplayName(record.email) : undefined,
-                                employeeNumber: searchConfig.table === 'sys_user' ? getDisplayName(record.employee_number) : undefined,
-                                firstName: searchConfig.table === 'sys_user' ? getDisplayName(record.first_name) : undefined,
-                                lastName: searchConfig.table === 'sys_user' ? getDisplayName(record.last_name) : undefined,
+                                email: searchConfig.table === 'sys_user' ? getDisplayValue(record.email) : undefined,
+                                employeeNumber: searchConfig.table === 'sys_user' ? getDisplayValue(record.employee_number) : undefined,
+                                firstName: searchConfig.table === 'sys_user' ? getDisplayValue(record.first_name) : undefined,
+                                lastName: searchConfig.table === 'sys_user' ? getDisplayValue(record.last_name) : undefined,
                                 active: record.active,
-                                // Task-specific fields
-                                shortDescription: searchConfig.table === 'task' ? getDisplayName(record.short_description) : undefined,
+                                // short_description from actual record or task table
+                                shortDescription: shortDescription || (searchConfig.table === 'task' ? getDisplayValue(record.short_description) : undefined),
                                 state: searchConfig.table === 'task' ? record.state : undefined
                             });
                         }
@@ -2379,22 +2689,35 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         // Inject minimal CSS
         const style = document.createElement('style');
         style.textContent = `
+            /* CSS Variables for consistent theming */
+            :root {
+                --sntb-color-primary: #00ff00;
+                --sntb-color-secondary: #00aa00;
+                --sntb-color-bg-dark: #0d0d0d;
+                --sntb-color-bg-medium: #1a1a1a;
+                --sntb-color-bg-light: rgba(0, 255, 0, 0.1);
+                --sntb-color-border: #00ff00;
+                --sntb-font-family: 'Courier New', monospace;
+                --sntb-transition-fast: 0.2s;
+                --sntb-transition-medium: 0.3s;
+            }
+            
             .sntb-console {
                 position: fixed;
                 bottom: 0;
                 left: 0;
                 right: 0;
                 height: 500px;
-                background: linear-gradient(0deg, #1a1a1a 0%, #0d0d0d 100%);
-                border-top: 3px solid #00ff00;
+                background: linear-gradient(0deg, var(--sntb-color-bg-medium) 0%, var(--sntb-color-bg-dark) 100%);
+                border-top: 3px solid var(--sntb-color-border);
                 box-shadow: 0 -4px 20px rgba(0, 255, 0, 0.3);
                 z-index: 999999;
-                font-family: 'Courier New', monospace;
-                color: #00ff00;
+                font-family: var(--sntb-font-family);
+                color: var(--sntb-color-primary);
                 padding: 0;
                 opacity: 0.95;
                 transform: translateY(calc(100% + 30px));
-                transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+                transition: transform var(--sntb-transition-medium) cubic-bezier(0.68, -0.55, 0.265, 1.55);
                 pointer-events: none;
                 overflow: hidden;
                 min-height: 200px;
@@ -2429,7 +2752,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                border-top: 1px solid #00ff00;
+                border-top: 1px solid var(--sntb-color-border);
             }
             
             .sntb-console-header-left {
@@ -2448,30 +2771,31 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 font-weight: bold;
                 font-size: 14px;
                 letter-spacing: 2px;
+                color: var(--sntb-color-primary);
             }
             
             .sntb-console-separator {
-                color: #00aa00;
+                color: var(--sntb-color-secondary);
                 font-size: 12px;
             }
             
             .sntb-console-hint {
                 font-size: 11px;
-                color: #00aa00;
+                color: var(--sntb-color-secondary);
                 margin-right: 8px;
             }
             
             .sntb-console-btn {
                 background: transparent;
-                border: 1px solid #00aa00;
-                color: #00aa00;
-                font-family: 'Courier New', monospace;
+                border: 1px solid var(--sntb-color-secondary);
+                color: var(--sntb-color-secondary);
+                font-family: var(--sntb-font-family);
                 font-size: 16px;
                 font-weight: bold;
                 width: 24px;
                 height: 24px;
                 cursor: pointer;
-                transition: all 0.2s;
+                transition: all var(--sntb-transition-fast);
                 padding: 0;
                 display: flex;
                 align-items: center;
@@ -2481,8 +2805,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             
             .sntb-console-btn:hover {
                 background: rgba(0, 255, 0, 0.2);
-                border-color: #00ff00;
-                color: #00ff00;
+                border-color: var(--sntb-color-primary);
+                color: var(--sntb-color-primary);
             }
             
             .sntb-console-btn-close {
@@ -2490,10 +2814,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-rating {
-                color: #00ff00;
+                color: var(--sntb-color-primary);
                 text-decoration: none;
                 font-size: 12px;
-                transition: color 0.2s;
+                transition: color var(--sntb-transition-fast);
             }
             
             .sntb-console-rating:hover {
@@ -2511,18 +2835,18 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             .sntb-console-prompt {
                 font-size: 18px;
                 font-weight: bold;
-                color: #00ff00;
+                color: var(--sntb-color-primary);
             }
             
             .sntb-console-input {
                 flex: 1;
                 background: transparent;
                 border: none;
-                color: #00ff00;
-                font-family: 'Courier New', monospace;
+                color: var(--sntb-color-primary);
+                font-family: var(--sntb-font-family);
                 font-size: 16px;
                 outline: none;
-                caret-color: #00ff00;
+                caret-color: var(--sntb-color-primary);
             }
             
             .sntb-console-input::placeholder {
@@ -2564,12 +2888,12 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 font-size: 14px;
                 font-weight: bold;
                 color: #00ff00;
-                flex: 1;
             }
             
             .sntb-console-group-count {
                 font-size: 12px;
                 color: #00aa00;
+                margin-left: 4px;
             }
             
             .sntb-console-group-content {
@@ -3769,6 +4093,39 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
     };
     
     /**
+     * Format a single result item for display
+     * @param {Object} item - The result item
+     * @returns {Object} Formatted item with name and details
+     */
+    const formatResultItem = (item) => {
+        let name = item.name || item.displayName || item.value || 'Unknown';
+        let usedShortDescriptionAsName = false;
+        
+        // If name is a sys_id, try to use short_description instead
+        if (isSysId(name) && item.shortDescription) {
+            name = item.shortDescription;
+            usedShortDescriptionAsName = true;
+        }
+        
+        // Build details string
+        let details = '';
+        if (item.shortDescription && !usedShortDescriptionAsName && name !== item.shortDescription) {
+            details = `<span class="sntb-console-result-details" title="${DOMPurify.sanitize(item.shortDescription)}">${DOMPurify.sanitize(item.shortDescription)}</span>`;
+        } else if (item.firstName || item.lastName) {
+            const fullName = [item.firstName, item.lastName].filter(Boolean).join(' ');
+            if (fullName) {
+                details = `<span class="sntb-console-result-details">${DOMPurify.sanitize(fullName)}</span>`;
+            }
+        }
+        
+        return {
+            name: DOMPurify.sanitize(name),
+            details: details,
+            url: DOMPurify.sanitize(item.directUrl || '#')
+        };
+    };
+
+    /**
      * Display search results in console
      */
     const displayConsoleResults = (result) => {
@@ -3786,12 +4143,13 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         } else if (result.status === 200 && result.directUrl) {
             // Single result format (sys_id search)
             results = [{
-                name: result.displayName || result.name || result.searchValue,
-                displayName: result.displayName || result.name,
+                name: result.displayValue || result.displayName || result.name || result.searchValue,
+                displayName: result.displayValue || result.displayName || result.name,
                 actualClass: result.actualClass || result.table,
                 table: result.table,
                 directUrl: result.directUrl,
-                value: result.searchValue
+                value: result.searchValue,
+                shortDescription: result.shortDescription
             }];
         }
         
@@ -3842,25 +4200,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 `;
                 
                 classResults.forEach(item => {
-                    const name = item.name || item.displayName || item.value || 'Unknown';
-                    const url = item.directUrl || '#';
-                    const safeName = DOMPurify.sanitize(name);
-                    const safeUrl = DOMPurify.sanitize(url);
-                    
-                    // Add additional details based on table type
-                    let details = '';
-                    if (item.shortDescription) {
-                        details = `<span class="sntb-console-result-details" title="${DOMPurify.sanitize(item.shortDescription)}">${DOMPurify.sanitize(item.shortDescription)}</span>`;
-                    } else if (item.firstName || item.lastName) {
-                        const fullName = [item.firstName, item.lastName].filter(Boolean).join(' ');
-                        if (fullName) {
-                            details = `<span class="sntb-console-result-details">${DOMPurify.sanitize(fullName)}</span>`;
-                        }
-                    }
-                    
+                    const formatted = formatResultItem(item);
                     html += `
-                        <div class="sntb-console-result-item grouped" data-url="${safeUrl}">
-                            <span class="sntb-console-result-name">${safeName}</span>${details}
+                        <div class="sntb-console-result-item grouped" data-url="${formatted.url}">
+                            <span class="sntb-console-result-name">${formatted.name}</span>${formatted.details}
                         </div>
                     `;
                 });
@@ -3882,28 +4225,14 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             });
             
             classResults.forEach(item => {
-                const name = item.name || item.displayName || item.value || 'Unknown';
+                const formatted = formatResultItem(item);
                 const classToDisplay = item.actualClass || item.table || 'Unknown';
-                const url = item.directUrl || '#';
-                const safeName = DOMPurify.sanitize(name);
                 const safeClass = DOMPurify.sanitize(classToDisplay);
-                const safeUrl = DOMPurify.sanitize(url);
-                
-                // Add additional details based on table type
-                let details = '';
-                if (item.shortDescription) {
-                    details = `<span class="sntb-console-result-details" title="${DOMPurify.sanitize(item.shortDescription)}">${DOMPurify.sanitize(item.shortDescription)}</span>`;
-                } else if (item.firstName || item.lastName) {
-                    const fullName = [item.firstName, item.lastName].filter(Boolean).join(' ');
-                    if (fullName) {
-                        details = `<span class="sntb-console-result-details">${DOMPurify.sanitize(fullName)}</span>`;
-                    }
-                }
                 
                 html += `
-                    <div class="sntb-console-result-item" data-url="${safeUrl}">
-                        <span class="sntb-console-result-name">${safeName}</span>
-                        <span class="sntb-console-result-class">[${safeClass}]</span>${details}
+                    <div class="sntb-console-result-item" data-url="${formatted.url}">
+                        <span class="sntb-console-result-name">${formatted.name}</span>
+                        <span class="sntb-console-result-class">[${safeClass}]</span>${formatted.details}
                     </div>
                 `;
             });
