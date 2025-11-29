@@ -242,10 +242,14 @@ const restoreOptions = () => {
             context.maxSearchResults = maxSearchResults;
 
             // Load theme preference and debug mode
-            chrome.storage.local.get("debugMode", (localResult) => {
+            chrome.storage.local.get(["debugMode", "showInfoPanel"], (localResult) => {
                 const debugMode = localResult.debugMode === true;
                 document.getElementById("debugMode").checked = debugMode;
                 context.debugMode = debugMode;
+                
+                const showInfoPanel = localResult.showInfoPanel !== false; // Default to true
+                document.getElementById("showInfoPanel").checked = showInfoPanel;
+                context.showInfoPanel = showInfoPanel;
             });
             try {
                 if (result.knownInstances !== undefined) { context.knownInstances = JSON.parse(result.knownInstances); }
@@ -481,6 +485,9 @@ const saveOptions = (evt) => {
         } else if (evt.target.id === "debugMode") {
             context.debugMode = evt.target.checked;
             chrome.storage.local.set({ "debugMode": context.debugMode }, () => {});
+        } else if (evt.target.id === "showInfoPanel") {
+            context.showInfoPanel = evt.target.checked;
+            chrome.storage.local.set({ "showInfoPanel": context.showInfoPanel }, () => {});
         } else if (evt.target.id === "maxSearchResults") {
             const value = parseInt(evt.target.value);
             if (value >= 5 && value <= 100) {
@@ -657,6 +664,7 @@ document.getElementById("extraDomains").addEventListener("change", saveOptions);
 document.getElementById("showUpdatesets").addEventListener("change", saveOptions);
 
 document.getElementById("debugMode").addEventListener("change", saveOptions);
+document.getElementById("showInfoPanel").addEventListener("change", saveOptions);
 document.getElementById("maxSearchResults").addEventListener("change", saveOptions);
 document.getElementById("export").addEventListener("click", exportOptions);
 document.getElementById("import").addEventListener("click", openFileSelect);
