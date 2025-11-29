@@ -9,7 +9,15 @@ const debugLog = (...args) => {
     }
 };
 
-
+/**
+ * Removes scope suffix from update set name if present
+ * Example: "My Update Set [Human Resources: Core]" -> "My Update Set"
+ */
+const cleanUpdateSetName = (updateSetName, scopeName) => {
+    if (!updateSetName || !scopeName) return updateSetName || 'Default';
+    const suffix = ` [${scopeName}]`;
+    return updateSetName.endsWith(suffix) ? updateSetName.slice(0, -suffix.length) : updateSetName;
+};
 
 const context = {
     windowId: 1,
@@ -2059,8 +2067,10 @@ const updateTabDisplayFromCache = (tabId, tabState) => {
                     
                     const updateSetEl = document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span");
                     if (updateSetEl && tabState.updateSet.current.name) {
-                        updateSetEl.innerText = tabState.updateSet.current.name;
-                        updateSetEl.title = `Click to open: ${tabState.updateSet.current.name}`;
+                        const scopeName = tabState.updateSet.application?.name || 'Global';
+                        const cleanedName = cleanUpdateSetName(tabState.updateSet.current.name, scopeName);
+                        updateSetEl.innerText = cleanedName;
+                        updateSetEl.title = `Click to open: ${cleanedName}`;
                         console.log("*SNOW TOOL BELT* Phase 3: Updated update set for", instance);
                         
                         // Make it clickable
@@ -2167,10 +2177,11 @@ const updateTabInfoFromCache = (instance, windowId, index, cache) => {
         
         const updateSetEl = document.querySelector(".updateset[data-instance='" + instance + "'][data-window-id='" + windowId + "']>span");
         if (updateSetEl && cache.updateSets[instance].current && cache.updateSets[instance].current.name) {
-            const current = cache.updateSets[instance].current.name;
-            updateSetEl.innerText = current;
-            updateSetEl.title = `Click to open: ${current}`;
-            console.log("*SNOW TOOL BELT* Phase 2: Using cached update set for", instance, ":", current);
+            const scopeName = cache.updateSets[instance].application?.name || 'Global';
+            const cleanedName = cleanUpdateSetName(cache.updateSets[instance].current.name, scopeName);
+            updateSetEl.innerText = cleanedName;
+            updateSetEl.title = `Click to open: ${cleanedName}`;
+            console.log("*SNOW TOOL BELT* Phase 2: Using cached update set for", instance, ":", cleanedName);
             
             // Make it clickable
             makeUpdateSetClickable(updateSetEl, instance, windowId);

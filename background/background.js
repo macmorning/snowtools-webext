@@ -586,7 +586,10 @@ const isServiceNow = (hostname) => {
                 saveContext();
             }
 
-            response = { "isServiceNow": true, "favIconColor": color, "hidden": hidden };
+            // Get friendly name from knownInstances
+            const friendlyName = context.knownInstances[hostname] || hostname;
+
+            response = { "isServiceNow": true, "favIconColor": color, "hidden": hidden, "instanceName": friendlyName };
             console.log("*SNOW TOOL BELT BG* Returning response:", response);
         }
     });

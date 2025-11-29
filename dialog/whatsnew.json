@@ -1,5 +1,13 @@
 [
     {
+        "version": "7.7.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Added an information panel in the bottom left of the screen; you can remove it and reenable it from the options page",
+            "Added a 'lang' command in the console to quickly switch language, for example 'lang fr'",
+            "Changed the colors of the console to match current theme (light or dark)"
+        ]
+    },    {
         "version": "7.6.0",
         "msg": "Most notable changes:",
         "items": [

@@ -2,6 +2,53 @@ const isChromium = (typeof browser === "undefined");
 // Firefox compatibility: use browser API if available
 const runtimeAPI = typeof browser !== "undefined" ? browser.runtime : chrome.runtime;
 const storageAPI = typeof browser !== "undefined" ? browser.storage : chrome.storage;
+
+// Color constants
+const COLORS = {
+    DEFAULT_INSTANCE: '#4db6ac',
+    ERROR: '#ff0000',
+    WARNING: '#ffaa00',
+    INFO: '#4db6ac',
+    DARK: {
+        BG_PRIMARY: '#1e1e1e',
+        BG_SECONDARY: '#2d2d2d',
+        BG_SURFACE: 'rgba(30, 30, 30, 0.95)',
+        TEXT_PRIMARY: '#e0f2f1',
+        TEXT_SECONDARY: '#ffffff',
+        TEXT_MUTED: '#a5d6a7',
+        ACCENT: '#4db6ac',
+        ACCENT_HOVER: '#26a69a',
+        HIGHLIGHT: '#ffab40',
+        BORDER: '#555',
+        BORDER_MEDIUM: '#666'
+    },
+    LIGHT: {
+        BG_PRIMARY: '#F7F7F7',
+        BG_SECONDARY: '#e7e7e7',
+        BG_SURFACE: 'rgba(247, 247, 247, 0.95)',
+        TEXT_PRIMARY: '#293E40',
+        TEXT_SECONDARY: '#000000',
+        TEXT_MUTED: '#666666',
+        ACCENT: '#4db6ac',
+        ACCENT_HOVER: '#26a69a',
+        HIGHLIGHT: '#d66419',
+        BORDER: '#ddd',
+        BORDER_MEDIUM: '#ccc'
+    }
+};
+
+// Pages where info panel should not be displayed
+const INFO_PANEL_EXCLUSIONS = [
+    '/sys_script_execution_history.do',
+    '/sys_script_execution_history_list.do',
+    '/sys_update_set.do',
+    '/sys_update_set_list.do',
+    '/sys_update_version.do',
+    '/sys_update_version_list.do',
+    '/sys.scripts.modern.do',
+    '/sys.scripts.do'
+];
+
 const context = {
     g_ck: "",
     debugMode: false
@@ -917,7 +964,7 @@ function setupUpdateSetMonitoring() {
         isCheckingUpdateSet = true;
         
         try {
-            const concourseUrl = window.location.origin + "/api/now/ui/concoursepicker/updateset";
+            const concourseUrl = window.location.origin + "/api/now/ui/concoursepicker/current";
             const headers = new Headers();
             headers.append('Content-Type', 'application/json');
             headers.append('Accept', 'application/json');
@@ -928,7 +975,7 @@ function setupUpdateSetMonitoring() {
             if (response.ok && response.status === 200) {
                 const text = await response.text();
                 const parsed = JSON.parse(text).result;
-                const currentId = parsed.current?.sysId || parsed.current?.sys_id;
+                const currentId = parsed.currentUpdateSet?.sysId;
                 
                 // Check if update set changed
                 if (lastUpdateSetId !== null && currentId !== lastUpdateSetId) {
@@ -936,8 +983,9 @@ function setupUpdateSetMonitoring() {
                     
                     // Report the change to background
                     const updateSetInfo = {
-                        updateSet: parsed.updateSet,
-                        current: parsed.current
+                        current: parsed.currentUpdateSet,
+                        application: parsed.currentApplication,
+                        domain: parsed.currentDomain
                     };
                     
                     const tabInfo = getTabInfo();
@@ -952,7 +1000,10 @@ function setupUpdateSetMonitoring() {
                         }
                     });
                     
-                    console.log("*SNOW TOOL BELT* Update set change reported:", parsed.current?.name);
+                    debugLog("*SNOW TOOL BELT* Update set change reported:", parsed.currentUpdateSet?.name);
+                    
+                    // Update the info panel
+                    updateInfoPanel(parsed);
                 }
                 
                 lastUpdateSetId = currentId;
@@ -967,7 +1018,358 @@ function setupUpdateSetMonitoring() {
     // Start polling every 5 seconds
     setInterval(checkAndReportUpdateSet, POLLING_INTERVAL);
     
-    console.log("*SNOW TOOL BELT* Update set monitoring initialized (5s polling, active tab only)");
+    debugLog("*SNOW TOOL BELT* Update set monitoring initialized (5s polling, active tab only)");
+}
+
+/**
+ * Store for instance color and name
+ */
+let instanceColor = COLORS.DEFAULT_INSTANCE;
+let instanceDisplayName = window.location.hostname;
+let isDefaultColor = true;
+
+/**
+ * Detect if dark mode is enabled
+ */
+function isDarkMode() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+/**
+ * Get theme colors based on dark/light mode
+ */
+function getThemeColors() {
+    const theme = isDarkMode() ? COLORS.DARK : COLORS.LIGHT;
+    return {
+        bgPrimary: theme.BG_PRIMARY,
+        bgSecondary: theme.BG_SECONDARY,
+        bgSurface: theme.BG_SURFACE,
+        textPrimary: theme.TEXT_PRIMARY,
+        textSecondary: theme.TEXT_SECONDARY,
+        textMuted: theme.TEXT_MUTED,
+        accent: theme.ACCENT,
+        accentHover: theme.ACCENT_HOVER,
+        highlight: theme.HIGHLIGHT,
+        border: theme.BORDER,
+        borderMedium: theme.BORDER_MEDIUM
+    };
+}
+
+/**
+ * Helper to create a styled div element
+ */
+function createStyledDiv(className, styles, content = '') {
+    const div = document.createElement('div');
+    if (className) div.className = className;
+    if (styles) div.style.cssText = styles;
+    if (content) div.textContent = content;
+    return div;
+}
+
+/**
+ * Removes scope suffix from update set name if present
+ * Example: "My Update Set [Human Resources: Core]" -> "My Update Set"
+ */
+function cleanUpdateSetName(updateSetName, scopeName) {
+    if (!updateSetName || !scopeName) return updateSetName || 'Default';
+    const suffix = ` [${scopeName}]`;
+    return updateSetName.endsWith(suffix) ? updateSetName.slice(0, -suffix.length) : updateSetName;
+}
+
+/**
+ * Updates the info panel with new update set/scope info
+ */
+function updateInfoPanel(parsed) {
+    try {
+        const scopeName = parsed.currentApplication?.name || 'Global';
+        const rawUpdateSetName = parsed.currentUpdateSet?.name || 'Default';
+        const updateSetName = cleanUpdateSetName(rawUpdateSetName, scopeName);
+        
+        const scopeText = document.querySelector('.sntb-info-panel-scope');
+        const updateSetText = document.querySelector('.sntb-info-panel-updateset');
+        
+        if (scopeText && updateSetText) {
+            scopeText.textContent = scopeName;
+            updateSetText.textContent = updateSetName;
+            debugLog("*SNOW TOOL BELT* Updated info panel");
+        }
+    } catch (error) {
+        debugLog("*SNOW TOOL BELT* Error updating info panel:", error);
+    }
+}
+
+/**
+ * Creates the info panel at bottom-left of screen
+ */
+async function createInfoPanel() {
+    debugLog("*SNOW TOOL BELT* createInfoPanel called");
+    
+    try {
+        // Check if already exists
+        if (document.querySelector('.sntb-info-panel')) {
+            debugLog("*SNOW TOOL BELT* Info panel already exists");
+            return true;
+        }
+        
+        // Don't show panel on certain pages
+        const currentPath = window.location.pathname;
+        if (INFO_PANEL_EXCLUSIONS.some(path => currentPath.includes(path))) {
+            debugLog("*SNOW TOOL BELT* Info panel not shown on excluded page:", currentPath);
+            return false;
+        }
+        
+        // Fetch current update set and scope
+        if (!context.g_ck) {
+            debugLog("*SNOW TOOL BELT* Cannot create info panel: no session token");
+            return false;
+        }
+        
+        debugLog("*SNOW TOOL BELT* Fetching update set info...");
+        const concourseUrl = window.location.origin + "/api/now/ui/concoursepicker/current";
+        const headers = new Headers();
+        headers.append('Content-Type', 'application/json');
+        headers.append('Accept', 'application/json');
+        headers.append('X-UserToken', context.g_ck);
+        
+        const response = await fetch(concourseUrl, { headers: headers });
+        if (!response.ok) {
+            console.log("*SNOW TOOL BELT* Failed to fetch update set info");
+            return false;
+        }
+        
+        const text = await response.text();
+        const parsed = JSON.parse(text).result;
+        
+        // Extract scope and update set info
+        const scopeName = parsed.currentApplication?.name || 'Global';
+        const rawUpdateSetName = parsed.currentUpdateSet?.name || 'Default';
+        const updateSetName = cleanUpdateSetName(rawUpdateSetName, scopeName);
+        
+        debugLog("*SNOW TOOL BELT* Update set info fetched:", { scopeName, updateSetName });
+        
+        // Get theme colors
+        const colors = getThemeColors();
+        
+        // Create info panel container
+        const panel = document.createElement('div');
+        panel.className = 'sntb-info-panel';
+        panel.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: ${colors.bgSurface};
+            border: 2px solid ${instanceColor};
+            border-radius: 8px;
+            box-shadow: 0 4px 20px ${instanceColor}40;
+            padding: 12px 32px 12px 16px;
+            padding-top: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: ${colors.textPrimary};
+            z-index: 999998;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 600px;
+            opacity: 1;
+        `;
+        
+        // Create close button
+        const closeBtn = document.createElement('div');
+        closeBtn.className = 'sntb-info-panel-close';
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = `
+            position: absolute;
+            top: 2px;
+            right: 6px;
+            font-size: 18px;
+            font-weight: bold;
+            color: ${colors.highlight};
+            cursor: pointer;
+            line-height: 1;
+            padding: 2px 4px;
+            opacity: 1;
+            transition: color 0.2s ease;
+        `;
+        
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Save preference to hide the panel
+            storageAPI.local.set({ showInfoPanel: false }, () => {
+                debugLog("*SNOW TOOL BELT* Info panel hidden by user");
+                panel.remove();
+            });
+        });
+        
+        closeBtn.addEventListener('mouseenter', () => {
+            closeBtn.style.color = COLORS.ERROR;
+        });
+        
+        closeBtn.addEventListener('mouseleave', () => {
+            closeBtn.style.color = colors.highlight;
+        });
+        
+        panel.appendChild(closeBtn);
+        
+        // Create color square
+        const colorSquare = document.createElement('div');
+        colorSquare.className = 'sntb-info-panel-color';
+        colorSquare.style.cssText = `
+            width: 40px;
+            height: 40px;
+            background-color: ${instanceColor};
+            border-radius: 4px;
+            flex-shrink: 0;
+            box-shadow: 0 0 15px ${instanceColor};
+            opacity: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: ${colors.textSecondary};
+        `;
+        
+        // Add question mark if using default color
+        if (isDefaultColor) {
+            colorSquare.textContent = '?';
+        }
+        
+        // Create text container
+        const textContainer = createStyledDiv(null, 'display: flex; flex-direction: column; gap: 2px; overflow: hidden;');
+        
+        // Create info lines with common truncation styles
+        const truncateStyle = 'white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+        const instanceLine = createStyledDiv('sntb-info-panel-instance', 
+            `color: ${colors.textMuted}; font-size: 11px; font-weight: 400; ${truncateStyle} border-bottom: 1px solid ${colors.border}; padding-bottom: 4px; margin-bottom: 4px;`,
+            instanceDisplayName);
+        const scopeLine = createStyledDiv('sntb-info-panel-scope',
+            `color: ${colors.accent}; font-size: 12px; font-weight: 600; ${truncateStyle}`,
+            scopeName);
+        const updateSetLine = createStyledDiv('sntb-info-panel-updateset',
+            `color: ${colors.textPrimary}; font-size: 13px; font-weight: 700; ${truncateStyle}`,
+            updateSetName);
+        
+        textContainer.appendChild(instanceLine);
+        textContainer.appendChild(scopeLine);
+        textContainer.appendChild(updateSetLine);
+        
+        panel.appendChild(colorSquare);
+        panel.appendChild(textContainer);
+        
+        // Add click handler to toggle console
+        panel.addEventListener('click', (e) => {
+            // Don't toggle console if clicking the close button
+            if (e.target === closeBtn) return;
+            
+            if (window.sntbToggleConsole) {
+                window.sntbToggleConsole();
+            }
+        });
+        
+        // Add to document
+        document.body.appendChild(panel);
+        
+        debugLog("*SNOW TOOL BELT* Info panel created");
+        return true;
+        
+    } catch (error) {
+        console.log("*SNOW TOOL BELT* Error creating info panel:", error);
+        return false;
+    }
+}
+
+/**
+ * Refreshes the info panel with current data
+ */
+async function refreshInfoPanel() {
+    if (!context.g_ck) {
+        return;
+    }
+    
+    try {
+        debugLog("*SNOW TOOL BELT* Refreshing info panel...");
+        const concourseUrl = window.location.origin + "/api/now/ui/concoursepicker/current";
+        const headers = new Headers();
+        headers.append('Content-Type', 'application/json');
+        headers.append('Accept', 'application/json');
+        headers.append('X-UserToken', context.g_ck);
+        
+        const response = await fetch(concourseUrl, { headers: headers });
+        if (!response.ok) {
+            debugLog("*SNOW TOOL BELT* Failed to refresh info panel");
+            return;
+        }
+        
+        const text = await response.text();
+        const parsed = JSON.parse(text).result;
+        
+        updateInfoPanel(parsed);
+    } catch (error) {
+        console.log("*SNOW TOOL BELT* Error refreshing info panel:", error);
+    }
+}
+
+/**
+ * Sets up the info panel with retry logic
+ */
+function setupInfoPanel() {
+    debugLog("*SNOW TOOL BELT* Setting up info panel");
+    
+    // Check if user wants to show the info panel
+    storageAPI.local.get("showInfoPanel", (data) => {
+        const showPanel = data.showInfoPanel !== false; // Default to true if not set
+        
+        if (!showPanel) {
+            debugLog("*SNOW TOOL BELT* Info panel disabled by user preference");
+            return;
+        }
+        
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        const tryCreate = async () => {
+            attempts++;
+            debugLog("*SNOW TOOL BELT* Attempt", attempts, "to create info panel");
+            
+            const success = await createInfoPanel();
+            
+            if (success) {
+                debugLog("*SNOW TOOL BELT* Info panel successfully created");
+                
+                // Set up visibility change listener to refresh when tab becomes visible
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) {
+                        debugLog("*SNOW TOOL BELT* Tab became visible, refreshing info panel");
+                        refreshInfoPanel();
+                    }
+                });
+                
+                // Also refresh on focus
+                window.addEventListener('focus', () => {
+                    debugLog("*SNOW TOOL BELT* Window focused, refreshing info panel");
+                    refreshInfoPanel();
+                });
+                
+                return true;
+            }
+            
+            if (attempts >= maxAttempts) {
+                debugLog("*SNOW TOOL BELT* Max attempts reached for info panel");
+                return false;
+            }
+            
+            return false;
+        };
+        
+        // Try every 1 second for up to 10 seconds
+        const intervalId = setInterval(async () => {
+            const success = await tryCreate();
+            if (success || attempts >= maxAttempts) {
+                clearInterval(intervalId);
+            }
+        }, 1000);
+    });
 }
 
 /**
@@ -1018,6 +1420,18 @@ function initScript(options) {
     let targetWindow = frame ? frame.contentWindow : window;
     if (options.favIconColor !== undefined) {
         updateFavicon(options.favIconColor);
+    }
+    
+    // Store instance name if provided
+    if (options.instanceName !== undefined) {
+        instanceDisplayName = options.instanceName;
+        debugLog("*SNOW TOOL BELT* Instance name set to:", instanceDisplayName);
+        
+        // Update info panel if it already exists
+        const instanceLine = document.querySelector('.sntb-info-panel-instance');
+        if (instanceLine) {
+            instanceLine.textContent = instanceDisplayName;
+        }
     }
 
     // get session identifier "g_ck" from page
@@ -1314,6 +1728,45 @@ function backgroundScriptAddonRowTemplate(row, index) {
  */
 function updateFavicon(color) {
     debugLog("*SNOW TOOL BELT* update favicon color to: " + color);
+    
+    // Store the instance color for the info panel
+    if (color && color !== "") {
+        instanceColor = color;
+        isDefaultColor = false;
+        // Update info panel color if it exists
+        const colorSquare = document.querySelector('.sntb-info-panel-color');
+        if (colorSquare) {
+            colorSquare.style.backgroundColor = color;
+            colorSquare.style.boxShadow = `0 0 15px ${color}`;
+            colorSquare.style.opacity = '1';
+            // Remove question mark when custom color is set
+            colorSquare.textContent = '';
+        }
+        const panel = document.querySelector('.sntb-info-panel');
+        if (panel) {
+            panel.style.borderColor = color;
+            panel.style.boxShadow = `0 4px 20px ${color}40`;
+        }
+    } else {
+        // No custom color set, use default teal with question mark
+        isDefaultColor = true;
+        const colors = getThemeColors();
+        const colorSquare = document.querySelector('.sntb-info-panel-color');
+        if (colorSquare) {
+            colorSquare.style.backgroundColor = instanceColor;
+            colorSquare.style.boxShadow = `0 0 15px ${instanceColor}`;
+            colorSquare.style.opacity = '1';
+            colorSquare.style.color = colors.textSecondary;
+            // Add question mark for default color
+            colorSquare.textContent = '?';
+        }
+        const panel = document.querySelector('.sntb-info-panel');
+        if (panel) {
+            panel.style.borderColor = instanceColor;
+            panel.style.boxShadow = `0 4px 20px ${instanceColor}40`;
+        }
+    }
+    
     if (color === undefined || color === "") {
         return true;
     }
@@ -2279,7 +2732,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
 
 (function () {
     console.log("*SNOW TOOL BELT* Content script loaded on:", window.location.href);
-    console.log("*SNOW TOOL BELT* Browser:", typeof browser !== "undefined" ? "Firefox" : "Chrome");
+    debugLog("*SNOW TOOL BELT* Browser:", typeof browser !== "undefined" ? "Firefox" : "Chrome");
 
     // Firefox-specific: Add a delay to ensure background script is ready
     const initializeExtension = () => {
@@ -2295,7 +2748,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     console.error("*SNOW TOOL BELT* Runtime error:", runtimeAPI.lastError);
                     // Firefox fallback: if background script fails, check if this looks like ServiceNow
                     if (window.location.hostname.includes("service-now.com")) {
-                        console.log("*SNOW TOOL BELT* Fallback: Detected ServiceNow domain, initializing...");
+                        debugLog("*SNOW TOOL BELT* Fallback: Detected ServiceNow domain, initializing...");
                         initScript({ isServiceNow: true, favIconColor: "", hidden: false });
                     }
                     return;
@@ -2314,7 +2767,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                         let updateSetInfo = null;
                         if (context.g_ck) {
                             try {
-                                const concourseUrl = window.location.origin + "/api/now/ui/concoursepicker/updateset";
+                                const concourseUrl = window.location.origin + "/api/now/ui/concoursepicker/current";
                                 const headers = new Headers();
                                 headers.append('Content-Type', 'application/json');
                                 headers.append('Accept', 'application/json');
@@ -2326,17 +2779,18 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                     const text = await response.text();
                                     const parsed = JSON.parse(text).result;
                                     updateSetInfo = {
-                                        updateSet: parsed.updateSet,
-                                        current: parsed.current
+                                        current: parsed.currentUpdateSet,
+                                        application: parsed.currentApplication,
+                                        domain: parsed.currentDomain
                                     };
-                                    console.log("*SNOW TOOL BELT* Phase 1: Fetched update set:", updateSetInfo.current?.name);
+                                    debugLog("*SNOW TOOL BELT* Phase 1: Fetched update set:", updateSetInfo.current?.name);
                                 }
                             } catch (error) {
-                                console.log("*SNOW TOOL BELT* Phase 1: Could not fetch update set:", error);
+                                debugLog("*SNOW TOOL BELT* Phase 1: Could not fetch update set:", error);
                             }
                         }
                         
-                        console.log("*SNOW TOOL BELT* Phase 1: Reporting tab state to background:", tabInfo);
+                        debugLog("*SNOW TOOL BELT* Phase 1: Reporting tab state to background:", tabInfo);
                         runtimeAPI.sendMessage({
                             command: "reportTabState",
                             tabInfo: {
@@ -2348,15 +2802,18 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                             }
                         }, (response) => {
                             if (response && response.success) {
-                                console.log("*SNOW TOOL BELT* Phase 1: Tab state reported successfully");
+                                debugLog("*SNOW TOOL BELT* Phase 1: Tab state reported successfully");
                             } else {
-                                console.log("*SNOW TOOL BELT* Phase 1: Failed to report tab state", response);
+                                debugLog("*SNOW TOOL BELT* Phase 1: Failed to report tab state", response);
                             }
                         });
                     }, 1000); // Wait 1 second for page to stabilize
 
                     // Monitor update set changes
                     setupUpdateSetMonitoring();
+                    
+                    // Create info panel at bottom-left
+                    setupInfoPanel();
 
                     // Defining how to react to messages coming from the background script or the browser action
                     runtimeAPI.onMessage.addListener(function (request, sender, sendResponse) {
@@ -2401,10 +2858,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                         } else if (request.command === "getUpdateSet") {
                             // console.log("*SNOW TOOL BELT* getting update set informations");
                             if (!context.g_ck) {
-                                sendResponse({ "updateSet": "", "current": "", "status": 200 });
+                                sendResponse({ "currentUpdateSet": "", "currentApplication": "", "currentDomain": "", "status": 200 });
                                 return false;
                             }
-                            let concourseUrl = new Request(window.location.origin + "/api/now/ui/concoursepicker/updateset");
+                            let concourseUrl = new Request(window.location.origin + "/api/now/ui/concoursepicker/current");
                             let headers = new Headers();
                             headers.append('Content-Type', 'application/json');
                             headers.append('Accept', 'application/json');
@@ -2418,16 +2875,21 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                         return response.text().then(function (txt) {
                                             try {
                                                 let parsed = JSON.parse(txt).result;
-                                                sendResponse({ "updateSet": parsed.updateSet, "current": parsed.current, "status": 200 });
+                                                sendResponse({ 
+                                                    "currentUpdateSet": parsed.currentUpdateSet, 
+                                                    "currentApplication": parsed.currentApplication, 
+                                                    "currentDomain": parsed.currentDomain, 
+                                                    "status": 200 
+                                                });
                                             } catch (e) {
                                                 // console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
-                                                sendResponse({ "updateSet": "", "current": "", "status": 200 });
+                                                sendResponse({ "currentUpdateSet": "", "currentApplication": "", "currentDomain": "", "status": 200 });
                                             }
                                         });
                                     } else {
                                         // there was an error while fetching xmlstats, stop here
                                         // console.log("*SNOW TOOL BELT* there was an error while fetching concourse API, stopping now: " + response.status);
-                                        sendResponse({ "updateset": "", "current": "", "status": response.status });
+                                        sendResponse({ "currentUpdateSet": "", "currentApplication": "", "currentDomain": "", "status": response.status });
                                     }
                                 });
                             return true;
@@ -2688,16 +3150,22 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         
         // Inject minimal CSS
         const style = document.createElement('style');
+        // Get theme colors for console
+        const consoleColors = getThemeColors();
+        const isDark = isDarkMode();
+        
+        const theme = isDark ? COLORS.DARK : COLORS.LIGHT;
         style.textContent = `
             /* CSS Variables for consistent theming */
             :root {
-                --sntb-color-primary: #00ff00;
-                --sntb-color-secondary: #00aa00;
-                --sntb-color-bg-dark: #0d0d0d;
-                --sntb-color-bg-medium: #1a1a1a;
-                --sntb-color-bg-light: rgba(0, 255, 0, 0.1);
-                --sntb-color-border: #00ff00;
-                --sntb-font-family: 'Courier New', monospace;
+                --sntb-color-primary: ${consoleColors.accent};
+                --sntb-color-secondary: ${consoleColors.textMuted};
+                --sntb-color-bg-dark: ${theme.BG_PRIMARY};
+                --sntb-color-bg-medium: ${theme.BG_SECONDARY};
+                --sntb-color-bg-light: rgba(77, 182, 172, 0.1);
+                --sntb-color-border: ${consoleColors.accent};
+                --sntb-color-text: ${consoleColors.textPrimary};
+                --sntb-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
                 --sntb-transition-fast: 0.2s;
                 --sntb-transition-medium: 0.3s;
             }
@@ -2708,14 +3176,14 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 left: 0;
                 right: 0;
                 height: 500px;
-                background: linear-gradient(0deg, var(--sntb-color-bg-medium) 0%, var(--sntb-color-bg-dark) 100%);
+                background: linear-gradient(0deg, ${theme.BG_SECONDARY} 0%, ${theme.BG_PRIMARY} 100%);
                 border-top: 3px solid var(--sntb-color-border);
-                box-shadow: 0 -4px 20px rgba(0, 255, 0, 0.3);
+                box-shadow: 0 -4px 20px ${consoleColors.accent}40;
                 z-index: 999999;
                 font-family: var(--sntb-font-family);
-                color: var(--sntb-color-primary);
+                color: var(--sntb-color-text);
                 padding: 0;
-                opacity: 0.95;
+                opacity: 0.9;
                 transform: translateY(calc(100% + 30px));
                 transition: transform var(--sntb-transition-medium) cubic-bezier(0.68, -0.55, 0.265, 1.55);
                 pointer-events: none;
@@ -2743,7 +3211,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-resize-handle:hover {
-                background: rgba(0, 255, 0, 0.3);
+                background: var(--sntb-color-bg-light);
             }
             
             .sntb-console-header {
@@ -2804,7 +3272,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-btn:hover {
-                background: rgba(0, 255, 0, 0.2);
+                background: var(--sntb-color-bg-light);
                 border-color: var(--sntb-color-primary);
                 color: var(--sntb-color-primary);
             }
@@ -2850,7 +3318,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-input::placeholder {
-                color: #006600;
+                color: var(--sntb-color-secondary);
             }
             
             .sntb-console-results {
@@ -2865,8 +3333,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             
             .sntb-console-group-header {
                 padding: 8px 12px;
-                background: rgba(0, 255, 0, 0.1);
-                border-left: 3px solid #00ff00;
+                background: var(--sntb-color-bg-light);
+                border-left: 3px solid var(--sntb-color-primary);
                 cursor: pointer;
                 display: flex;
                 align-items: center;
@@ -2875,24 +3343,24 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-group-header:hover {
-                background: rgba(0, 255, 0, 0.2);
+                background: var(--sntb-color-bg-medium);
             }
             
             .sntb-console-group-toggle {
                 font-size: 12px;
-                color: #00ff00;
+                color: var(--sntb-color-primary);
                 width: 16px;
             }
             
             .sntb-console-group-title {
                 font-size: 14px;
                 font-weight: bold;
-                color: #00ff00;
+                color: var(--sntb-color-text);
             }
             
             .sntb-console-group-count {
                 font-size: 12px;
-                color: #00aa00;
+                color: var(--sntb-color-secondary);
                 margin-left: 4px;
             }
             
@@ -2903,8 +3371,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             .sntb-console-result-item {
                 padding: 8px 12px;
                 margin: 4px 0;
-                background: rgba(0, 255, 0, 0.05);
-                border-left: 3px solid #00ff00;
+                background: var(--sntb-color-bg-light);
+                border-left: 3px solid var(--sntb-color-primary);
                 cursor: pointer;
                 transition: all 0.2s;
                 white-space: nowrap;
@@ -2912,12 +3380,12 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-result-item.grouped {
-                border-left: 2px solid #00aa00;
-                background: rgba(0, 255, 0, 0.03);
+                border-left: 2px solid var(--sntb-color-secondary);
+                background: var(--sntb-color-bg-light);
             }
             
             .sntb-console-result-item:hover {
-                background: rgba(0, 255, 0, 0.15);
+                background: var(--sntb-color-bg-medium);
                 border-left-width: 6px;
                 padding-left: 9px;
             }
@@ -2934,13 +3402,13 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             
             .sntb-console-result-class {
                 font-size: 12px;
-                color: #00aa00;
+                color: var(--sntb-color-secondary);
                 margin-left: 8px;
             }
             
             .sntb-console-result-details {
                 font-size: 12px;
-                color: #00aa00;
+                color: var(--sntb-color-secondary);
                 margin-left: 8px;
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -2953,7 +3421,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             .sntb-console-loading {
                 text-align: left;
                 padding: 12px;
-                color: #00aa00;
+                color: var(--sntb-color-secondary);
                 animation: sntb-blink 1s infinite;
             }
             
@@ -2969,7 +3437,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-success {
-                color: #00ff00;
+                color: var(--sntb-color-primary);
                 padding: 12px;
             }
             
@@ -2986,23 +3454,23 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             .sntb-console-section-title {
                 font-weight: bold;
                 margin-bottom: 8px;
-                color: #00ff00;
+                color: var(--sntb-color-text);
             }
             
             .sntb-console-section-subtitle {
                 font-weight: bold;
                 margin-top: 16px;
                 margin-bottom: 8px;
-                color: #00ff00;
+                color: var(--sntb-color-text);
             }
             
             .sntb-console-label {
-                color: #00aa00;
+                color: var(--sntb-color-secondary);
                 margin-bottom: 4px;
             }
             
             .sntb-console-value {
-                color: #00ff00;
+                color: var(--sntb-color-text);
             }
             
             .sntb-console-item {
@@ -3010,21 +3478,21 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-item-active {
-                color: #00ff00;
+                color: var(--sntb-color-text);
                 font-weight: bold;
             }
             
             .sntb-console-item-inactive {
-                color: #00aa00;
+                color: var(--sntb-color-secondary);
             }
             
             .sntb-console-command {
-                color: #00ff00;
+                color: var(--sntb-color-primary);
                 font-weight: bold;
             }
             
             .sntb-console-command-desc {
-                color: #006600;
+                color: var(--sntb-color-secondary);
                 margin-left: 16px;
             }
             
@@ -3036,17 +3504,17 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-table th {
-                border: 1px solid #00aa00;
+                border: 1px solid var(--sntb-color-primary);
                 padding: 4px 8px;
-                color: #00ff00;
+                color: var(--sntb-color-primary);
                 text-align: center;
                 background-color: #1a1a1a;
             }
             
             .sntb-console-table td {
-                border: 1px solid #00aa00;
+                border: 1px solid var(--sntb-color-primary);
                 padding: 4px 8px;
-                color: #00ff00;
+                color: var(--sntb-color-primary);
                 text-align: center;
             }
             
@@ -3056,14 +3524,14 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 padding: 4px 0 4px 8px;
                 margin-bottom: 2px;
                 border-bottom: 1px solid #1a1a1a;
-                border-left: 2px solid #00aa00;
+                border-left: 2px solid var(--sntb-color-primary);
                 display: flex;
                 gap: 8px;
                 align-items: flex-start;
             }
             
             .sntb-console-log-time {
-                color: #00aa00;
+                color: var(--sntb-color-primary);
                 cursor: pointer;
                 text-decoration: none;
                 flex-shrink: 0;
@@ -3071,7 +3539,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-log-time:hover {
-                color: #00ff00;
+                color: var(--sntb-color-text);
                 text-decoration: underline;
             }
             
@@ -3084,7 +3552,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-log-source {
-                color: #00aa00;
+                color: var(--sntb-color-primary);
                 flex-shrink: 0;
                 width: 120px;
                 overflow: hidden;
@@ -3093,7 +3561,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-log-message {
-                color: #00ff00;
+                color: var(--sntb-color-text);
                 flex: 1;
                 word-break: break-word;
                 white-space: pre-wrap;
@@ -3108,7 +3576,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             }
             
             .sntb-console-results::-webkit-scrollbar-thumb {
-                background: #00ff00;
+                background: var(--sntb-color-primary);
                 border-radius: 4px;
             }
         `;
@@ -3316,8 +3784,9 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         
         // Only autocomplete if we're still on the command part (no spaces after)
         if (parts.length === 1 || (parts.length === 2 && input.endsWith(' '))) {
-            // Only complete to full command labels (exclude shortcuts like 's', 'h', 'v', 'n', 'bg', 'st', 'l', 'r', 'cs')
-            const fullCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch'];
+            // Get all command names from the commands object, excluding single-letter shortcuts
+            const allCommands = Object.keys(commands);
+            const fullCommands = allCommands.filter(cmd => cmd.length > 1);
             const matches = fullCommands.filter(cmd => cmd.startsWith(commandPart));
             
             if (matches.length === 1) {
@@ -3348,7 +3817,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 html += '<div class="sntb-console-section-title">▸ AVAILABLE COMMANDS:</div>';
                 
                 // Only show main commands (not shortcuts), exclude help itself, and sort alphabetically
-                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch'].sort();
+                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang'].sort();
                 mainCommands.forEach(cmd => {
                     const command = commands[cmd];
                     // Escape HTML entities manually to preserve <term> display
@@ -3880,7 +4349,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                 // If this is the first fetch, create the header
                                 if (displayedLogs.length === newLogs.length) {
                                     let html = '<div id="syslog-stream-container" style="padding: 12px; font-family: monospace; font-size: 11px; line-height: 1.4;">';
-                                    html += '<div style="font-weight: bold; margin-bottom: 8px; color: #00ff00;">▸ SYSLOG STREAM';
+                                    html += `<div style="font-weight: bold; margin-bottom: 8px; color: ${COLORS.INFO};">▸ SYSLOG STREAM`;
                                     if (searchTerm) {
                                         html += ` (filter: ${DOMPurify.sanitize(searchTerm)})`;
                                     }
@@ -3909,11 +4378,11 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                     const source = DOMPurify.sanitize(sourceDisplay || '');
                                     let message = DOMPurify.sanitize(messageDisplay || '');
                                     
-                                    // Color based on level value (0=info/green, 1=warn/orange, 2=error/red)
-                                    let levelColor = '#00ff00';
-                                    if (levelValue === '2' || levelValue === 'error') levelColor = '#ff0000';
-                                    else if (levelValue === '1' || levelValue === 'warn') levelColor = '#ffaa00';
-                                    else if (levelValue === '0' || levelValue === 'info' || levelValue === 'information') levelColor = '#00ff00';
+                                    // Color based on level value (0=info/teal, 1=warn/orange, 2=error/red)
+                                    let levelColor = COLORS.INFO;
+                                    if (levelValue === '2' || levelValue === 'error') levelColor = COLORS.ERROR;
+                                    else if (levelValue === '1' || levelValue === 'warn') levelColor = COLORS.WARNING;
+                                    else if (levelValue === '0' || levelValue === 'info' || levelValue === 'information') levelColor = COLORS.INFO;
                                     
                                     // Format level display (no padding needed with flex layout)
                                     const formattedLevel = DOMPurify.sanitize(levelDisplay.toUpperCase());
@@ -3987,6 +4456,69 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             execute: async (args) => {
                 await commands.logs.execute(args);
             }
+        },
+        lang: {
+            description: 'Change user language (e.g., en, fr, de)',
+            usage: 'lang <code>',
+            execute: async (args) => {
+                if (!args || args.length === 0) {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Usage: lang &lt;code&gt; (e.g., lang en, lang fr)</div>';
+                    return;
+                }
+                
+                const langCode = args[0].toLowerCase().trim();
+                
+                // Validate language code format (2 letters)
+                if (!/^[a-z]{2}$/.test(langCode)) {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Invalid language code. Use 2-letter code (e.g., en, fr, de)</div>';
+                    return;
+                }
+                
+                try {
+                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Changing language to ' + DOMPurify.sanitize(langCode) + '...</div>';
+                    
+                    // Get current user sys_id
+                    const userResponse = await fetch(window.location.origin + '/api/now/ui/user/current_user', {
+                        headers: {
+                            'X-UserToken': context.g_ck
+                        }
+                    });
+                    
+                    if (!userResponse.ok) {
+                        throw new Error('Failed to get current user');
+                    }
+                    
+                    const userData = await userResponse.json();
+                    const userSysId = userData.result.user_sys_id;
+                    
+                    // Update user language preference
+                    const updateResponse = await fetch(window.location.origin + '/api/now/table/sys_user/' + userSysId, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-UserToken': context.g_ck
+                        },
+                        body: JSON.stringify({
+                            preferred_language: langCode
+                        })
+                    });
+                    
+                    if (!updateResponse.ok) {
+                        throw new Error('Failed to update language preference');
+                    }
+                    
+                    // Reload the current tab to apply language change
+                    consoleResults.innerHTML = '<div class="sntb-console-success">✓ Language changed to ' + DOMPurify.sanitize(langCode) + '. Reloading page...</div>';
+                    
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 500);
+                    
+                } catch (error) {
+                    const errorMsg = DOMPurify.sanitize(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to change language: ' + errorMsg + '</div>';
+                }
+            }
         }
     };
     
@@ -4038,7 +4570,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             html += '<div class="sntb-console-info">';
             html += '<div class="sntb-console-section-title">▸ Available commands:</div>';
             
-            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch'];
+            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang'];
             mainCommands.forEach(cmd => {
                 const cmdObj = commands[cmd];
                 const safeUsage = escapeHtml(cmdObj.usage);
@@ -4275,6 +4807,9 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         }
     });
     
-    console.log("*SNOW TOOL BELT* Console initialized (Ctrl+Shift+K)");
+    // Expose toggleConsole globally for info panel
+    window.sntbToggleConsole = toggleConsole;
+    
+    console.log("*SNOW TOOL BELT* Console initialized");
 })();
 
