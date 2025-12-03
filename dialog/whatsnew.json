@@ -1,5 +1,14 @@
 [
     {
+        "version": "7.8.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Made the in-page information panel more handy",
+            "Search by name now also searches for update sets",
+            "Search by name now takes '*' as a wildcard both at first and/or last positions"
+        ]
+    },
+    {
         "version": "7.7.0",
         "msg": "Most notable changes:",
         "items": [
