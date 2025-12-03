@@ -46,7 +46,8 @@ const INFO_PANEL_EXCLUSIONS = [
     '/sys_update_version.do',
     '/sys_update_version_list.do',
     '/sys.scripts.modern.do',
-    '/sys.scripts.do'
+    '/sys.scripts.do',
+    '/sn_glider_app/ide.do'
 ];
 
 const context = {
@@ -1098,6 +1099,127 @@ function updateInfoPanel(parsed) {
     }
 }
 
+// Track if user manually changed panel state
+let panelManuallyMinimized = false;
+
+/**
+ * Checks if window is small (like a popup)
+ */
+function isSmallWindow() {
+    return window.innerWidth < 600 || window.innerHeight < 400;
+}
+
+/**
+ * Minimizes the info panel to a compact version
+ */
+function minimizePanel(panel, colors, isManual = false) {
+    debugLog("*SNOW TOOL BELT* Minimizing info panel", isManual ? "(manual)" : "(automatic)");
+    
+    if (isManual) {
+        panelManuallyMinimized = true;
+    }
+    
+    // Hide the full panel
+    panel.style.display = 'none';
+    
+    // Create minimized version
+    const miniPanel = document.createElement('div');
+    miniPanel.className = 'sntb-info-panel-mini';
+    miniPanel.style.cssText = `
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        background: ${instanceColor};
+        border: 2px solid ${instanceColor};
+        border-radius: 4px 4px 0 0;
+        box-shadow: 0 2px 10px ${instanceColor}80;
+        padding: 6px 8px;
+        z-index: 999998;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    `;
+    
+    // Add expand button
+    const expandBtn = document.createElement('span');
+    expandBtn.textContent = '▲';
+    expandBtn.style.cssText = `
+        color: ${colors.textSecondary};
+        font-size: 14px;
+        font-weight: normal;
+        cursor: pointer;
+        opacity: 0.9;
+        transition: opacity 0.2s ease;
+    `;
+    
+    expandBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        restorePanel(panel, miniPanel, true);
+    });
+    
+    expandBtn.addEventListener('mouseenter', () => {
+        expandBtn.style.opacity = '1';
+    });
+    
+    expandBtn.addEventListener('mouseleave', () => {
+        expandBtn.style.opacity = '0.9';
+    });
+    
+    // Add close button
+    const miniCloseBtn = document.createElement('span');
+    miniCloseBtn.textContent = '✕';
+    miniCloseBtn.style.cssText = `
+        color: ${colors.textSecondary};
+        font-size: 14px;
+        font-weight: normal;
+        cursor: pointer;
+        opacity: 0.9;
+        transition: opacity 0.2s ease;
+    `;
+    
+    miniCloseBtn.addEventListener('mouseenter', () => {
+        miniCloseBtn.style.opacity = '1';
+    });
+    
+    miniCloseBtn.addEventListener('mouseleave', () => {
+        miniCloseBtn.style.opacity = '0.9';
+    });
+    
+    miniCloseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        storageAPI.local.set({ showInfoPanel: false }, () => {
+            debugLog("*SNOW TOOL BELT* Info panel closed from mini view");
+            miniPanel.remove();
+            panel.remove();
+        });
+    });
+    
+    // Click anywhere on mini panel to expand
+    miniPanel.addEventListener('click', () => {
+        restorePanel(panel, miniPanel, true);
+    });
+    
+    miniPanel.appendChild(expandBtn);
+    miniPanel.appendChild(miniCloseBtn);
+    document.body.appendChild(miniPanel);
+}
+
+/**
+ * Restores the info panel from minimized state
+ */
+function restorePanel(panel, miniPanel, isManual = false) {
+    debugLog("*SNOW TOOL BELT* Restoring info panel", isManual ? "(manual)" : "(automatic)");
+    
+    if (isManual) {
+        panelManuallyMinimized = false;
+    }
+    
+    panel.style.display = 'flex';
+    if (miniPanel) miniPanel.remove();
+}
+
 /**
  * Creates the info panel at bottom-left of screen
  */
@@ -1162,11 +1284,10 @@ async function createInfoPanel() {
             border-radius: 8px;
             box-shadow: 0 4px 20px ${instanceColor}40;
             padding: 12px 32px 12px 16px;
-            padding-top: 8px;
+            padding-top: 24px;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             color: ${colors.textPrimary};
             z-index: 999998;
-            cursor: pointer;
             display: flex;
             align-items: center;
             gap: 12px;
@@ -1174,22 +1295,129 @@ async function createInfoPanel() {
             opacity: 1;
         `;
         
+        // Create drag handle (grip)
+        const dragHandle = document.createElement('div');
+        dragHandle.className = 'sntb-info-panel-grip';
+        dragHandle.style.cssText = `
+            position: absolute;
+            top: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px;
+            height: 12px;
+            cursor: move;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        `;
+        
+        // Add grip dots
+        for (let i = 0; i < 6; i++) {
+            const dot = document.createElement('div');
+            dot.style.cssText = `
+                width: 3px;
+                height: 3px;
+                background: ${colors.textMuted};
+                border-radius: 50%;
+                opacity: 0.5;
+            `;
+            dragHandle.appendChild(dot);
+        }
+        
+        // Make panel draggable
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let offsetX;
+        let offsetY;
+        
+        dragHandle.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            
+            // Get current position - convert bottom to top if needed
+            const rect = panel.getBoundingClientRect();
+            const currentTop = rect.top;
+            const currentLeft = rect.left;
+            
+            // Calculate offset from mouse to panel corner
+            offsetX = e.clientX - currentLeft;
+            offsetY = e.clientY - currentTop;
+            
+            // Switch to top/left positioning for easier dragging
+            panel.style.bottom = 'auto';
+            panel.style.top = currentTop + 'px';
+            panel.style.left = currentLeft + 'px';
+            
+            dragHandle.style.cursor = 'grabbing';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                e.preventDefault();
+                
+                // Calculate new position
+                currentX = e.clientX - offsetX;
+                currentY = e.clientY - offsetY;
+                
+                // Keep panel within viewport bounds
+                const maxX = window.innerWidth - panel.offsetWidth;
+                const maxY = window.innerHeight - panel.offsetHeight;
+                
+                currentX = Math.max(0, Math.min(currentX, maxX));
+                currentY = Math.max(0, Math.min(currentY, maxY));
+                
+                panel.style.left = currentX + 'px';
+                panel.style.top = currentY + 'px';
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                dragHandle.style.cursor = 'move';
+            }
+        });
+        
+        panel.appendChild(dragHandle);
+        
+        // Create minimize button
+        const minimizeBtn = document.createElement('div');
+        minimizeBtn.className = 'sntb-info-panel-minimize';
+        minimizeBtn.textContent = '▼';
+        minimizeBtn.style.cssText = `
+            position: absolute;
+            top: 4px;
+            right: 24px;
+            font-size: 12px;
+            font-weight: normal;
+            color: ${colors.textMuted};
+            cursor: pointer;
+            line-height: 1;
+            padding: 2px;
+            opacity: 0.7;
+        `;
+        
+        minimizeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            minimizePanel(panel, colors, true);
+        });
+        
         // Create close button
         const closeBtn = document.createElement('div');
         closeBtn.className = 'sntb-info-panel-close';
-        closeBtn.textContent = '×';
+        closeBtn.textContent = '✕';
         closeBtn.style.cssText = `
             position: absolute;
-            top: 2px;
+            top: 4px;
             right: 6px;
-            font-size: 18px;
-            font-weight: bold;
-            color: ${colors.highlight};
+            font-size: 14px;
+            font-weight: normal;
+            color: ${colors.textMuted};
             cursor: pointer;
             line-height: 1;
-            padding: 2px 4px;
-            opacity: 1;
-            transition: color 0.2s ease;
+            padding: 2px;
+            opacity: 0.7;
         `;
         
         closeBtn.addEventListener('click', (e) => {
@@ -1201,14 +1429,7 @@ async function createInfoPanel() {
             });
         });
         
-        closeBtn.addEventListener('mouseenter', () => {
-            closeBtn.style.color = COLORS.ERROR;
-        });
-        
-        closeBtn.addEventListener('mouseleave', () => {
-            closeBtn.style.color = colors.highlight;
-        });
-        
+        panel.appendChild(minimizeBtn);
         panel.appendChild(closeBtn);
         
         // Create color square
@@ -1259,8 +1480,9 @@ async function createInfoPanel() {
         
         // Add click handler to toggle console
         panel.addEventListener('click', (e) => {
-            // Don't toggle console if clicking the close button
-            if (e.target === closeBtn) return;
+            // Don't toggle console if clicking buttons or drag handle
+            if (e.target === closeBtn || e.target === minimizeBtn || 
+                e.target === dragHandle || dragHandle.contains(e.target)) return;
             
             if (window.sntbToggleConsole) {
                 window.sntbToggleConsole();
@@ -1269,6 +1491,34 @@ async function createInfoPanel() {
         
         // Add to document
         document.body.appendChild(panel);
+        
+        // Check initial window size and minimize if small
+        if (isSmallWindow()) {
+            debugLog("*SNOW TOOL BELT* Small window detected, auto-minimizing panel");
+            setTimeout(() => minimizePanel(panel, colors, false), 100);
+        }
+        
+        // Add resize listener to handle window size changes
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                const miniPanel = document.querySelector('.sntb-info-panel-mini');
+                const isCurrentlyMinimized = miniPanel !== null;
+                const shouldBeMinimized = isSmallWindow();
+                
+                // Only auto-adjust if user hasn't manually changed state
+                if (!panelManuallyMinimized) {
+                    if (shouldBeMinimized && !isCurrentlyMinimized) {
+                        debugLog("*SNOW TOOL BELT* Window became small, auto-minimizing");
+                        minimizePanel(panel, colors, false);
+                    } else if (!shouldBeMinimized && isCurrentlyMinimized) {
+                        debugLog("*SNOW TOOL BELT* Window became large, auto-restoring");
+                        restorePanel(panel, miniPanel, false);
+                    }
+                }
+            }, 250);
+        });
         
         debugLog("*SNOW TOOL BELT* Info panel created");
         return true;
@@ -2564,43 +2814,90 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
 
 
 
-    // Check if this is a "starts with" search (ends with *)
-    const isStartsWithSearch = searchValue.endsWith('*');
-    const cleanSearchValue = isStartsWithSearch ? searchValue.slice(0, -1) : searchValue;
+    // Determine wildcard search pattern
+    const startsWithWildcard = searchValue.startsWith('*');
+    const endsWithWildcard = searchValue.endsWith('*');
+    
+    // Clean the search value by removing wildcards
+    let cleanSearchValue = searchValue;
+    if (startsWithWildcard) cleanSearchValue = cleanSearchValue.slice(1);
+    if (endsWithWildcard) cleanSearchValue = cleanSearchValue.slice(0, -1);
+    
+    // Determine search type based on wildcard positions
+    let searchPattern;
+    let searchDescription;
+    
+    if (startsWithWildcard && endsWithWildcard) {
+        // *test* - contains
+        searchPattern = 'contains';
+        searchDescription = 'contains';
+    } else if (startsWithWildcard) {
+        // *test - ends with
+        searchPattern = 'endsWith';
+        searchDescription = 'ends with';
+    } else if (endsWithWildcard) {
+        // test* - starts with
+        searchPattern = 'startsWith';
+        searchDescription = 'starts with';
+    } else {
+        // test - exact match
+        searchPattern = 'exact';
+        searchDescription = 'exact match';
+    }
+    
+    debugLog("*SNOW TOOL BELT* Search pattern:", searchPattern, "Clean value:", cleanSearchValue);
 
-    debugLog("*SNOW TOOL BELT* Search type:", isStartsWithSearch ? "starts with" : "exact match", "Clean value:", cleanSearchValue);
+    // Helper function to build query based on search pattern
+    const buildQuery = (fieldName, value, pattern) => {
+        switch (pattern) {
+            case 'contains':
+                return `${fieldName}LIKE${value}`;
+            case 'endsWith':
+                return `${fieldName}ENDSWITH${value}`;
+            case 'startsWith':
+                return `${fieldName}STARTSWITH${value}`;
+            case 'exact':
+            default:
+                return `${fieldName}=${value}`;
+        }
+    };
 
     // Define search tables in order
     const searchTables = [
         {
             table: 'sys_metadata',
-            query: isStartsWithSearch ? `sys_nameSTARTSWITH${cleanSearchValue}` : `sys_name=${cleanSearchValue}`,
+            query: buildQuery('sys_name', cleanSearchValue, searchPattern),
             fields: 'sys_id,name,sys_name,sys_class_name,sys_updated_on',
             nameField: 'sys_name',
             displayName: 'Object'
         },
         {
             table: 'cmdb_ci',
-            query: isStartsWithSearch ? `nameSTARTSWITH${cleanSearchValue}` : `name=${cleanSearchValue}`,
+            query: buildQuery('name', cleanSearchValue, searchPattern),
             fields: 'sys_id,name,sys_class_name,sys_updated_on',
             nameField: 'name',
             displayName: 'Configuration Item'
         },
         {
             table: 'sys_user',
-            query: isStartsWithSearch 
-                ? `user_nameSTARTSWITH${cleanSearchValue}^ORemployee_numberSTARTSWITH${cleanSearchValue}^ORemailSTARTSWITH${cleanSearchValue}`
-                : `user_name=${cleanSearchValue}^ORemployee_number=${cleanSearchValue}^ORemail=${cleanSearchValue}`,
+            query: `${buildQuery('user_name', cleanSearchValue, searchPattern)}^OR${buildQuery('employee_number', cleanSearchValue, searchPattern)}^OR${buildQuery('email', cleanSearchValue, searchPattern)}`,
             fields: 'sys_id,user_name,name,first_name,last_name,email,employee_number,active',
             nameField: 'user_name',
             displayName: 'User'
         },
         {
             table: 'sys_user_group',
-            query: isStartsWithSearch ? `nameSTARTSWITH${cleanSearchValue}` : `name=${cleanSearchValue}`,
+            query: buildQuery('name', cleanSearchValue, searchPattern),
             fields: 'sys_id,name,description,active',
             nameField: 'name',
             displayName: 'Group'
+        },
+        {
+            table: 'sys_update_set',
+            query: buildQuery('name', cleanSearchValue, searchPattern),
+            fields: 'sys_id,name,description,state,application,sys_updated_on',
+            nameField: 'name',
+            displayName: 'Update Set'
         }
     ];
 
@@ -2672,7 +2969,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                 sourceTable: searchConfig.table,
                                 actualClass: actualClass,
                                 directUrl: `https://${host}/${actualClass}.do?sys_id=${record.sys_id}`,
-                                description: `${searchConfig.displayName} ${isStartsWithSearch ? 'starts with' : 'exact'} match`,
+                                description: `${searchConfig.displayName} ${searchDescription}`,
                                 updated: record.sys_updated_on,
                                 email: searchConfig.table === 'sys_user' ? getDisplayValue(record.email) : undefined,
                                 employeeNumber: searchConfig.table === 'sys_user' ? getDisplayValue(record.employee_number) : undefined,
@@ -2714,7 +3011,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             found: true,
             totalResults: allResults.length,
             searchedTables: searchedTables,
-            isStartsWithSearch: isStartsWithSearch,
+            searchPattern: searchPattern,
+            searchDescription: searchDescription,
             hitLimit: hitLimit
         };
     }
@@ -3136,9 +3434,9 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 </div>
                 <div class="sntb-console-header-right">
                     <span class="sntb-console-hint">↑↓ for history</span>
-                    <button class="sntb-console-btn sntb-console-btn-minus" title="Decrease size">−</button>
-                    <button class="sntb-console-btn sntb-console-btn-plus" title="Increase size">+</button>
-                    <button class="sntb-console-btn sntb-console-btn-close" title="Close (ESC)">×</button>
+                    <button class="sntb-console-btn sntb-console-btn-minus" title="Decrease size">▼</button>
+                    <button class="sntb-console-btn sntb-console-btn-plus" title="Increase size">▲</button>
+                    <button class="sntb-console-btn sntb-console-btn-close" title="Close (ESC)">✕</button>
                 </div>
             </div>
             <div class="sntb-console-input-container">
