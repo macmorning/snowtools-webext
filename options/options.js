@@ -3,11 +3,63 @@ const context = {
     knownInstances: {},
     instanceOptions: {},
     useSync: false,
-    storageArea: {}
+    storageArea: {},
+    contentScriptEnabled: true
 };
 chrome.commands.getAll((result) => {
     context.commands = result;
 });
+/**
+ * Toggles visibility of advanced features options
+ * @param {boolean} enabled Whether advanced features are enabled
+ * @param {boolean} autoToggle Whether to automatically toggle dependent options
+ */
+const toggleAdvancedFeaturesOptions = (enabled, autoToggle = false) => {
+    const advancedOptions = document.getElementById("advancedFeaturesOptions");
+    if (advancedOptions) {
+        advancedOptions.style.opacity = enabled ? "1" : "0.5";
+        advancedOptions.style.pointerEvents = enabled ? "auto" : "none";
+    }
+    
+    // Auto-toggle dependent options when requested
+    if (autoToggle) {
+        const showUpdatesets = document.getElementById("showUpdatesets");
+        const showInfoPanel = document.getElementById("showInfoPanel");
+        
+        if (enabled) {
+            // When enabling advanced features, turn on updatesets and info panel
+            if (showUpdatesets && !showUpdatesets.checked) {
+                showUpdatesets.checked = true;
+                context.showUpdatesets = true;
+                context.storageArea.set({ "showUpdatesets": true }, () => {});
+            }
+            if (showInfoPanel && !showInfoPanel.checked) {
+                showInfoPanel.checked = true;
+                context.showInfoPanel = true;
+                chrome.storage.local.set({ "showInfoPanel": true }, () => {});
+            }
+        } else {
+            // When disabling advanced features, turn off all three dependent options
+            if (showUpdatesets && showUpdatesets.checked) {
+                showUpdatesets.checked = false;
+                context.showUpdatesets = false;
+                context.storageArea.set({ "showUpdatesets": false }, () => {});
+            }
+            if (showInfoPanel && showInfoPanel.checked) {
+                showInfoPanel.checked = false;
+                context.showInfoPanel = false;
+                chrome.storage.local.set({ "showInfoPanel": false }, () => {});
+            }
+            const debugMode = document.getElementById("debugMode");
+            if (debugMode && debugMode.checked) {
+                debugMode.checked = false;
+                context.debugMode = false;
+                chrome.storage.local.set({ "debugMode": false }, () => {});
+            }
+        }
+    }
+};
+
 /**
  * Displays a message using a modern notification toast.
  * @param {String} txt Message to display.
@@ -226,7 +278,7 @@ const restoreOptions = () => {
         document.getElementById("useSync").checked = context.useSync;
         // load options from storage area depending on the useSync setting
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults"], (result) => {
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults", "contentScriptEnabled"], (result) => {
             context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
             context.urlFilters = result.urlFilters || "service-now.com;";
             rebuildDomainsList();
@@ -235,6 +287,24 @@ const restoreOptions = () => {
             // document.getElementById("urlFilters").value = context.urlFilters;
 
             document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
+            
+            // Load content script enabled setting (same storage as showUpdatesets)
+            console.log("*SNOW TOOL BELT* Loading contentScriptEnabled from storage:", result.contentScriptEnabled, "type:", typeof result.contentScriptEnabled);
+            // Handle boolean, string, or undefined (default to true)
+            let contentScriptEnabled;
+            if (result.contentScriptEnabled === undefined) {
+                contentScriptEnabled = true; // Default to enabled
+            } else if (typeof result.contentScriptEnabled === 'boolean') {
+                contentScriptEnabled = result.contentScriptEnabled;
+            } else {
+                contentScriptEnabled = (result.contentScriptEnabled === "true");
+            }
+            console.log("*SNOW TOOL BELT* Parsed contentScriptEnabled value:", contentScriptEnabled);
+            document.getElementById("contentScriptEnabled").checked = contentScriptEnabled;
+            context.contentScriptEnabled = contentScriptEnabled;
+            
+            // Show/hide advanced features options based on setting
+            toggleAdvancedFeaturesOptions(contentScriptEnabled);
             
             // Load max search results setting
             const maxSearchResults = result.maxSearchResults || 20;
@@ -488,6 +558,43 @@ const saveOptions = (evt) => {
         } else if (evt.target.id === "showInfoPanel") {
             context.showInfoPanel = evt.target.checked;
             chrome.storage.local.set({ "showInfoPanel": context.showInfoPanel }, () => {});
+        } else if (evt.target.id === "contentScriptEnabled") {
+            context.contentScriptEnabled = evt.target.checked;
+            console.log("*SNOW TOOL BELT* Saving contentScriptEnabled:", context.contentScriptEnabled);
+            console.log("*SNOW TOOL BELT* Using storage area:", context.useSync ? "sync" : "local");
+            console.log("*SNOW TOOL BELT* storageArea exists:", !!context.storageArea);
+            
+            // Show/hide advanced features options and auto-toggle dependent options
+            toggleAdvancedFeaturesOptions(context.contentScriptEnabled, true);
+            
+            // Ensure storageArea is initialized
+            if (!context.storageArea) {
+                chrome.storage.local.get("useSync", (result1) => {
+                    context.useSync = result1.useSync;
+                    context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+                    saveContentScriptSetting();
+                });
+            } else {
+                saveContentScriptSetting();
+            }
+            
+            function saveContentScriptSetting() {
+                context.storageArea.set({ "contentScriptEnabled": context.contentScriptEnabled }, () => {
+                    console.log("*SNOW TOOL BELT* contentScriptEnabled saved successfully");
+                    // Notify background script to register/unregister content scripts
+                    chrome.runtime.sendMessage({ 
+                        command: "updateContentScriptRegistration", 
+                        enabled: context.contentScriptEnabled 
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            console.error("*SNOW TOOL BELT* Error sending message:", chrome.runtime.lastError);
+                        } else {
+                            console.log("*SNOW TOOL BELT* Background script notified:", response);
+                        }
+                    });
+                    displayMessage("Advanced content script features " + (context.contentScriptEnabled ? "enabled" : "disabled") + ". Please reload ServiceNow pages for changes to take effect.");
+                });
+            }
         } else if (evt.target.id === "maxSearchResults") {
             const value = parseInt(evt.target.value);
             if (value >= 5 && value <= 100) {
@@ -565,7 +672,7 @@ const exportOptions = (evt) => {
         permissions: ['downloads']
     }, (granted) => {
         if (granted) {
-            context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults"], (result) => {
+            context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults", "contentScriptEnabled"], (result) => {
                 // let string = encodeURIComponent(JSON.stringify(result));
                 var blob = new Blob([JSON.stringify(result)], { type: "application/json;charset=utf-8" });
                 try {
@@ -611,7 +718,8 @@ const importOptions = (evt) => {
                     "extraDomains": false, // always set to false by default to request the all_urls permission again if required
                     "urlFilters": obj.urlFilters,
                     "showUpdatesets": obj.showUpdatesets,
-                    "maxSearchResults": obj.maxSearchResults || 20
+                    "maxSearchResults": obj.maxSearchResults || 20,
+                    "contentScriptEnabled": obj.contentScriptEnabled !== undefined ? obj.contentScriptEnabled : true
                 }, () => {
 
                     displayMessage("Options restored from file");
@@ -662,6 +770,7 @@ document.getElementById("useSync").addEventListener("change", toggleSync);
 
 document.getElementById("extraDomains").addEventListener("change", saveOptions);
 document.getElementById("showUpdatesets").addEventListener("change", saveOptions);
+document.getElementById("contentScriptEnabled").addEventListener("change", saveOptions);
 
 document.getElementById("debugMode").addEventListener("change", saveOptions);
 document.getElementById("showInfoPanel").addEventListener("change", saveOptions);

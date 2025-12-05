@@ -3,12 +3,127 @@ const isChromium = (typeof browser === "undefined");
 const chromeAPI = isChromium ? chrome : browser;
 
 /**
- * Cross-browser content script registration
- * @param {string} filter Domain filter for content script registration
+ * Registers basic content script (always loaded for favicon updates)
  */
-const registerContentScript = async (filter) => {
-    const scriptId = `snowbelt-${filter.replace(/[^a-zA-Z0-9]/g, '-')}`;
+const registerBasicContentScript = async () => {
+    const scriptId = 'snowbelt-basic';
+    const matches = ['https://*.service-now.com/*'];
+    const excludeMatches = ['*://*/*?JSONv2*', '*://*/*?XML*', '*://*/*&XML*'];
+
+    if (isChromium && chrome.scripting && chrome.scripting.registerContentScripts) {
+        try {
+            const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [scriptId] });
+            if (existing.length > 0) {
+                console.log("*SNOW TOOL BELT BG* Basic content script already registered");
+                return;
+            }
+
+            await chrome.scripting.registerContentScripts([{
+                id: scriptId,
+                matches: matches,
+                excludeMatches: excludeMatches,
+                js: ["content-script/snowbelt-cs-basic.js"],
+                runAt: "document_end"
+            }]);
+            console.log("*SNOW TOOL BELT BG* Registered basic content script");
+        } catch (error) {
+            console.error("*SNOW TOOL BELT BG* Failed to register basic content script:", error);
+        }
+    } else if (typeof browser !== "undefined" && browser.contentScripts) {
+        try {
+            await browser.contentScripts.register({
+                matches: matches,
+                excludeMatches: excludeMatches,
+                js: [{ file: "content-script/snowbelt-cs-basic.js" }],
+                runAt: "document_end"
+            });
+            console.log("*SNOW TOOL BELT BG* Registered basic content script");
+        } catch (error) {
+            console.error("*SNOW TOOL BELT BG* Failed to register basic content script:", error);
+        }
+    }
+};
+
+/**
+ * Registers main content scripts for service-now.com domain (full features)
+ */
+const registerMainContentScripts = async () => {
+    const scriptId = 'snowbelt-main';
+    const matches = ['https://*.service-now.com/*'];
+    const excludeMatches = ['*://*/*?JSONv2*', '*://*/*?XML*', '*://*/*&XML*'];
+
+    if (isChromium && chrome.scripting && chrome.scripting.registerContentScripts) {
+        try {
+            // Check if already registered
+            const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [scriptId] });
+            if (existing.length > 0) {
+                console.log("*SNOW TOOL BELT BG* Main content scripts already registered");
+                return;
+            }
+
+            await chrome.scripting.registerContentScripts([{
+                id: scriptId,
+                matches: matches,
+                excludeMatches: excludeMatches,
+                js: ["content-script/purify.js", "content-script/snowbelt-cs.js"],
+                runAt: "document_end"
+            }]);
+            console.log("*SNOW TOOL BELT BG* Registered main content scripts");
+        } catch (error) {
+            console.error("*SNOW TOOL BELT BG* Failed to register main content scripts:", error);
+        }
+    } else if (typeof browser !== "undefined" && browser.contentScripts) {
+        try {
+            await browser.contentScripts.register({
+                matches: matches,
+                excludeMatches: excludeMatches,
+                js: [{ file: "content-script/purify.js" }, { file: "content-script/snowbelt-cs.js" }],
+                runAt: "document_end"
+            });
+            console.log("*SNOW TOOL BELT BG* Registered main content scripts");
+        } catch (error) {
+            console.error("*SNOW TOOL BELT BG* Failed to register main content scripts:", error);
+        }
+    }
+};
+
+/**
+ * Unregisters main content scripts
+ */
+const unregisterMainContentScripts = async () => {
+    const scriptId = 'snowbelt-main';
+
+    if (isChromium && chrome.scripting && chrome.scripting.unregisterContentScripts) {
+        try {
+            // Check if script is registered before trying to unregister
+            const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [scriptId] });
+            if (existing.length > 0) {
+                await chrome.scripting.unregisterContentScripts({ ids: [scriptId] });
+                console.log("*SNOW TOOL BELT BG* Unregistered main content scripts");
+            } else {
+                console.log("*SNOW TOOL BELT BG* Main content scripts not registered, nothing to unregister");
+            }
+        } catch (error) {
+            // Silently handle "Nonexistent script ID" errors
+            if (error.message && error.message.includes("Nonexistent script ID")) {
+                console.log("*SNOW TOOL BELT BG* Main content scripts not registered, nothing to unregister");
+            } else {
+                console.error("*SNOW TOOL BELT BG* Failed to unregister main content scripts:", error);
+            }
+        }
+    }
+    // Note: Firefox doesn't support unregistering content scripts in MV3
+};
+
+/**
+ * Cross-browser content script registration for extra domains
+ * @param {string} filter Domain filter for content script registration
+ * @param {boolean} basicOnly If true, only register basic script
+ */
+const registerContentScript = async (filter, basicOnly = false) => {
+    const scriptId = basicOnly ? `snowbelt-basic-${filter.replace(/[^a-zA-Z0-9]/g, '-')}` : `snowbelt-${filter.replace(/[^a-zA-Z0-9]/g, '-')}`;
     const matches = [`https://${filter}/*`, `https://*.${filter}/*`];
+    const scripts = basicOnly ? ["content-script/snowbelt-cs-basic.js"] : ["content-script/purify.js", "content-script/snowbelt-cs.js"];
 
     if (isChromium && chrome.scripting && chrome.scripting.registerContentScripts) {
         // Modern Chrome/Edge with Manifest V3
@@ -16,22 +131,23 @@ const registerContentScript = async (filter) => {
             await chrome.scripting.registerContentScripts([{
                 id: scriptId,
                 matches: matches,
-                js: ["content-script/purify.js", "content-script/snowbelt-cs.js"],
+                js: scripts,
                 runAt: "document_end"
             }]);
-            console.log("*SNOW TOOL BELT BG* Registered content script for:", filter);
+            console.log(`*SNOW TOOL BELT BG* Registered ${basicOnly ? 'basic' : 'full'} content script for:`, filter);
         } catch (error) {
             console.error("*SNOW TOOL BELT BG* Failed to register content script for:", filter, error);
         }
     } else if (typeof browser !== "undefined" && browser.contentScripts) {
         // Firefox with browser.contentScripts API
         try {
+            const jsFiles = scripts.map(file => ({ file }));
             await browser.contentScripts.register({
                 matches: matches,
-                js: [{ file: "content-script/purify.js" }, { file: "content-script/snowbelt-cs.js" }],
+                js: jsFiles,
                 runAt: "document_end"
             });
-            console.log("*SNOW TOOL BELT BG* Registered content script for:", filter);
+            console.log(`*SNOW TOOL BELT BG* Registered ${basicOnly ? 'basic' : 'full'} content script for:`, filter);
         } catch (error) {
             console.error("*SNOW TOOL BELT BG* Failed to register content script for:", filter, error);
         }
@@ -45,7 +161,7 @@ const context = {
     urlFiltersArr: [],
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
     instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
-
+    contentScriptEnabled: true, // Whether content script features are enabled
     useSync: false,
     storageArea: {}
 };
@@ -79,7 +195,7 @@ const getOptions = () => {
     chromeAPI.storage.local.get("useSync", (result1) => {
         context.useSync = result1.useSync;
         context.storageArea = (context.useSync ? chromeAPI.storage.sync : chromeAPI.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions"], (result) => {
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "contentScriptEnabled"], (result) => {
             if (Object.keys(result).length === 0) {
                 // Nothing is stored yet
                 context.urlFilters = "service-now.com;";
@@ -98,13 +214,35 @@ const getOptions = () => {
             context.urlFiltersArr = context.urlFilters.split(";");
             console.log("*SNOW TOOL BELT BG* urlFilters:", context.urlFilters);
             console.log("*SNOW TOOL BELT BG* urlFiltersArr after split:", context.urlFiltersArr);
+            
+            // Always register basic content script (for favicon updates)
+            registerBasicContentScript();
+            
+            // Check if content script features are enabled (default: true)
+            const contentScriptEnabled = (result.contentScriptEnabled === "true" || result.contentScriptEnabled === true || result.contentScriptEnabled === undefined);
+            context.contentScriptEnabled = contentScriptEnabled;
+            console.log("*SNOW TOOL BELT BG* Content script features enabled:", contentScriptEnabled);
+            
+            if (contentScriptEnabled) {
+                // Register main content scripts for service-now.com
+                registerMainContentScripts();
+            } else {
+                // Unregister main content scripts if disabled
+                unregisterMainContentScripts();
+            }
+            
             context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
             if (context.extraDomains && context.urlFiltersArr.length) {
                 context.urlFiltersArr.forEach(filter => {
                     if (filter && filter.length) {
                         try {
-                            // Use modern chrome.scripting API with Firefox compatibility
-                            registerContentScript(filter);
+                            // Always register basic script for extra domains
+                            registerContentScript(filter, true);
+                            
+                            // Register full script only if content script features are enabled
+                            if (contentScriptEnabled) {
+                                registerContentScript(filter, false);
+                            }
                         } catch (e) {
                             console.error("*SNOW TOOL BELT BG* Could not register content script for > " + filter);
                             console.error(e);
@@ -549,6 +687,8 @@ const cmdListener = (command) => {
 const isServiceNow = (hostname) => {
     console.log("*SNOW TOOL BELT BG* isServiceNow? hostname=" + hostname);
     console.log("*SNOW TOOL BELT BG* urlFiltersArr:", context.urlFiltersArr);
+    console.log("*SNOW TOOL BELT BG* contentScriptEnabled:", context.contentScriptEnabled);
+    
     let matchFound = false;
     let response = { "isServiceNow": false };
 
@@ -589,7 +729,13 @@ const isServiceNow = (hostname) => {
             // Get friendly name from knownInstances
             const friendlyName = context.knownInstances[hostname] || hostname;
 
-            response = { "isServiceNow": true, "favIconColor": color, "hidden": hidden, "instanceName": friendlyName };
+            response = { 
+                "isServiceNow": true, 
+                "favIconColor": color, 
+                "hidden": hidden, 
+                "instanceName": friendlyName,
+                "contentScriptEnabled": context.contentScriptEnabled 
+            };
             console.log("*SNOW TOOL BELT BG* Returning response:", response);
         }
     });
@@ -663,6 +809,22 @@ const msgListener = (message, sender, sendResponse) => {
         reloadInstanceTabs(message.instance, message.windowId).then(result => {
             sendResponse(result);
         });
+        return true;
+    }
+    
+    // Handle content script registration update
+    if (message.command === "updateContentScriptRegistration") {
+        console.log("*SNOW TOOL BELT BG* Updating content script registration, enabled:", message.enabled);
+        context.contentScriptEnabled = message.enabled;
+        if (message.enabled) {
+            registerMainContentScripts().then(() => {
+                sendResponse({ success: true });
+            });
+        } else {
+            unregisterMainContentScripts().then(() => {
+                sendResponse({ success: true });
+            });
+        }
         return true;
     }
     

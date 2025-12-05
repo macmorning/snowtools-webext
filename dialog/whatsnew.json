@@ -1,5 +1,12 @@
 [
     {
+        "version": "8.0.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Made most of the content script features optional to reduce the overhead of the extension when used only for tab management"
+        ]
+    },
+    {
         "version": "7.8.0",
         "msg": "Most notable changes:",
         "items": [

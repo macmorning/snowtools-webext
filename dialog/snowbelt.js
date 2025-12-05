@@ -36,7 +36,8 @@ const context = {
     storageArea: {},
     commands: {},
     updateSets: {}, // one value per window and instance
-    frameExceptions: ["/navpage.do", "/stats.do", "/nav_to.do", "/cache.do", "/login.do", "/workflow_ide.do", "/hi_login.do", "/auth_redirect.do", "/ssologin.do", "/profile_update.do"] // URLs that should not be reframed
+    frameExceptions: ["/navpage.do", "/stats.do", "/nav_to.do", "/cache.do", "/login.do", "/workflow_ide.do", "/hi_login.do", "/auth_redirect.do", "/ssologin.do", "/profile_update.do"], // URLs that should not be reframed
+    contentScriptEnabled: true // Whether content script features are enabled
 
 };
 
@@ -1477,6 +1478,52 @@ const updateColor = (instance) => {
 };
 
 /**
+ * Disables content script features in the popup UI
+ * Grays out features that require content script to be active
+ */
+const disableContentScriptFeatures = () => {
+    // Add a faded notice below the instance list
+    const openedTabs = document.getElementById("opened_tabs");
+    if (openedTabs) {
+        const notice = document.createElement("div");
+        notice.style.cssText = "color: var(--muted-color, #999); padding: 10px; font-size: 12px; text-align: center; font-style: italic;";
+        notice.innerHTML = "Advanced content script features are disabled. <a href='#' id='enableContentScriptLink' style='color: var(--muted-color, #999); text-decoration: underline;'>Enable in options</a>";
+        openedTabs.parentNode.insertBefore(notice, openedTabs.nextSibling);
+        
+        // Add click handler to open options
+        document.getElementById("enableContentScriptLink").addEventListener("click", (e) => {
+            e.preventDefault();
+            openOptions();
+        });
+    }
+    
+    // Gray out update set displays
+    const updateSetElements = document.querySelectorAll(".updateset");
+    updateSetElements.forEach(el => {
+        el.style.opacity = "0.5";
+        el.style.pointerEvents = "none";
+        el.title = "Advanced content script features are disabled";
+    });
+    
+    // Gray out search objects buttons and add tooltip wrapper
+    const searchButtons = document.querySelectorAll("a[title='search objects']");
+    searchButtons.forEach(btn => {
+        btn.style.opacity = "0.3";
+        btn.style.cursor = "not-allowed";
+        btn.title = "Enable advanced content script to use the search feature";
+        
+        // Remove existing click handlers and add disabled handler
+        const newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            displayMessage("Advanced content script features are disabled. Enable in options to use search.");
+        });
+    });
+};
+
+/**
  * Retrieves saved options
  */
 const getOptions = () => {
@@ -1492,7 +1539,7 @@ const getOptions = () => {
     chrome.storage.local.get("useSync", (result1) => {
         context.useSync = result1.useSync;
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets"], (result) => {
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "contentScriptEnabled"], (result) => {
             context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
             if (context.extraDomains) {
                 context.urlFilters = result.urlFilters || "service-now.com";
@@ -1514,6 +1561,11 @@ const getOptions = () => {
 
             console.log("Loaded options");
             console.log(context);
+            
+            // Check if content script features are enabled (from same storage as other settings)
+            const contentScriptEnabled = (result.contentScriptEnabled === "true" || result.contentScriptEnabled === true || result.contentScriptEnabled === undefined);
+            context.contentScriptEnabled = contentScriptEnabled;
+            
             bootStrap();
 
             document.getElementById("config").addEventListener("click", openOptions);
@@ -1760,7 +1812,10 @@ const refreshList = () => {
             el.addEventListener("click", (e) => {
                 context.clicked = e.target;
                 let items = [
-                    { title: "&#8681; Nodes", fn: scanNodes },
+                    { 
+                        title: "&#8681; Nodes" + (!context.contentScriptEnabled ? " <span style='opacity: 0.5;'>(disabled)</span>" : ""), 
+                        fn: context.contentScriptEnabled ? scanNodes : () => displayMessage("Advanced content script features are disabled. Enable in options.")
+                    },
                     { title: "&#10000; Script", fn: openBackgroundScriptWindow },
                     { title: "&#8635; Reload tabs", fn: reloadInstanceTabs },
                     { title: "&#9088; Rename", fn: renameInstance },
@@ -1871,6 +1926,11 @@ const refreshList = () => {
             [].forEach.call(elements, (el) => {
                 el.classList.add("show");
             });
+        }
+        
+        // Disable content script features if needed (must be called after all DOM elements are created)
+        if (!context.contentScriptEnabled) {
+            disableContentScriptFeatures();
         }
     }
 };
