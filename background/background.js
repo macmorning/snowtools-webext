@@ -162,7 +162,13 @@ const registerContentScript = async (filter, basicOnly = false) => {
             console.error("*SNOW TOOL BELT BG* Failed to register content script for:", filter, error);
         }
     } else {
-        console.warn("*SNOW TOOL BELT BG* Content script registration not supported");
+        // Firefox MV3 doesn't support dynamic content script registration
+        // Content scripts must be declared in manifest for Firefox
+        if (!isChromium) {
+            console.log("*SNOW TOOL BELT BG* Dynamic content script registration not available in Firefox - using manifest declaration");
+        } else {
+            console.warn("*SNOW TOOL BELT BG* Content script registration not supported");
+        }
     }
 };
 
