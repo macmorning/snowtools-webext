@@ -1,5 +1,3 @@
-let isChromium = (typeof browser === "undefined");
-
 /**
  * Debug logging function
  */
@@ -7,16 +5,6 @@ const debugLog = (...args) => {
     if (context && context.debugMode) {
         console.log(...args);
     }
-};
-
-/**
- * Removes scope suffix from update set name if present
- * Example: "My Update Set [Human Resources: Core]" -> "My Update Set"
- */
-const cleanUpdateSetName = (updateSetName, scopeName) => {
-    if (!updateSetName || !scopeName) return updateSetName || 'Default';
-    const suffix = ` [${scopeName}]`;
-    return updateSetName.endsWith(suffix) ? updateSetName.slice(0, -suffix.length) : updateSetName;
 };
 
 const context = {
@@ -243,9 +231,10 @@ const displayMessage = (txt, autohide) => {
     // Create the toast notification
     const toast = document.createElement('div');
     toast.className = 'sntb-toast-notification';
+    const safeText = escapeHtml(txt.toString());
     toast.innerHTML = `
         <div class="toast-content">
-            ${txt.toString()}
+            ${safeText}
         </div>
     `;
 
@@ -781,16 +770,7 @@ const openSearchDialog = (evt) => {
 /**
  * Performs the system ID search
  */
-/**
- * Validate if a string looks like a valid ServiceNow sys_id
- * @param {string} input - The string to validate
- * @returns {boolean} True if it looks like a valid sys_id
- */
-const isValidSysId = (input) => {
-    // ServiceNow sys_id should be exactly 32 alphanumeric characters
-    const sysIdPattern = /^[a-fA-F0-9]{32}$/;
-    return sysIdPattern.test(input);
-};
+// isValidSysId is now in shared/utils.js
 
 /**
  * Determines the search type based on input
@@ -1026,9 +1006,9 @@ const displaySearchResults = (response) => {
 
         if (response.searchType === 'sysId' || response.searchType === 'number') {
             // Single sys_id or number result - use same compact format as other results
-            const safeUrl = DOMPurify.sanitize(response.directUrl);
-            const safeDisplayValue = DOMPurify.sanitize(response.displayValue);
-            const safeClass = DOMPurify.sanitize(response.actualClass);
+            const safeUrl = escapeHtml(response.directUrl);
+            const safeDisplayValue = escapeHtml(response.displayValue);
+            const safeClass = escapeHtml(response.actualClass);
             resultHtml = `
                 <div class="search-results-list single-result">
                     <div class="search-result-item">
@@ -1070,7 +1050,7 @@ const displaySearchResults = (response) => {
 
                     const groupId = `group-${className.replace(/[^a-zA-Z0-9]/g, '-')}`;
                     const isExpanded = classResults.length <= 3; // Auto-expand small groups
-                    const safeClassName = DOMPurify.sanitize(className);
+                    const safeClassName = escapeHtml(className);
 
                     resultHtml += `
                         <div class="result-group">
@@ -1084,8 +1064,8 @@ const displaySearchResults = (response) => {
 
                     classResults.forEach((result, index) => {
                         const displayName = result.displayName || result.name || result.username || result.value;
-                        const safeDisplayName = DOMPurify.sanitize(displayName);
-                        const safeUrl = DOMPurify.sanitize(result.directUrl);
+                        const safeDisplayName = escapeHtml(displayName);
+                        const safeUrl = escapeHtml(result.directUrl);
 
                         resultHtml += `
                             <div class="search-result-item grouped" data-index="${index}">
@@ -1115,9 +1095,9 @@ const displaySearchResults = (response) => {
                 classResults.forEach((result, index) => {
                     const displayName = result.displayName || result.name || result.username || result.value;
                     const classToDisplay = result.actualClass || result.sourceTable || 'unknown';
-                    const safeDisplayName = DOMPurify.sanitize(displayName);
-                    const safeClass = DOMPurify.sanitize(classToDisplay);
-                    const safeUrl = DOMPurify.sanitize(result.directUrl);
+                    const safeDisplayName = escapeHtml(displayName);
+                    const safeClass = escapeHtml(classToDisplay);
+                    const safeUrl = escapeHtml(result.directUrl);
 
                     resultHtml += `
                         <div class="search-result-item" data-index="${index}">
@@ -1377,33 +1357,7 @@ const sortInstances = (arr) => {
     });
 };
 
-/**
- * Sort object properties (only own properties will be sorted).
- * https://gist.github.com/umidjons/9614157
- * @author umidjons
- * @param {object} obj object to sort properties
- * @param {bool} isNumericSort true - sort object properties as numeric value, false - sort as string value.
- * @returns {Array} array of items in [[key,value],[key,value],...] format.
- */
-const sortProperties = (obj, isNumericSort) => {
-    isNumericSort = isNumericSort || false; // by default text sort
-    var sortable = [];
-    for (var key in obj) {
-        if (obj.hasOwnProperty(key)) { sortable.push([key, obj[key]]); }
-    }
-    if (isNumericSort) {
-        sortable.sort((a, b) => {
-            return a[1] - b[1];
-        });
-    } else {
-        sortable.sort((a, b) => {
-            let x = a[1].toLowerCase();
-            let y = b[1].toLowerCase();
-            return x < y ? -1 : x > y ? 1 : 0;
-        });
-    }
-    return sortable; // array in format [ [ key1, val1 ], [ key2, val2 ], ... ]
-};
+// sortProperties is now in shared/utils.js
 
 /**
  * Saves the known instances; called after the open tabs have been parsed
@@ -1700,7 +1654,10 @@ const refreshList = () => {
             } else {
                 checked = (context.tabs[key].length <= context.collapseThreshold ? "" : "checked");
             }
-            let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, instanceName).replace(/\{\{windowId\}\}/g, winkey).replace(/\{\{windowIdLabel\}\}/g, (winkey != 1 ? " [" + winkey + "]" : "")).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
+            // Sanitize instance name to prevent XSS
+            const safeInstanceName = escapeHtml(instanceName);
+            
+            let instanceRow = templateInstance.innerHTML.toString().replace(/\{\{instanceName\}\}/g, safeInstanceName).replace(/\{\{windowId\}\}/g, winkey).replace(/\{\{windowIdLabel\}\}/g, (winkey != 1 ? " [" + winkey + "]" : "")).replace(/\{\{instance\}\}/g, key).replace(/\{\{checked\}\}/g, checked);
 
             // get the html template structure for the tab row
             let templateLI = document.getElementById("tab-row");
@@ -1708,8 +1665,10 @@ const refreshList = () => {
 
             context.tabs[key][winkey].forEach((tab, index) => {
                 context.tabCount++;
+                // Sanitize tab title to prevent XSS
+                const safeTitle = escapeHtml(tab.title);
                 // replace template placeholders with their actual values
-                tabList += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{windowId\}\}/g, tab.windowId).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, tab.title).replace(/\{\{contextid\}\}/g, index);
+                tabList += templateLI.innerHTML.toString().replace(/\{\{tabid\}\}/g, tab.id).replace(/\{\{windowId\}\}/g, tab.windowId).replace(/\{\{instance\}\}/g, key).replace(/\{\{title\}\}/g, safeTitle).replace(/\{\{contextid\}\}/g, index);
             });
             instanceRow = instanceRow.replace(/\{\{linksToTabs\}\}/g, tabList);
             openTabs.innerHTML += instanceRow;
@@ -1744,14 +1703,23 @@ const refreshList = () => {
                 context.clicked = e.target;
                 let tabid = e.target.getAttribute("data-id");
                 if (!tabid) return false;
+                
+                // Get current instance from parent li element
+                const currentInstance = e.target.closest('li[data-instance]')?.getAttribute('data-instance');
+                
                 let items = [];
                 Object.keys(context.knownInstances).forEach((instance) => {
                     if (context.instanceOptions !== undefined &&
                         (context.instanceOptions[instance] === undefined ||
                             context.instanceOptions[instance].hidden === undefined ||
                             context.instanceOptions[instance].hidden === false)) {
+                        
+                        // Add triangle icon for current instance
+                        const isCurrentInstance = (instance === currentInstance);
+                        const icon = isCurrentInstance ? "▶ " : "";
+                        
                         items.push({
-                            title: "<span class='small-instance-label" + (context.tabs[instance] !== undefined ? " enhanced" : "") + "'>" + context.knownInstances[instance] + "</span>",
+                            title: "<span class='small-instance-label" + (context.tabs[instance] !== undefined ? " enhanced" : "") + "'>" + icon + context.knownInstances[instance] + "</span>",
                             fn: () => {
                                 chrome.tabs.get(parseInt(tabid), (tab) => {
                                     if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('about:') || tab.url.startsWith('edge://')) {
@@ -1958,15 +1926,7 @@ const refreshKnownInstances = () => {
     }
 };
 
-/**
- * Generates the list of links to the tabs
- * @param {Object} elt parent node
- */
-const removeChildren = (elt) => {
-    while (elt.lastChild) {
-        elt.removeChild(elt.lastChild);
-    }
-};
+// removeChildren is now in shared/utils.js
 
 /**
  * Generates the list of links to the tabs
@@ -1989,7 +1949,8 @@ const refreshNodes = (instance, evt) => {
         if (item == currentNode) {
             liEl.innerText = item + " (current)";
         } else {
-            liEl.innerHTML = "<a href='#'>" + item + "</a>";
+            const safeItem = escapeHtml(item);
+            liEl.innerHTML = "<a href='#'>" + safeItem + "</a>";
             liEl.addEventListener("click", selectNode);
         }
         listEl.appendChild(liEl);
@@ -1998,22 +1959,7 @@ const refreshNodes = (instance, evt) => {
     location.hash = "nodePicker";
 };
 
-/**
- * Returns the updated title
- * @param {String} title Original title of the tab
- */
-const transformTitle = (title) => {
-    let splittedName = title.toString().split("|");
-    if (splittedName.length === 3) {
-        // this is a specific object
-        return splittedName[1].toString().trim() + " - " + splittedName[0].toString().trim();
-    } else if (splittedName.length === 2) {
-        // this is a list of objects
-        return splittedName[0].toString().trim();
-    } else {
-        return title;
-    }
-};
+// transformTitle is now in shared/utils.js
 
 /**
  * Reflects changes that occur when a tab is found or created
@@ -2431,8 +2377,9 @@ const tabAttached = (tabId, attachInfo) => {
  * @param {Object} removeInfo contains the informations about the remove event
  */
 const tabRemoved = (tabId, removeInfo) => {
+    // Recent tabs tracking is now handled by background script
     if (document.getElementById("tab" + tabId)) {
-        // frack it, just redraw everything
+        // Redraw everything
         window.setTimeout(bootStrap, 200);
     }
 };
@@ -2673,6 +2620,10 @@ const bootStrap = () => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+    // Initialize tips context (from tips.js)
+    if (typeof initializeTipsContext === 'function') {
+        initializeTipsContext();
+    }
     getOptions();
     displayWhatsNew();
 });

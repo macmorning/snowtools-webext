@@ -70,6 +70,24 @@ const context = {
 }
 
 /**
+ * Escapes HTML special characters to prevent XSS attacks
+ * Define locally if not already available from shared/utils.js
+ * @param {string} str - The string to escape
+ * @returns {string} The escaped string
+ */
+if (typeof escapeHtml === 'undefined') {
+    var escapeHtml = function(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    };
+}
+
+/**
  * Debug logging function - only logs when debug mode is enabled
  * @param {...any} args - Arguments to log
  */
@@ -78,6 +96,7 @@ function debugLog(...args) {
         console.log(...args);
     }
 }
+
 /**
  * Recursively finds all elements matching a selector, including inside shadow DOM
  * @param {Element|Document} root - The root element to search from
@@ -1941,7 +1960,7 @@ function backgroundScriptAddonTableTemplate() {
 function backgroundScriptAddonRowTemplate(row, index) {
     let safeRow = {};
     Object.keys(row).forEach(function (key) {
-        safeRow[key] = DOMPurify.sanitize(row[key]);
+        safeRow[key] = escapeHtml(row[key]);
     });
 
     return `
@@ -2926,6 +2945,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                 details: tabInfo.details,
                                 tabs: tabInfo.tabs,
                                 updateSet: updateSetInfo,
+                                title: document.title, // Include actual page title
                                 timestamp: Date.now()
                             }
                         }, (response) => {
@@ -2940,8 +2960,17 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     // Monitor update set changes
                     setupUpdateSetMonitoring();
                     
-                    // Create info panel at bottom-left
-                    setupInfoPanel();
+                    // Defer info panel creation to improve page load performance
+                    // Use requestIdleCallback to wait until browser is idle
+                    if (typeof requestIdleCallback !== 'undefined') {
+                        requestIdleCallback(() => {
+                            debugLog("*SNOW TOOL BELT* Browser idle, initializing info panel");
+                            setupInfoPanel();
+                        }, { timeout: 3000 }); // Fallback after 3s if never idle
+                    } else {
+                        // Fallback for browsers without requestIdleCallback
+                        setTimeout(() => setupInfoPanel(), 2000);
+                    }
 
                     // Defining how to react to messages coming from the background script or the browser action
                     runtimeAPI.onMessage.addListener(function (request, sender, sendResponse) {
@@ -3186,8 +3215,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
 
 /**
  * Tool Belt Console - Doom-style console for quick access to extension features
+ * Lazy-loaded to improve page load performance
  */
 (function() {
+    let consoleInitialized = false;
     let consoleElement = null;
     let consoleInput = null;
     let consoleResults = null;
@@ -3199,6 +3230,18 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
     
     const HISTORY_STORAGE_KEY = 'sntb-console-history';
     const MAX_HISTORY_SIZE = 50;
+    
+    /**
+     * Initializes the console (lazy loaded)
+     */
+    const initializeConsole = () => {
+        if (consoleInitialized) return;
+        consoleInitialized = true;
+        debugLog("*SNOW TOOL BELT* Initializing console (lazy loaded)");
+        
+        // Console initialization happens when first toggled
+        console.log("*SNOW TOOL BELT* Console initialized");
+    };
     
     /**
      * Load command history from localStorage
@@ -3923,17 +3966,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 html += '<div class="sntb-console-section-title">▸ AVAILABLE COMMANDS:</div>';
                 
                 // Only show main commands (not shortcuts), exclude help itself, and sort alphabetically
-                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang'].sort();
+                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang', 'reopen'].sort();
                 mainCommands.forEach(cmd => {
                     const command = commands[cmd];
-                    // Escape HTML entities manually to preserve <term> display
-                    const escapeHtml = (str) => {
-                        return str.replace(/&/g, '&amp;')
-                                  .replace(/</g, '&lt;')
-                                  .replace(/>/g, '&gt;')
-                                  .replace(/"/g, '&quot;')
-                                  .replace(/'/g, '&#039;');
-                    };
+                    // Use global escapeHtml function
                     const safeUsage = escapeHtml(command.usage);
                     const safeDescription = escapeHtml(command.description);
                     html += `
@@ -3976,7 +4012,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 const searchType = determineSearchType(searchTerm);
                 
                 if (searchType.type === 'invalid') {
-                    const errorMsg = DOMPurify.sanitize(searchType.error || 'Unknown error');
+                    const errorMsg = escapeHtml(searchType.error || 'Unknown error');
                     consoleResults.innerHTML = '<div class="sntb-console-error">✖ Invalid search term: ' + errorMsg + '</div>';
                     return;
                 }
@@ -3986,7 +4022,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     const result = await performSearch(searchType.type, searchType.value, hasGlobal);
                     displayConsoleResults(result);
                 } catch (error) {
-                    const errorMsg = DOMPurify.sanitize(error.message);
+                    const errorMsg = escapeHtml(error.message);
                     consoleResults.innerHTML = '<div class="sntb-console-error">✖ Search failed: ' + errorMsg + '</div>';
                 }
             }
@@ -4005,7 +4041,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 // Send command to background script to open versions
                 runtimeAPI.sendMessage({ "command": "execute-openversions" }, (response) => {
                     if (runtimeAPI.lastError) {
-                        const errorMsg = DOMPurify.sanitize(runtimeAPI.lastError.message);
+                        const errorMsg = escapeHtml(runtimeAPI.lastError.message);
                         consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to open versions: ' + errorMsg + '</div>';
                     } else {
                         consoleResults.innerHTML = '<div class="sntb-console-success">✓ Versions window opened</div>';
@@ -4029,7 +4065,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     
                     // Check if the function returned an error (workspace detection)
                     if (result && !result.success) {
-                        const msg = DOMPurify.sanitize(result.message);
+                        const msg = escapeHtml(result.message);
                         consoleResults.innerHTML = `<div class="sntb-console-warning">${msg}</div>`;
                         return;
                     }
@@ -4038,7 +4074,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     const mode = isNowTechnical ? "technical names" : "labels";
                     consoleResults.innerHTML = `<div class="sntb-console-success">✓ Switched to ${mode}</div>`;
                 } catch (error) {
-                    const errorMsg = DOMPurify.sanitize(error.message);
+                    const errorMsg = escapeHtml(error.message);
                     consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to switch field names: ' + errorMsg + '</div>';
                 }
             }
@@ -4057,19 +4093,12 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 // Send command to background script to open background script editor
                 runtimeAPI.sendMessage({ "command": "execute-backgroundscript" }, (response) => {
                     if (runtimeAPI.lastError) {
-                        const errorMsg = DOMPurify.sanitize(runtimeAPI.lastError.message);
+                        const errorMsg = escapeHtml(runtimeAPI.lastError.message);
                         consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to open background script window: ' + errorMsg + '</div>';
                     } else {
                         consoleResults.innerHTML = '<div class="sntb-console-success">✓ Background script window opened</div>';
                     }
                 });
-            }
-        },
-        chuck: {
-            description: 'Display Chuck face',
-            usage: 'chuck',
-            execute: () => {
-                consoleResults.innerHTML = '<div style="font-family: \'Courier New\', monospace;font-size: 6px; color: #00ff00;">' + atob("PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCj09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQo9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQ0KPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0tKysrKz09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi0tLS0tLT09PT09PT09PT09PT09PS09PT09PT09PT09PT09PT09PT09PT09PSsrPSsqKipAQEAlJSUlLT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQotLS0tLS0tLT09PT09LS0tLS0tLS0tLS0tLS0tLS0tLS0tPT09PT09PSsqPSo9KyMrIyMjJSUjJSMlJSU9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09PT09KyMlJSMlKiMqIyUjIyMjKiMlIyUlJSMqJSMjPSMjPSs9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0jKiUlJSMlIyojIyMlIyojJSMlJSUjJSUlJSMjI0AjKyMjIz09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0rKiUlJSMlIyMjIyUlJSUjIyMjJSUjIyUjQEBAJSNAIyMjIyMrPT0tLT0tPS0tLS0tLS0tPT09LT09LS0tLS0tLS0tLT09PT09PT0tPQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tKiojJSUjKyUjIyUjJSMjIyoqKioqIyMqIyMqIyMjKyUlJSMjJSUtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPSsqIyVAJSUjIyMjIyoqPSsrKysrKysqKis9KysqKiojIyVAQEAlPS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09IyVAJSUjKiorKisrLS0tLS0tLS0tLS0tLS0tLT09KiMqIyMjJSUlPT09LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09JSMjJSMqKz09PT0tLS06Ojo6Oi06Oi0tLS0tLS0tLS09KiMqJUAlQCUlKy0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLT0qIyMjKisrPT09LS0tOjo6Ojo6Ojo6Ojo6Ojo6LTo6LS0tLT0rKiMjJSUlJS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09KiUlKys9PS0tLS06Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6Oi0tLS0tPSsqIyMjI0AjLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSUlKj09PT0tLS0tOjo6Ojo6Ojo6Ojo6Ojo6Ojo6Ojo6LS0tLS0tKysrIyUlIyMtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0jIz09PT09LS0tLTotOjo6Ojo6Ojo6Ojo6Ojo6Ojo6OjotLS0tLT09KyojIyUjLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0qIysrPT09PT0tLS0tLS06LS0tLTo6Ojo6Ojo6Ojo6Ojo6OjotLS0tKys9PSojJS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tIyorKz09PT0tLS0tLS06Oi0tLS06Ojo6Ojo6Ojo6Ojo6Ojo6LS0tLT09PSsrKiMtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSorKys9PT09LS0tLS0tOjotLS0tOjo6Ojo6Ojo6Ojo6LTo6Oi0tLS0tPT0rKyojKi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0jKysrPT09PS0tLS0tLS0tLS0tLTotOjo6LS0tPT09Ky06LS0tLS0tLT0rKysqKj0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09IysrKz09LS09LS0tLS0tLS0tLS09KyoqKiMqKisqKiojIyUlJSMjJUBAK0AlIyorLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSorKisqKiorKiojIyMqKz0tLS0tKyojQCMrKysrKysrKysqK0BAQCojIyMlQCUjPS09Ky0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSNAQEAlIysrKysqKisqQEBAQEBAQEAqKisqIyoqIyMjJSUqKysrQD09KysrKio9LT0tPS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPSVAJSoqIyoqKiMjKiojIyMjQEArPUBAPT0rKis9LS0tLS09LS0tLT0tLS0tPT09LT06Oi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tQCoqKiorKioqKio9PSsrKyU9LS0tQCstLT09Kz09PSstOjo6LSs6PS0tPSs9PS0lPS09PS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSsjKioqPT0rKz09KysrPSslPTotLS0jKy0tLS09PS0tLS06OjoqLS0tLS09PT09Kz09LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tJSorKys9LS0tPT09PT1AKz06LS0tPSojLS0tLS0tLTo6LSs9LTo6LS0tPT09PS09LT0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0jKys9Kz0tLS09PT0lKistOjotLTo6LSolIyMjIyMrPS0tLS0tLS0tPS09Ky0rLTotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSstKioqIyMjIyMjIz0rLTo6Oi06LT0qPT09PSoqKz09PS0tLS0tLS0tLSstLS09LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09PQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0qKisrPT0rKiorKiojJSorKysqKys9PT09LT09PSsqIys9PS0tLS09LT09Oi09LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09PT0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tKiorKysqKisqKyorKyojIyMqKis9PS0tLS09PT09PT0rPS0tLTotPT09PT0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPT09DQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSoqKysqIyMrKiorKysrKys9PT09PT09PT0rKysrKz09PT0tLS0tLT09PSs6LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09PQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09KysrPSsqKioqIyUlKiMqKys9Oj0gOiA6Oi0lPT09PS0tLS0tLS09PT0rLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPT0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSoqKz0tLSsrKyVAKystOi46LS0tLi4tOi09LS0tLS0tLS0tLT09PT0rKy0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09DQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tKysrPS0tPT0rKysrKysrKys9PS0tLS0tLS06LS0tLS0tLS0tPSsrKystLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tPQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tOj0rKystLS09PSorKysrPT09PT09LS09PS0tLS0tLS0tLS0tPSsrKz0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLT0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tOiorKz0tPT09KisrKz09LS0tPS0tLS0tLS0tLS0tLT09KysqKz09Oi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS09DQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tKioqPT09PT09PT09PS0tLS0tLS0tLS0tLS09PT0rKyorKz09PTotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS06IyoqKysrKys9PT09PT0tLS0tLS09PT0rPSsqKisrKz09PT0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tOiMjIyMqKioqKisrKyoqKisrKysrKysrKioqKysrPT09PT09LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0qIyojIyMjIyMjIyMjIyMjIyMjIyoqKysrKys9PT09PT09PS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tKioqKiMjIyMjIyMjIyMjIyMjKiorPT09Kz09PS09LS09PSslOi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSoqKioqKiMjIyMjIyoqKioqKis9PT0tPT09PS0tPT09PT0lJSU6LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTojIyoqKioqKioqKioqPT0rKz09PS0tPT09PT0tPS09PT0lJSUjKi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0lQEAqIyoqKysqKioqKz09LS0tLS0tPT09PT0tLS09PSMlJSUlIyMtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tOislJSVAQEArKisrKysqKiorPS0tLT09PS09PT0tLS0tIyUlJSUlJSUlIyUlJSo6LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLToqJSUlJSUlQEBAJUAqKysrKysrKysrKys9LS0tLS0tLT0jJSUlJSUlJSUlIyMlJSUlJSUlKjotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS06JSUlJSUlJSUlQCVAQEBAJSUjKys9Kys9PT09PS0tLS0tLSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUtLS0tLS0tLS0tLS0tLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS06KiUlJSUlJSUlQCUlJSouKi1AQEBAJSUlKisrPT09PT09PT0jJSUlJSUlJSUjIyMlJSUlJSUlQCUlJSUlJSUlJSUlIzotLS0tLS0tLS0tLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tOiMlJSUlJSUlQCUjJSUlJS09ICMjIyoqIyo9QCUlIyorPT0rKyUlJSUlJToqLiUlIy4jIyUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlOi0tLS0tLS0tLS0tLQ0KLS0tLS0tLS0tLS0tLS0tLS0tLS0tLTojJSUlJSUlJSUlJSUlJSUlQCUgIyMuKiUlKi4jICMjJSMlJTolJUAlJSUlLiMgIyUjIyMjLiMlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlIzotLS0tLS0tLS0NCi0tLS0tLS0tLS0tLS0tLS0tLToqJSUlJSUlJSUlJSUlJSUlJSUlJSUqIyMjIyM6Lj0gJSUjKisjLTo6IysjJSUtJSAjIyMuLiM6Oi4uJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUrLS0tLS0tDQotLS0tLS0tLS0tLS0tLS0tJSUlJSUlJSUlJSUlJSUlJUAlJSUlQCVAJS4tIy46IC0jIysqIy4rLiUgKkA6QCs9LislLSojJSsuPSAlIyUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlKi0tLQ0KLS0tLS0tLS0tLS0tLSMlJSUlJSUlJSUlJSVAJSUlJUBAQCUlQEBAQEAlIy4rICUrLSVAKyMuJUBAQEAqKiM6PSUlJSUlJTojICUlJSsjJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSoNCi0tLS0tLS0tLTojJSUlJUAlJSUlJSUlJSUlJSUlJSVAJUBAQEBAQEBAKi0gKiMjIyMjOjo6KkBAQEBAQEBAQEBAJUAlPSUgJSU9JSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlDQotLS0tLS0tKiUlJUAlJSUlJSUlJSUlJUBAJSUlJSUlQCVAQEBAJUBAQEAgIyotIyUtJUBAQEBAJSUlJSUlQCVAQEBAQEBAIyUlJSUtLUAlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJQ0KLS0tLS0qJUBAJSUlJSUlJSUlJSUlJUBAJSUlJSUlQEAlQEBAQEBAQEBAQCVAQEBAQEBAQEBAQCUlJSUlJSUlJUBAQEBAQEBAQCVAOiVAJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUNCi0tLS0jJSVAQCUlJUAlJSUlJSUlJSVAJSUlJSUlJSUlJUBAQEBAQEBAQEBAQEBAQEBAQEBAQEAlJSUlJSUlJSVAJSUlQEBAJUBAJUBAJSUlJSUlJSUlJSUlJSUlJSUlJSUlJUAlJSUlJSUlJSUlJSUlDQotLS1AJUBAQCUlJSUlJSUlJSUlJSVAJSUlJSUlJSUlJSUlJUBAQCUlJSUlQEBAQEBAJUBAQEBAJSUlJSUlJSUlQCUlQEBAJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSVAJSUlJSUlJSUlJSUlJQ0KLS1AJUBAQCUlJSUlJSUlJSUlJUAlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSVAQEBAQEAlJSVAQCUlJSUlJSUlJUBAJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlJSUlQCUlQEAlJSUlJUAlJSUNCg==").replaceAll("\r\n","<br/>") + '</div>';
             }
         },
         bg: {
@@ -4093,18 +4122,18 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                         "windowId": null
                     }, (response) => {
                         if (runtimeAPI.lastError) {
-                            const errorMsg = DOMPurify.sanitize(runtimeAPI.lastError.message);
+                            const errorMsg = escapeHtml(runtimeAPI.lastError.message);
                             consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to reload tabs: ' + errorMsg + '</div>';
                         } else if (response && response.success) {
-                            const msg = DOMPurify.sanitize(response.message);
+                            const msg = escapeHtml(response.message);
                             consoleResults.innerHTML = '<div class="sntb-console-success">✓ ' + msg + '</div>';
                         } else {
-                            const msg = response && response.message ? DOMPurify.sanitize(response.message) : 'Unknown error';
+                            const msg = response && response.message ? escapeHtml(response.message) : 'Unknown error';
                             consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to reload tabs: ' + msg + '</div>';
                         }
                     });
                 } catch (error) {
-                    const errorMsg = DOMPurify.sanitize(error.message);
+                    const errorMsg = escapeHtml(error.message);
                     consoleResults.innerHTML = '<div class="sntb-console-error">✖ Error: ' + errorMsg + '</div>';
                 }
             }
@@ -4202,13 +4231,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     }
                     
                     // Escape HTML to prevent rendering issues
-                    const escapeHtml = (str) => {
-                        return str.replace(/&/g, '&amp;')
-                                  .replace(/</g, '&lt;')
-                                  .replace(/>/g, '&gt;')
-                                  .replace(/"/g, '&quot;')
-                                  .replace(/'/g, '&#039;');
-                    };
+                    // Use global escapeHtml function
                     
                     let html = '<div class="sntb-console-info" style="line-height: 1.8; font-size: 13px;">';
                     html += '<div class="sntb-console-section-title">▸ INSTANCE STATISTICS</div>';
@@ -4305,7 +4328,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     
                     consoleResults.innerHTML = html;
                 } catch (error) {
-                    const errorMsg = DOMPurify.sanitize(error.message);
+                    const errorMsg = escapeHtml(error.message);
                     consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to fetch stats: ' + errorMsg + '</div>';
                 }
             }
@@ -4343,7 +4366,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     html += '<div class="sntb-console-section-title">▸ CLUSTER NODES (' + result.nodes.length + '):</div>';
                     
                     result.nodes.forEach(node => {
-                        const safeNode = DOMPurify.sanitize(node);
+                        const safeNode = escapeHtml(node);
                         const isCurrent = result.current && node === result.current;
                         const className = isCurrent ? 'sntb-console-item sntb-console-item-active' : 'sntb-console-item sntb-console-item-inactive';
                         const marker = isCurrent ? '● ' : '○ ';
@@ -4354,7 +4377,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     consoleResults.innerHTML = html;
                     
                 } catch (error) {
-                    const errorMsg = DOMPurify.sanitize(error.message);
+                    const errorMsg = escapeHtml(error.message);
                     consoleResults.innerHTML = '<div class="sntb-console-error">✖ Error scanning nodes: ' + errorMsg + '</div>';
                 }
             }
@@ -4378,7 +4401,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     const result = await performCodeSearch(searchTerm, host, context.g_ck);
                     displayConsoleResults(result);
                 } catch (error) {
-                    const errorMsg = DOMPurify.sanitize(error.message);
+                    const errorMsg = escapeHtml(error.message);
                     consoleResults.innerHTML = '<div class="sntb-console-error">✖ Code search failed: ' + errorMsg + '</div>';
                 }
             }
@@ -4457,7 +4480,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                     let html = '<div id="syslog-stream-container" style="padding: 12px; font-family: monospace; font-size: 11px; line-height: 1.4;">';
                                     html += `<div style="font-weight: bold; margin-bottom: 8px; color: ${COLORS.INFO};">▸ SYSLOG STREAM`;
                                     if (searchTerm) {
-                                        html += ` (filter: ${DOMPurify.sanitize(searchTerm)})`;
+                                        html += ` (filter: ${escapeHtml(searchTerm)})`;
                                     }
                                     html += ' <span style="color: #666; font-size: 10px;">[Press ESC to stop]</span></div>';
                                     html += '<div id="syslog-entries"></div>';
@@ -4481,8 +4504,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                     const messageValue = log.message.value || log.message;
                                     const messageDisplay = log.message.display_value || messageValue;
                                     
-                                    const source = DOMPurify.sanitize(sourceDisplay || '');
-                                    let message = DOMPurify.sanitize(messageDisplay || '');
+                                    const source = escapeHtml(sourceDisplay || '');
+                                    let message = escapeHtml(messageDisplay || '');
                                     
                                     // Color based on level value (0=info/teal, 1=warn/orange, 2=error/red)
                                     let levelColor = COLORS.INFO;
@@ -4491,7 +4514,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                     else if (levelValue === '0' || levelValue === 'info' || levelValue === 'information') levelColor = COLORS.INFO;
                                     
                                     // Format level display (no padding needed with flex layout)
-                                    const formattedLevel = DOMPurify.sanitize(levelDisplay.toUpperCase());
+                                    const formattedLevel = escapeHtml(levelDisplay.toUpperCase());
                                     
                                     // Truncate source to 20 characters with ellipsis if longer (no padding needed)
                                     let truncatedSource = source;
@@ -4529,7 +4552,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                             let html = '<div class="sntb-console-info" style="font-family: monospace; font-size: 11px; line-height: 1.4;">';
                             html += '<div class="sntb-console-section-title">▸ SYSLOG STREAM';
                             if (searchTerm) {
-                                html += ` (filter: ${DOMPurify.sanitize(searchTerm)})`;
+                                html += ` (filter: ${escapeHtml(searchTerm)})`;
                             }
                             html += ' <span style="color: #666; font-size: 10px;">[Press ESC to stop]</span></div>';
                             html += '<div class="sntb-console-warning" style="color: #666; margin-top: 8px;">No logs found in the last minute...</div>';
@@ -4539,7 +4562,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                         // If no new logs and we already have displayed logs, don't update the display
                         
                     } catch (error) {
-                        const errorMsg = DOMPurify.sanitize(error.message);
+                        const errorMsg = escapeHtml(error.message);
                         consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to fetch logs: ' + errorMsg + '</div>';
                         if (logStreamInterval) {
                             clearInterval(logStreamInterval);
@@ -4581,7 +4604,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 }
                 
                 try {
-                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Changing language to ' + DOMPurify.sanitize(langCode) + '...</div>';
+                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Changing language to ' + escapeHtml(langCode) + '...</div>';
                     
                     // Get current user sys_id
                     const userResponse = await fetch(window.location.origin + '/api/now/ui/user/current_user', {
@@ -4614,18 +4637,107 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     }
                     
                     // Reload the current tab to apply language change
-                    consoleResults.innerHTML = '<div class="sntb-console-success">✓ Language changed to ' + DOMPurify.sanitize(langCode) + '. Reloading page...</div>';
+                    consoleResults.innerHTML = '<div class="sntb-console-success">✓ Language changed to ' + escapeHtml(langCode) + '. Reloading page...</div>';
                     
                     setTimeout(() => {
                         window.location.reload();
                     }, 500);
                     
                 } catch (error) {
-                    const errorMsg = DOMPurify.sanitize(error.message);
+                    const errorMsg = escapeHtml(error.message);
                     consoleResults.innerHTML = '<div class="sntb-console-error">✖ Failed to change language: ' + errorMsg + '</div>';
                 }
             }
+        },
+        reopen: {
+            description: 'Show recently closed tabs for this instance',
+            usage: 'reopen | re',
+            execute: async (args) => {
+                try {
+                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Loading recently closed tabs...</div>';
+                    
+                    // Get current instance
+                    const instance = window.location.hostname;
+                    
+                    // Request recent tabs from background script
+                    runtimeAPI.sendMessage({ 
+                        command: 'getRecentTabs',
+                        instance: instance
+                    }, (response) => {
+                        const tabs = response.tabs || [];
+                        
+                        if (tabs.length === 0) {
+                            consoleResults.innerHTML = '<div class="sntb-console-info">▸ No recently closed tabs for this instance.</div>';
+                            return;
+                        }
+                        
+                        // Display tabs using search result format
+                        let html = '<div class="sntb-console-info">';
+                        html += `<div class="sntb-console-section-title">▸ RECENTLY CLOSED TABS (${tabs.length}):</div>`;
+                        
+                        tabs.forEach((tab, index) => {
+                            const closedAgo = getTimeAgo(tab.timestamp);
+                            const safeTitle = escapeHtml(tab.title);
+                            const safeUrl = escapeHtml(tab.url);
+                            
+                            html += `
+                                <div class="sntb-console-result-item" data-url="${safeUrl}" data-index="${index}">
+                                    <span class="sntb-console-result-name">${safeTitle}</span>
+                                    <span class="sntb-console-result-details">Closed ${closedAgo}</span>
+                                </div>
+                            `;
+                        });
+                        
+                        html += '</div>';
+                        consoleResults.innerHTML = html;
+                        
+                        // Add click handlers to reopen tabs
+                        const resultItems = consoleResults.querySelectorAll('.sntb-console-result-item');
+                        resultItems.forEach((item, index) => {
+                            item.addEventListener('click', () => {
+                                const url = tabs[index].url;
+                                // Open in same group/window as current tab
+                                runtimeAPI.sendMessage({
+                                    command: 'reopenTab',
+                                    url: url
+                                });
+                                
+                                // Show feedback
+                                item.style.opacity = '0.5';
+                                item.style.pointerEvents = 'none';
+                                const detailsSpan = item.querySelector('.sntb-console-result-details');
+                                if (detailsSpan) {
+                                    detailsSpan.textContent = '✓ Reopened';
+                                }
+                            });
+                        });
+                    });
+                    
+                } catch (error) {
+                    const errorMsg = escapeHtml(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Error loading recent tabs: ' + errorMsg + '</div>';
+                }
+            }
+        },
+        re: {
+            description: 'Alias for reopen',
+            usage: 're',
+            execute: async (args) => {
+                await commands.reopen.execute(args);
+            }
         }
+    };
+    
+    /**
+     * Helper function to format time ago
+     */
+    const getTimeAgo = (timestamp) => {
+        const seconds = Math.floor((Date.now() - timestamp) / 1000);
+        
+        if (seconds < 60) return 'just now';
+        if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+        if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+        return Math.floor(seconds / 86400) + 'd ago';
     };
     
     /**
@@ -4661,14 +4773,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         if (commands[command]) {
             await commands[command].execute(args);
         } else {
-            // Show error message and help
-            const escapeHtml = (str) => {
-                return str.replace(/&/g, '&amp;')
-                          .replace(/</g, '&lt;')
-                          .replace(/>/g, '&gt;')
-                          .replace(/"/g, '&quot;')
-                          .replace(/'/g, '&#039;');
-            };
+            // Show error message and help - use global escapeHtml function
             
             let html = `<div class="sntb-console-error" style="margin-bottom: 12px;">✖ Unknown command: ${escapeHtml(command)}</div>`;
             
@@ -4748,18 +4853,18 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         // Build details string
         let details = '';
         if (item.shortDescription && !usedShortDescriptionAsName && name !== item.shortDescription) {
-            details = `<span class="sntb-console-result-details" title="${DOMPurify.sanitize(item.shortDescription)}">${DOMPurify.sanitize(item.shortDescription)}</span>`;
+            details = `<span class="sntb-console-result-details" title="${escapeHtml(item.shortDescription)}">${escapeHtml(item.shortDescription)}</span>`;
         } else if (item.firstName || item.lastName) {
             const fullName = [item.firstName, item.lastName].filter(Boolean).join(' ');
             if (fullName) {
-                details = `<span class="sntb-console-result-details">${DOMPurify.sanitize(fullName)}</span>`;
+                details = `<span class="sntb-console-result-details">${escapeHtml(fullName)}</span>`;
             }
         }
         
         return {
-            name: DOMPurify.sanitize(name),
+            name: escapeHtml(name),
             details: details,
-            url: DOMPurify.sanitize(item.directUrl || '#')
+            url: escapeHtml(item.directUrl || '#')
         };
     };
 
@@ -4825,7 +4930,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 
                 const groupId = `console-group-${className.replace(/[^a-zA-Z0-9]/g, '-')}`;
                 const isExpanded = classResults.length <= 3; // Auto-expand small groups
-                const safeClassName = DOMPurify.sanitize(className);
+                const safeClassName = escapeHtml(className);
                 
                 html += `
                     <div class="sntb-console-result-group">
@@ -4865,7 +4970,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             classResults.forEach(item => {
                 const formatted = formatResultItem(item);
                 const classToDisplay = item.actualClass || item.table || 'Unknown';
-                const safeClass = DOMPurify.sanitize(classToDisplay);
+                const safeClass = escapeHtml(classToDisplay);
                 
                 html += `
                     <div class="sntb-console-result-item" data-url="${formatted.url}">
@@ -4905,17 +5010,24 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         });
     };
     
+    // Wrap toggleConsole to initialize on first use
+    const lazyToggleConsole = () => {
+        initializeConsole();
+        toggleConsole();
+    };
+    
     // Listen for toggle command from background
     runtimeAPI.onMessage.addListener((request, sender, sendResponse) => {
         if (request.command === 'toggleConsole') {
-            toggleConsole();
+            lazyToggleConsole();
             sendResponse({ success: true });
         }
     });
     
-    // Expose toggleConsole globally for info panel
-    window.sntbToggleConsole = toggleConsole;
+    // Expose toggleConsole globally for info panel (lazy version)
+    window.sntbToggleConsole = lazyToggleConsole;
     
-    console.log("*SNOW TOOL BELT* Console initialized");
+    console.log("*SNOW TOOL BELT* Console module ready (will initialize on first use)");
 })();
+
 

@@ -1,6 +1,9 @@
-// Firefox compatibility
+// Firefox compatibility - background scripts can't load shared/utils.js
 const isChromium = (typeof browser === "undefined");
 const chromeAPI = isChromium ? chrome : browser;
+
+// Recent tabs tracking - always keep last 10 per instance
+const MAX_RECENT_TABS_PER_INSTANCE = 10;
 
 /**
  * Registers basic content script (always loaded for favicon updates)
@@ -65,8 +68,8 @@ const registerMainContentScripts = async () => {
                 id: scriptId,
                 matches: matches,
                 excludeMatches: excludeMatches,
-                js: ["content-script/purify.js", "content-script/snowbelt-cs.js"],
-                runAt: "document_end"
+                js: ["shared/utils.js", "content-script/snowbelt-cs.js"],
+                runAt: "document_idle"
             }]);
             console.log("*SNOW TOOL BELT BG* Registered main content scripts");
         } catch (error) {
@@ -77,8 +80,8 @@ const registerMainContentScripts = async () => {
             await browser.contentScripts.register({
                 matches: matches,
                 excludeMatches: excludeMatches,
-                js: [{ file: "content-script/purify.js" }, { file: "content-script/snowbelt-cs.js" }],
-                runAt: "document_end"
+                js: [{ file: "shared/utils.js" }, { file: "content-script/snowbelt-cs.js" }],
+                runAt: "document_idle"
             });
             console.log("*SNOW TOOL BELT BG* Registered main content scripts");
         } catch (error) {
@@ -123,16 +126,23 @@ const unregisterMainContentScripts = async () => {
 const registerContentScript = async (filter, basicOnly = false) => {
     const scriptId = basicOnly ? `snowbelt-basic-${filter.replace(/[^a-zA-Z0-9]/g, '-')}` : `snowbelt-${filter.replace(/[^a-zA-Z0-9]/g, '-')}`;
     const matches = [`https://${filter}/*`, `https://*.${filter}/*`];
-    const scripts = basicOnly ? ["content-script/snowbelt-cs-basic.js"] : ["content-script/purify.js", "content-script/snowbelt-cs.js"];
+    const scripts = basicOnly ? ["content-script/snowbelt-cs-basic.js"] : ["shared/utils.js", "content-script/snowbelt-cs.js"];
 
     if (isChromium && chrome.scripting && chrome.scripting.registerContentScripts) {
         // Modern Chrome/Edge with Manifest V3
         try {
+            // Check if already registered
+            const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [scriptId] });
+            if (existing.length > 0) {
+                console.log(`*SNOW TOOL BELT BG* ${basicOnly ? 'Basic' : 'Full'} content script already registered for:`, filter);
+                return;
+            }
+            
             await chrome.scripting.registerContentScripts([{
                 id: scriptId,
                 matches: matches,
                 js: scripts,
-                runAt: "document_end"
+                runAt: "document_idle"
             }]);
             console.log(`*SNOW TOOL BELT BG* Registered ${basicOnly ? 'basic' : 'full'} content script for:`, filter);
         } catch (error) {
@@ -145,7 +155,7 @@ const registerContentScript = async (filter, basicOnly = false) => {
             await browser.contentScripts.register({
                 matches: matches,
                 js: jsFiles,
-                runAt: "document_end"
+                runAt: "document_idle"
             });
             console.log(`*SNOW TOOL BELT BG* Registered ${basicOnly ? 'basic' : 'full'} content script for:`, filter);
         } catch (error) {
@@ -661,14 +671,32 @@ const cmdListener = (command) => {
         if (command === "execute-reframe") {
             popIn(currentTab.id);
         } else if (command === "execute-openversions") {
+            // Check if content script features are enabled
+            if (!context.contentScriptEnabled) {
+                console.log("*SNOW TOOL BELT BG* Open versions command ignored: content script features are disabled");
+                return true;
+            }
+            
             openVersions(currentTab);
         } else if (command === "execute-fieldnames") {
+            // Check if content script features are enabled
+            if (!context.contentScriptEnabled) {
+                console.log("*SNOW TOOL BELT BG* Field names command ignored: content script features are disabled");
+                return true;
+            }
+            
             chrome.tabs.sendMessage(currentTab.id, { "command": command }, (response) => {
                 if (chrome.runtime.lastError) {
                     console.log("*SNOW TOOL BELT BG* Could not execute field names command:", chrome.runtime.lastError.message);
                 }
             });
         } else if (command === "execute-console") {
+            // Check if content script features are enabled
+            if (!context.contentScriptEnabled) {
+                console.log("*SNOW TOOL BELT BG* Console command ignored: content script features are disabled");
+                return true;
+            }
+            
             chrome.tabs.sendMessage(currentTab.id, { "command": "toggleConsole" }, (response) => {
                 if (chrome.runtime.lastError) {
                     console.log("*SNOW TOOL BELT BG* Could not execute console command:", chrome.runtime.lastError.message);
@@ -831,6 +859,8 @@ const msgListener = (message, sender, sendResponse) => {
     // Phase 1: Handle tab state cache messages
     if (message.command === "reportTabState" && sender.tab) {
         console.log("*SNOW TOOL BELT BG* Received tab state report from tab", sender.tab.id);
+        // Use title from content script (document.title) instead of browser tab title
+        // This ensures we get the actual page title, not the generic ServiceNow title
         updateTabStateCache(sender.tab.id, sender.tab.url, message.tabInfo);
         sendResponse({ success: true });
         return true;
@@ -846,6 +876,76 @@ const msgListener = (message, sender, sendResponse) => {
         const tabState = getTabStateFromCache(message.tabId);
         sendResponse({ tabState: tabState });
         return true;
+    }
+    
+    // Handle recent tabs request
+    if (message.command === "getRecentTabs") {
+        const instance = message.instance;
+        console.log("*SNOW TOOL BELT BG* Getting recent tabs for instance:", instance);
+        
+        chromeAPI.storage.local.get(['recentTabs'], (result) => {
+            let recentTabs = [];
+            try {
+                recentTabs = result.recentTabs ? JSON.parse(result.recentTabs) : [];
+            } catch (e) {
+                console.error("*SNOW TOOL BELT BG* Error parsing recent tabs:", e);
+                recentTabs = [];
+            }
+            
+            // Filter by instance (already limited to 10 per instance)
+            const instanceTabs = recentTabs.filter(tab => tab.instance === instance);
+            
+            console.log("*SNOW TOOL BELT BG* Found", instanceTabs.length, "recent tabs for", instance);
+            sendResponse({ tabs: instanceTabs });
+        });
+        
+        return true; // Async response
+    }
+    
+    // Handle reopen tab request
+    if (message.command === "reopenTab") {
+        const url = message.url;
+        
+        console.log("*SNOW TOOL BELT BG* Reopening tab:", url);
+        
+        // Query for current tab
+        chromeAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const currentTab = tabs && tabs.length > 0 ? tabs[0] : null;
+            
+            const createProperties = {
+                url: url,
+                active: false
+            };
+            
+            // Try to place in same window and next to current tab
+            if (currentTab) {
+                createProperties.windowId = currentTab.windowId;
+                createProperties.index = currentTab.index + 1;
+            }
+            
+            // Create the tab
+            chromeAPI.tabs.create(createProperties, (newTab) => {
+                console.log("*SNOW TOOL BELT BG* Tab reopened:", newTab.id);
+                
+                // Try to add to same group if current tab is in a group
+                if (isChromium && currentTab && currentTab.groupId && currentTab.groupId !== -1) {
+                    chrome.tabs.group({
+                        tabIds: [newTab.id],
+                        groupId: currentTab.groupId
+                    }, () => {
+                        if (chrome.runtime.lastError) {
+                            console.log("*SNOW TOOL BELT BG* Could not add to group:", chrome.runtime.lastError.message);
+                        } else {
+                            console.log("*SNOW TOOL BELT BG* Tab added to group:", currentTab.groupId);
+                        }
+                    });
+                }
+                
+                sendResponse({ success: true, tabId: newTab.id });
+            });
+        });
+        
+        return true; // Async response
     }
     
     sendResponse("");
@@ -865,8 +965,104 @@ getOptions();
  * Phase 1: Tab lifecycle event listeners for cache management
  */
 
-// Listen for tab removal to clean up cache
+/**
+ * Adds a closed tab to recent tabs history
+ * @param {object} tab Tab object with url, title, and instance
+ */
+const addToRecentTabs = (tab) => {
+    console.log("*SNOW TOOL BELT BG* Adding to recent tabs:", tab);
+    
+    chromeAPI.storage.local.get(['recentTabs'], (result) => {
+        let recentTabs = [];
+        try {
+            recentTabs = result.recentTabs ? JSON.parse(result.recentTabs) : [];
+        } catch (e) {
+            console.error("*SNOW TOOL BELT BG* Error parsing recent tabs:", e);
+            recentTabs = [];
+        }
+        
+        const recentTab = {
+            url: tab.url,
+            title: tab.title || 'Untitled',
+            instance: tab.instance || extractInstanceFromUrl(tab.url),
+            timestamp: Date.now()
+        };
+        
+        // Remove duplicates (same URL)
+        recentTabs = recentTabs.filter(t => t.url !== recentTab.url);
+        
+        // Add to beginning
+        recentTabs.unshift(recentTab);
+        
+        // Keep only last 10 per instance
+        const tabsByInstance = {};
+        recentTabs.forEach(t => {
+            if (!tabsByInstance[t.instance]) {
+                tabsByInstance[t.instance] = [];
+            }
+            if (tabsByInstance[t.instance].length < MAX_RECENT_TABS_PER_INSTANCE) {
+                tabsByInstance[t.instance].push(t);
+            }
+        });
+        
+        // Flatten back to array
+        recentTabs = Object.values(tabsByInstance).flat();
+        
+        // Remove tabs older than 24 hours
+        const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+        recentTabs = recentTabs.filter(t => t.timestamp > oneDayAgo);
+        
+        // Save to storage
+        chromeAPI.storage.local.set({ recentTabs: JSON.stringify(recentTabs) }, () => {
+            console.log("*SNOW TOOL BELT BG* Recent tabs saved:", recentTabs.length, "tabs");
+        });
+    });
+};
+
+/**
+ * Extracts instance name from URL
+ * @param {string} url URL to extract from
+ * @returns {string} Instance name
+ */
+const extractInstanceFromUrl = (url) => {
+    try {
+        const urlObj = new URL(url);
+        return urlObj.hostname;
+    } catch (e) {
+        return 'Unknown';
+    }
+};
+
+// Listen for tab removal to clean up cache and track recent tabs
 chromeAPI.tabs.onRemoved.addListener((tabId, removeInfo) => {
+    // Get tab info before cleaning cache
+    const cachedTab = tabStateCache.tabs[tabId];
+    
+    // Try to get full tab info from Chrome API (might still be available briefly)
+    chromeAPI.tabs.get(tabId, (tab) => {
+        if (chromeAPI.runtime.lastError) {
+            // Tab already gone, use cached info if available
+            if (cachedTab && cachedTab.url) {
+                // Check if it's a ServiceNow tab
+                if (cachedTab.url.includes('service-now.com')) {
+                    addToRecentTabs({
+                        url: cachedTab.url,
+                        title: cachedTab.title || 'Untitled',
+                        instance: cachedTab.instance || extractInstanceFromUrl(cachedTab.url)
+                    });
+                }
+            }
+        } else if (tab && tab.url && tab.url.includes('service-now.com')) {
+            // Tab info still available
+            addToRecentTabs({
+                url: tab.url,
+                title: tab.title,
+                instance: extractInstanceFromUrl(tab.url)
+            });
+        }
+    });
+    
+    // Clean up cache
     if (tabStateCache.tabs[tabId]) {
         console.log("*SNOW TOOL BELT BG* Tab", tabId, "removed, cleaning cache");
         delete tabStateCache.tabs[tabId];
@@ -893,6 +1089,7 @@ chromeAPI.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                     type: "non responsive",
                     lastUpdated: Date.now(),
                     url: tab.url,
+                    title: tab.title,
                     instance: new URL(tab.url).hostname
                 };
                 debouncedSaveCache();

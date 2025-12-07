@@ -29,6 +29,7 @@ jobs:
         cp -r dialog firefox-build/
         cp -r icons firefox-build/
         cp -r options firefox-build/
+        cp -r shared firefox-build/
         cp LICENSE firefox-build/
         cp README.md firefox-build/
         
@@ -52,6 +53,7 @@ jobs:
         cp -r dialog chromium-build/
         cp -r icons chromium-build/
         cp -r options chromium-build/
+        cp -r shared chromium-build/
         cp LICENSE chromium-build/
         cp README.md chromium-build/
         
@@ -116,15 +118,29 @@ jobs:
         # Extract release notes from whatsnew.json for this version
         NOTES=$(node -e "
           const data = require('./dialog/whatsnew.json');
-          const release = data.find(r => r.version === '$VERSION');
-          if (release) {
-            let notes = release.msg + '\n';
-            release.items.forEach(item => notes += '- ' + item + '\n');
-            console.log(notes);
+          const version = '$VERSION';
+          // Try exact match first, then try with 'v' prefix, then contains
+          let release = data.find(r => r.version === version);
+          if (!release) {
+            release = data.find(r => r.version === 'v' + version);
+          }
+          if (!release) {
+            release = data.find(r => r.version.includes(version) || version.includes(r.version));
+          }
+          if (release && release.msg && release.items && release.items.length > 0) {
+            let notes = release.msg.trim() + '\n';
+            release.items.forEach(item => notes += '- ' + item.trim() + '\n');
+            console.log(notes.trim());
           } else {
-            console.log('Release notes for version $VERSION');
+            console.log('New release version ' + version + ' with improvements and bug fixes.');
           }
         ")
+        
+        # Trim whitespace and ensure notes are not empty
+        NOTES=$(echo "$NOTES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        if [ -z "$NOTES" ]; then
+          NOTES="New release version $VERSION with improvements and bug fixes."
+        fi
         
         # Save to file for Firefox API
         echo "$NOTES" > release-notes.txt

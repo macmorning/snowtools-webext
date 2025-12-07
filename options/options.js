@@ -1,4 +1,3 @@
-let isChromium = (typeof browser === "undefined");
 const context = {
     knownInstances: {},
     instanceOptions: {},
@@ -250,8 +249,10 @@ const rebuildDomainsList = () => {
         urlFiltersArray.sort();
         urlFiltersArray.forEach(domain => {
             if (domain.length) {
+                // Sanitize domain to prevent XSS
+                const safeDomain = escapeHtml(domain);
                 let templateInstance = document.getElementById("domainRow");
-                let domainRow = templateInstance.innerHTML.toString().replace(/\{\{domainid\}\}/g, domain).replace(/\{\{title\}\}/g, domain);
+                let domainRow = templateInstance.innerHTML.toString().replace(/\{\{domainid\}\}/g, safeDomain).replace(/\{\{title\}\}/g, safeDomain);
                 urlFiltersList.innerHTML += domainRow;
             }
         });
@@ -312,7 +313,7 @@ const restoreOptions = () => {
             context.maxSearchResults = maxSearchResults;
 
             // Load theme preference and debug mode
-            chrome.storage.local.get(["debugMode", "showInfoPanel"], (localResult) => {
+            chrome.storage.local.get(["debugMode", "showInfoPanel", "trackRecentTabs", "maxRecentTabs", "removeAfterReopen", "groupRecentByInstance"], (localResult) => {
                 const debugMode = localResult.debugMode === true;
                 document.getElementById("debugMode").checked = debugMode;
                 context.debugMode = debugMode;
@@ -351,10 +352,12 @@ const restoreOptions = () => {
                     let label = document.createElement("label");
                     label.className = "instance-label";
                     label.setAttribute("for", input.id);
-                    label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key +
+                    // Sanitize key to prevent XSS
+                    const safeKey = escapeHtml(key);
+                    label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + safeKey + "\" title=\"pick a color\">&#9632;</a>" + safeKey +
                         " <span class='pull-right'>" +
                         "<label class='switch'  title=\"show or hide this instance\"><input name='showOrHide' type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
-                        " <a class=\"no_underline button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
+                        " <a class=\"no_underline button\" data-instance=\"" + safeKey + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
 
                     instancesDiv.appendChild(label);
                     instancesDiv.appendChild(input);
@@ -432,33 +435,7 @@ const sortInstances = (arr) => {
     });
 };
 
-/**
- * Sort object properties (only own properties will be sorted).
- * https://gist.github.com/umidjons/9614157
- * @author umidjons
- * @param {object} obj object to sort properties
- * @param {bool} isNumericSort true - sort object properties as numeric value, false - sort as string value.
- * @returns {Array} array of items in [[key,value],[key,value],...] format.
- */
-const sortProperties = (obj, isNumericSort) => {
-    isNumericSort = isNumericSort || false; // by default text sort
-    var sortable = [];
-    for (var key in obj) {
-        if (obj.hasOwnProperty(key)) { sortable.push([key, obj[key]]); }
-    }
-    if (isNumericSort) {
-        sortable.sort((a, b) => {
-            return a[1] - b[1];
-        });
-    } else {
-        sortable.sort((a, b) => {
-            let x = a[1].toLowerCase();
-            let y = b[1].toLowerCase();
-            return x < y ? -1 : x > y ? 1 : 0;
-        });
-    }
-    return sortable; // array in format [ [ key1, val1 ], [ key2, val2 ], ... ]
-};
+// sortProperties is now in shared/utils.js
 
 /**
  * Saves selected color
