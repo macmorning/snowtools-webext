@@ -3965,7 +3965,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 
                 let storeUrl;
                 if (isFirefox) {
-                    storeUrl = 'https://addons.mozilla.org/firefox/addon/servicenow-tool-belt/';
+                    storeUrl = 'https://addons.mozilla.org/firefox/addon/snow-tool-belt/';
                 } else if (isEdge) {
                     storeUrl = 'https://microsoftedge.microsoft.com/addons/detail/servicenow-tool-belt/ofefboehibiaekjaiaiacalcdeonfbil';
                 } else {
