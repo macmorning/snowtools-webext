@@ -1,5 +1,14 @@
 [
     {
+        "version": "8.0.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Made most of the content script features optional to reduce the overhead of the extension when used only for tab management",
+            "Did quite some refactoring to reduce most of the extension impact on the page load times",
+            "Added the 'reopen' function in the console"
+        ]
+    },
+    {
         "version": "7.8.0",
         "msg": "Most notable changes:",
         "items": [

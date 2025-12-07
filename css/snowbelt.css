@@ -500,11 +500,15 @@ div.instance-label {
 
 .small-instance-label.enhanced:before {
     font-size: larger;
-    content: "‣ \0020";
 }
 
 .small-instance-label.enhanced {
     font-weight: bold;
+}
+
+/* Instance without open tabs - muted appearance */
+.small-instance-label:not(.enhanced) {
+    color: var(--muted-color);
 }
 
 input.instance-checkbox[type="checkbox"] {
@@ -512,28 +516,33 @@ input.instance-checkbox[type="checkbox"] {
     left: -9999px;
 }
 
+/* Collapsed state - tabs list hidden */
 input.instance-checkbox[type="checkbox"]~ul {
-    height: 0;
-    transform: scaleY(0);
-    transition: transform .1s ease-out;
-    transform-origin: bottom;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
 }
 
+/* Expanded state - tabs list visible */
 input.instance-checkbox[type="checkbox"]:checked~ul {
-    height: 100%;
-    transform-origin: top;
-    transition: transform .1s ease-out;
-    transform: scaleY(1);
+    max-height: 2000px;
+    opacity: 1;
+    transition: max-height 0.4s ease-in, opacity 0.3s ease-in 0.1s;
 }
 
+/* Arrow icon - collapsed (pointing right) */
 input.instance-checkbox[type="checkbox"]~label:before {
+    display: inline-block;
     font-size: larger;
-    content: "\2295";
+    content: "▶";
+    transition: transform 0.3s ease;
+    transform-origin: center;
 }
 
+/* Arrow icon - expanded (rotated 90deg to point down) */
 input.instance-checkbox[type="checkbox"]:checked~label:before {
-    font-size: larger;
-    content: "\2296";
+    transform: rotate(90deg);
 }
 
 ul.links-to-tabs {
@@ -541,9 +550,7 @@ ul.links-to-tabs {
     margin: 0 5px;
 }
 
-ul.links-to-tabs li:before {
-    content: "‣ \0020";
-}
+/* Removed triangle bullets from tab list items */
 
 ul.links-to-tabs>li {
     margin-left: -30px;
@@ -2955,3 +2962,4 @@ body.theme-auto.theme-dark-detected input::placeholder {
     border-bottom-left-radius: 0;
     border-left: 1px solid var(--btn-hover-color);
 }
+

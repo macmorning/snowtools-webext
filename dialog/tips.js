@@ -4,11 +4,7 @@ const mozURL = "https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/";
 const gitURL = "https://github.com/macmorning/snowtools-webext";
 
 
-// Ensure browser detection is available (fallback if not defined in snowbelt.js)
-if (typeof isChromium === 'undefined') {
-    window.isChromium = (typeof browser === "undefined");
-}
-
+// Browser detection now comes from shared/utils.js
 // Detect specific browser (Chrome vs Edge)
 const isEdge = isChromium && navigator.userAgent.includes('Edg/');
 const isChrome = isChromium && !isEdge;
@@ -39,18 +35,28 @@ const openShortcutsPage = () => {
 };
 
 let tips = [];
-context.lastTipNumber = -1;
 
-// Get version from manifest
-try {
-    const manifest = chrome.runtime.getManifest();
-    context.currentVersion = manifest.version;
-    document.getElementById("help").title = "current version: " + context.currentVersion;
-} catch (e) {
-    // Fallback if manifest access fails
-    context.currentVersion = "unknown";
-    console.error("Could not get version from manifest:", e);
-}
+// Initialize context properties when context is available
+// This will be called from snowbelt.js after context is defined
+const initializeTipsContext = () => {
+    if (typeof context !== 'undefined') {
+        context.lastTipNumber = -1;
+        
+        // Get version from manifest
+        try {
+            const manifest = chrome.runtime.getManifest();
+            context.currentVersion = manifest.version;
+            const helpElement = document.getElementById("help");
+            if (helpElement) {
+                helpElement.title = "current version: " + context.currentVersion;
+            }
+        } catch (e) {
+            // Fallback if manifest access fails
+            context.currentVersion = "unknown";
+            console.error("Could not get version from manifest:", e);
+        }
+    }
+};
 
 let commandsTip = "";
 

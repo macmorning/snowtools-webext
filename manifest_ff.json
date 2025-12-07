@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ServiceNow tool belt",
-  "version": "7.8.0",
+  "version": "8.0.0",
   "description": "A set of tools for ServiceNow developers and administrators",
   "homepage_url": "https://github.com/macmorning/snowtools-webext",
   "icons": {
@@ -48,23 +48,6 @@
     },
     "default_popup": "dialog/snowbelt.html"
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://*.service-now.com/*"
-      ],
-      "js": [
-        "content-script/purify.js",
-        "content-script/snowbelt-cs.js"
-      ],
-      "run_at": "document_end",
-      "exclude_matches": [
-        "*://*/*?JSONv2*",
-        "*://*/*?XML*",
-        "*://*/*&XML*"
-      ]
-    }
-  ],
   "options_ui": {
     "page": "options/options.html",
     "open_in_tab": true
@@ -90,6 +73,20 @@
       "id": "{db3d7d07-a7d3-4d87-9f39-4ef22214acbd}"
     }
   },
+  "content_scripts": [
+    {
+      "matches": ["https://*.service-now.com/*"],
+      "exclude_matches": ["*://*/*?JSONv2*", "*://*/*?XML*", "*://*/*&XML*"],
+      "js": ["content-script/snowbelt-cs-basic.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.service-now.com/*"],
+      "exclude_matches": ["*://*/*?JSONv2*", "*://*/*?XML*", "*://*/*&XML*"],
+      "js": ["shared/utils.js", "content-script/snowbelt-cs.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "web_accessible_resources": [
     {
       "resources": [

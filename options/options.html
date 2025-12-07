@@ -40,31 +40,39 @@
             <input placeholder="ex: mydomain.com or instance.mydomain.com" type="text" id="newFilter">
         </div><br />
 
-        <label class="switch" for="showUpdatesets"><input name="showUpdatesets" type='checkbox'
-                id="showUpdatesets" /><span class='slider round'></span></label>
-        <label class="instance-label"
-            title="Displays actual current update sets for each window and instance combination">Show updatesets <img
-                src="../icons/question.png" width="15px" /></label><br />
-
-        <label class="switch" for="debugMode"><input name="debugMode" type='checkbox' id="debugMode" /><span
+        <label class="switch" for="contentScriptEnabled"><input name="contentScriptEnabled" type='checkbox' id="contentScriptEnabled" /><span
                 class='slider round'></span></label>
         <label class="instance-label"
-            title="Enable detailed console logging for debugging extension functionality">Debug mode <img
+            title="If you are not using advanced features such as searches, nodes, console, background script history, info panel... or using SNUtils instead, then you can disable advanced features to reduce the extension overhead in the pages.">Enable advanced content script features <img
                 src="../icons/question.png" width="15px" /></label><br />
 
-        <label class="switch" for="showInfoPanel"><input name="showInfoPanel" type='checkbox' id="showInfoPanel" /><span
-                class='slider round'></span></label>
-        <label class="instance-label"
-            title="Display the info panel at the bottom-left showing instance name, scope, and update set">Show info panel <img
-                src="../icons/question.png" width="15px" /></label><br />
+        <div id="advancedFeaturesOptions">
+            <label class="switch" for="showUpdatesets"><input name="showUpdatesets" type='checkbox'
+                    id="showUpdatesets" /><span class='slider round'></span></label>
+            <label class="instance-label"
+                title="Displays actual current update sets for each window and instance combination">Show updatesets <img
+                    src="../icons/question.png" width="15px" /></label><br />
 
-        <div class="option-row">
-            <label for="maxSearchResults" class="instance-label">Maximum search results:</label>
-            <input type="number" id="maxSearchResults" name="maxSearchResults" min="5" max="100" value="20" 
-                   title="Maximum number of results to return from object searches (5-100)" />
-            <img src="../icons/question.png" width="15px" 
-                 title="Controls how many results are returned from object searches. Higher values may slow down searches." />
-        </div><br />
+            <label class="switch" for="showInfoPanel"><input name="showInfoPanel" type='checkbox' id="showInfoPanel" /><span
+                    class='slider round'></span></label>
+            <label class="instance-label"
+                title="Display the info panel at the bottom-left showing instance name, scope, and update set">Show info panel <img
+                    src="../icons/question.png" width="15px" /></label><br />
+
+            <label class="switch" for="debugMode"><input name="debugMode" type='checkbox' id="debugMode" /><span
+                    class='slider round'></span></label>
+            <label class="instance-label"
+                title="Enable detailed console logging for debugging extension functionality">Debug mode <img
+                    src="../icons/question.png" width="15px" /></label><br />
+
+            <div class="option-row">
+                <label for="maxSearchResults" class="instance-label">Maximum search results:</label>
+                <input type="number" id="maxSearchResults" name="maxSearchResults" min="5" max="100" value="20" 
+                       title="Maximum number of results to return from object searches (5-100)" />
+                <img src="../icons/question.png" width="15px" 
+                     title="Controls how many results are returned from object searches. Higher values may slow down searches." />
+            </div><br />
+        </div>
 
 <br />
 
@@ -105,6 +113,7 @@
         </div>
     </div>
 
+    <script src="../shared/utils.js"></script>
     <script src="options.js"></script>
     <script src="../dialog/tips.js"></script>
 

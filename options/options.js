@@ -1,13 +1,64 @@
-let isChromium = (typeof browser === "undefined");
 const context = {
     knownInstances: {},
     instanceOptions: {},
     useSync: false,
-    storageArea: {}
+    storageArea: {},
+    contentScriptEnabled: true
 };
 chrome.commands.getAll((result) => {
     context.commands = result;
 });
+/**
+ * Toggles visibility of advanced features options
+ * @param {boolean} enabled Whether advanced features are enabled
+ * @param {boolean} autoToggle Whether to automatically toggle dependent options
+ */
+const toggleAdvancedFeaturesOptions = (enabled, autoToggle = false) => {
+    const advancedOptions = document.getElementById("advancedFeaturesOptions");
+    if (advancedOptions) {
+        advancedOptions.style.opacity = enabled ? "1" : "0.5";
+        advancedOptions.style.pointerEvents = enabled ? "auto" : "none";
+    }
+    
+    // Auto-toggle dependent options when requested
+    if (autoToggle) {
+        const showUpdatesets = document.getElementById("showUpdatesets");
+        const showInfoPanel = document.getElementById("showInfoPanel");
+        
+        if (enabled) {
+            // When enabling advanced features, turn on updatesets and info panel
+            if (showUpdatesets && !showUpdatesets.checked) {
+                showUpdatesets.checked = true;
+                context.showUpdatesets = true;
+                context.storageArea.set({ "showUpdatesets": true }, () => {});
+            }
+            if (showInfoPanel && !showInfoPanel.checked) {
+                showInfoPanel.checked = true;
+                context.showInfoPanel = true;
+                chrome.storage.local.set({ "showInfoPanel": true }, () => {});
+            }
+        } else {
+            // When disabling advanced features, turn off all three dependent options
+            if (showUpdatesets && showUpdatesets.checked) {
+                showUpdatesets.checked = false;
+                context.showUpdatesets = false;
+                context.storageArea.set({ "showUpdatesets": false }, () => {});
+            }
+            if (showInfoPanel && showInfoPanel.checked) {
+                showInfoPanel.checked = false;
+                context.showInfoPanel = false;
+                chrome.storage.local.set({ "showInfoPanel": false }, () => {});
+            }
+            const debugMode = document.getElementById("debugMode");
+            if (debugMode && debugMode.checked) {
+                debugMode.checked = false;
+                context.debugMode = false;
+                chrome.storage.local.set({ "debugMode": false }, () => {});
+            }
+        }
+    }
+};
+
 /**
  * Displays a message using a modern notification toast.
  * @param {String} txt Message to display.
@@ -198,8 +249,10 @@ const rebuildDomainsList = () => {
         urlFiltersArray.sort();
         urlFiltersArray.forEach(domain => {
             if (domain.length) {
+                // Sanitize domain to prevent XSS
+                const safeDomain = escapeHtml(domain);
                 let templateInstance = document.getElementById("domainRow");
-                let domainRow = templateInstance.innerHTML.toString().replace(/\{\{domainid\}\}/g, domain).replace(/\{\{title\}\}/g, domain);
+                let domainRow = templateInstance.innerHTML.toString().replace(/\{\{domainid\}\}/g, safeDomain).replace(/\{\{title\}\}/g, safeDomain);
                 urlFiltersList.innerHTML += domainRow;
             }
         });
@@ -226,7 +279,7 @@ const restoreOptions = () => {
         document.getElementById("useSync").checked = context.useSync;
         // load options from storage area depending on the useSync setting
         context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults"], (result) => {
+        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults", "contentScriptEnabled"], (result) => {
             context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
             context.urlFilters = result.urlFilters || "service-now.com;";
             rebuildDomainsList();
@@ -236,13 +289,31 @@ const restoreOptions = () => {
 
             document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
             
+            // Load content script enabled setting (same storage as showUpdatesets)
+            console.log("*SNOW TOOL BELT* Loading contentScriptEnabled from storage:", result.contentScriptEnabled, "type:", typeof result.contentScriptEnabled);
+            // Handle boolean, string, or undefined (default to true)
+            let contentScriptEnabled;
+            if (result.contentScriptEnabled === undefined) {
+                contentScriptEnabled = true; // Default to enabled
+            } else if (typeof result.contentScriptEnabled === 'boolean') {
+                contentScriptEnabled = result.contentScriptEnabled;
+            } else {
+                contentScriptEnabled = (result.contentScriptEnabled === "true");
+            }
+            console.log("*SNOW TOOL BELT* Parsed contentScriptEnabled value:", contentScriptEnabled);
+            document.getElementById("contentScriptEnabled").checked = contentScriptEnabled;
+            context.contentScriptEnabled = contentScriptEnabled;
+            
+            // Show/hide advanced features options based on setting
+            toggleAdvancedFeaturesOptions(contentScriptEnabled);
+            
             // Load max search results setting
             const maxSearchResults = result.maxSearchResults || 20;
             document.getElementById("maxSearchResults").value = maxSearchResults;
             context.maxSearchResults = maxSearchResults;
 
             // Load theme preference and debug mode
-            chrome.storage.local.get(["debugMode", "showInfoPanel"], (localResult) => {
+            chrome.storage.local.get(["debugMode", "showInfoPanel", "trackRecentTabs", "maxRecentTabs", "removeAfterReopen", "groupRecentByInstance"], (localResult) => {
                 const debugMode = localResult.debugMode === true;
                 document.getElementById("debugMode").checked = debugMode;
                 context.debugMode = debugMode;
@@ -281,10 +352,12 @@ const restoreOptions = () => {
                     let label = document.createElement("label");
                     label.className = "instance-label";
                     label.setAttribute("for", input.id);
-                    label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + key + "\" title=\"pick a color\">&#9632;</a>" + key +
+                    // Sanitize key to prevent XSS
+                    const safeKey = escapeHtml(key);
+                    label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + safeKey + "\" title=\"pick a color\">&#9632;</a>" + safeKey +
                         " <span class='pull-right'>" +
                         "<label class='switch'  title=\"show or hide this instance\"><input name='showOrHide' type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
-                        " <a class=\"no_underline button\" data-instance=\"" + key + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
+                        " <a class=\"no_underline button\" data-instance=\"" + safeKey + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
 
                     instancesDiv.appendChild(label);
                     instancesDiv.appendChild(input);
@@ -362,33 +435,7 @@ const sortInstances = (arr) => {
     });
 };
 
-/**
- * Sort object properties (only own properties will be sorted).
- * https://gist.github.com/umidjons/9614157
- * @author umidjons
- * @param {object} obj object to sort properties
- * @param {bool} isNumericSort true - sort object properties as numeric value, false - sort as string value.
- * @returns {Array} array of items in [[key,value],[key,value],...] format.
- */
-const sortProperties = (obj, isNumericSort) => {
-    isNumericSort = isNumericSort || false; // by default text sort
-    var sortable = [];
-    for (var key in obj) {
-        if (obj.hasOwnProperty(key)) { sortable.push([key, obj[key]]); }
-    }
-    if (isNumericSort) {
-        sortable.sort((a, b) => {
-            return a[1] - b[1];
-        });
-    } else {
-        sortable.sort((a, b) => {
-            let x = a[1].toLowerCase();
-            let y = b[1].toLowerCase();
-            return x < y ? -1 : x > y ? 1 : 0;
-        });
-    }
-    return sortable; // array in format [ [ key1, val1 ], [ key2, val2 ], ... ]
-};
+// sortProperties is now in shared/utils.js
 
 /**
  * Saves selected color
@@ -488,6 +535,43 @@ const saveOptions = (evt) => {
         } else if (evt.target.id === "showInfoPanel") {
             context.showInfoPanel = evt.target.checked;
             chrome.storage.local.set({ "showInfoPanel": context.showInfoPanel }, () => {});
+        } else if (evt.target.id === "contentScriptEnabled") {
+            context.contentScriptEnabled = evt.target.checked;
+            console.log("*SNOW TOOL BELT* Saving contentScriptEnabled:", context.contentScriptEnabled);
+            console.log("*SNOW TOOL BELT* Using storage area:", context.useSync ? "sync" : "local");
+            console.log("*SNOW TOOL BELT* storageArea exists:", !!context.storageArea);
+            
+            // Show/hide advanced features options and auto-toggle dependent options
+            toggleAdvancedFeaturesOptions(context.contentScriptEnabled, true);
+            
+            // Ensure storageArea is initialized
+            if (!context.storageArea) {
+                chrome.storage.local.get("useSync", (result1) => {
+                    context.useSync = result1.useSync;
+                    context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
+                    saveContentScriptSetting();
+                });
+            } else {
+                saveContentScriptSetting();
+            }
+            
+            function saveContentScriptSetting() {
+                context.storageArea.set({ "contentScriptEnabled": context.contentScriptEnabled }, () => {
+                    console.log("*SNOW TOOL BELT* contentScriptEnabled saved successfully");
+                    // Notify background script to register/unregister content scripts
+                    chrome.runtime.sendMessage({ 
+                        command: "updateContentScriptRegistration", 
+                        enabled: context.contentScriptEnabled 
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            console.error("*SNOW TOOL BELT* Error sending message:", chrome.runtime.lastError);
+                        } else {
+                            console.log("*SNOW TOOL BELT* Background script notified:", response);
+                        }
+                    });
+                    displayMessage("Advanced content script features " + (context.contentScriptEnabled ? "enabled" : "disabled") + ". Please reload ServiceNow pages for changes to take effect.");
+                });
+            }
         } else if (evt.target.id === "maxSearchResults") {
             const value = parseInt(evt.target.value);
             if (value >= 5 && value <= 100) {
@@ -565,7 +649,7 @@ const exportOptions = (evt) => {
         permissions: ['downloads']
     }, (granted) => {
         if (granted) {
-            context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults"], (result) => {
+            context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults", "contentScriptEnabled"], (result) => {
                 // let string = encodeURIComponent(JSON.stringify(result));
                 var blob = new Blob([JSON.stringify(result)], { type: "application/json;charset=utf-8" });
                 try {
@@ -611,7 +695,8 @@ const importOptions = (evt) => {
                     "extraDomains": false, // always set to false by default to request the all_urls permission again if required
                     "urlFilters": obj.urlFilters,
                     "showUpdatesets": obj.showUpdatesets,
-                    "maxSearchResults": obj.maxSearchResults || 20
+                    "maxSearchResults": obj.maxSearchResults || 20,
+                    "contentScriptEnabled": obj.contentScriptEnabled !== undefined ? obj.contentScriptEnabled : true
                 }, () => {
 
                     displayMessage("Options restored from file");
@@ -662,6 +747,7 @@ document.getElementById("useSync").addEventListener("change", toggleSync);
 
 document.getElementById("extraDomains").addEventListener("change", saveOptions);
 document.getElementById("showUpdatesets").addEventListener("change", saveOptions);
+document.getElementById("contentScriptEnabled").addEventListener("change", saveOptions);
 
 document.getElementById("debugMode").addEventListener("change", saveOptions);
 document.getElementById("showInfoPanel").addEventListener("change", saveOptions);
