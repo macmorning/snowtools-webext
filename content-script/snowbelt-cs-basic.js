@@ -210,24 +210,17 @@ function getTabInfo() {
         "tabs": []
     };
 
-    // is this a workspace?
-    if (document.querySelector("sn-workspace-layout") || document.querySelector("sn-canvas-root")) {
-        response.type = "workspace";
-        try {
-            // This is a very workspace DOM dependent implementation; need to find a better way of doing this 
-            let root = document.querySelector("sn-workspace-tabs").shadowRoot.querySelector("chrome-tabs").shadowRoot.querySelectorAll("chrome-one-tab");
-            root.forEach((elem) => {
-                response.tabs.push(elem.shadowRoot.querySelector("li a span:nth-of-type(2)").innerText);
-            });
-        } catch (e) {
-            // console.log("*SNOW TOOL BELT* unable to find workspace tabs: " + e);
-        }
-    } else if (document.querySelector("div.sp-page-root")) {
+
+    if (document.querySelector("div.sp-page-root")) {
         response.type = "portal";
     } else if (document.querySelector("div.status-bar-main")) {
         response.type = "app studio";
-        response.details = document.querySelector("div.app-info").innerText;
+        const appInfo = document.querySelector("div.app-info");
+        if (appInfo) {
+            response.details = appInfo.innerText;
+        }
     }
+    
     return response;
 }
 

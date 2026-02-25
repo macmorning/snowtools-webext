@@ -1260,9 +1260,20 @@ async function createInfoPanel() {
     debugLog("*SNOW TOOL BELT* createInfoPanel called");
     
     try {
-        // Check if already exists
-        if (document.querySelector('.sntb-info-panel')) {
-            debugLog("*SNOW TOOL BELT* Info panel already exists");
+        // Check if already exists and remove any duplicates
+        const existingPanels = document.querySelectorAll('.sntb-info-panel');
+        if (existingPanels.length > 0) {
+            debugLog("*SNOW TOOL BELT* Found", existingPanels.length, "existing info panel(s)");
+            
+            // If there's more than one, remove all but the first
+            if (existingPanels.length > 1) {
+                debugLog("*SNOW TOOL BELT* Removing", existingPanels.length - 1, "duplicate panel(s)");
+                for (let i = 1; i < existingPanels.length; i++) {
+                    existingPanels[i].remove();
+                }
+            }
+            
+            // Panel already exists, don't create another
             return true;
         }
         
@@ -2726,7 +2737,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         },
         {
             table: 'sys_user',
-            query: `${buildQuery('user_name', cleanSearchValue, searchPattern)}^OR${buildQuery('employee_number', cleanSearchValue, searchPattern)}^OR${buildQuery('email', cleanSearchValue, searchPattern)}`,
+            query: `${buildQuery('user_name', cleanSearchValue, searchPattern)}^OR${buildQuery('last_name', cleanSearchValue, searchPattern)}^OR${buildQuery('employee_number', cleanSearchValue, searchPattern)}^OR${buildQuery('email', cleanSearchValue, searchPattern)}`,
             fields: 'sys_id,user_name,name,first_name,last_name,email,employee_number,active',
             nameField: 'user_name',
             displayName: 'User'
