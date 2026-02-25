@@ -274,11 +274,6 @@ const switchTab = (evt) => {
  * @returns {Promise<number|null>} The group ID if found, null otherwise
  */
 const findExistingGroupForInstance = async (instance, windowId) => {
-    // Check if tabGroups API is available
-    if (!chrome.tabs.group || !chrome.tabGroups) {
-        return null; // Return null immediately if API not available
-    }
-
     try {
         // Get all tabs for this instance in the specified window
         const allTabs = await chrome.tabs.query({ windowId: windowId });
@@ -360,12 +355,6 @@ const mapInstanceColorToTabGroupColor = (instanceColor) => {
 const groupTabs = (evt) => {
     const instance = context.clicked.getAttribute("data-instance");
     if (instance) {
-        // Test API availability first
-        debugLog("*SNOW TOOL BELT* Testing tab groups API availability");
-        debugLog("*SNOW TOOL BELT* chrome.tabs.group exists:", !!(chrome.tabs && chrome.tabs.group));
-        debugLog("*SNOW TOOL BELT* chrome.tabGroups exists:", !!chrome.tabGroups);
-        debugLog("*SNOW TOOL BELT* chrome.tabGroups.update exists:", !!(chrome.tabGroups && chrome.tabGroups.update));
-
         groupInstanceTabs(instance);
     }
 };
@@ -396,17 +385,10 @@ const reloadInstanceTabs = (evt) => {
 };
 
 /**
- * Groups tabs for a specific instance (Chrome only)
+ * Groups tabs for a specific instance (Chrome/Firefox with tab groups support)
  * @param {string} instance - The instance hostname
  */
 const groupInstanceTabs = async (instance) => {
-    // Check if tabGroups API is available
-    if (!chrome.tabs.group || !chrome.tabGroups) {
-        displayMessage("Tab groups are not supported in this browser", true);
-        debugLog("*SNOW TOOL BELT* Tab groups not available - chrome.tabs.group:", !!chrome.tabs.group, "chrome.tabGroups:", !!chrome.tabGroups);
-        return;
-    }
-
     try {
         debugLog("*SNOW TOOL BELT* Starting tab grouping for instance:", instance);
 
@@ -504,7 +486,13 @@ const groupInstanceTabs = async (instance) => {
     } catch (error) {
         debugLog("*SNOW TOOL BELT* Error grouping instance tabs:", error);
         console.error("*SNOW TOOL BELT* Full error details:", error);
-        displayMessage("Error grouping tabs: " + error.message, true);
+        
+        // Check if it's an API not available error
+        if (error.message && (error.message.includes('chrome.tabs.group') || error.message.includes('chrome.tabGroups'))) {
+            displayMessage("Tab groups are not supported in this browser", true);
+        } else {
+            displayMessage("Error grouping tabs: " + error.message, true);
+        }
     }
 };
 
@@ -553,23 +541,21 @@ const newTab = async (evt, url, windowId) => {
             // Create the new tab
             chrome.tabs.create(tabOptions).then(async (newTabResult) => {
                 // Try to add to existing group if tabGroups API is available
-                if (chrome.tabs.group && chrome.tabGroups) {
-                    try {
-                        // Find existing group for this instance
-                        const existingGroupId = await findExistingGroupForInstance(instance, validWindowId);
+                try {
+                    // Find existing group for this instance
+                    const existingGroupId = await findExistingGroupForInstance(instance, validWindowId);
 
-                        if (existingGroupId) {
-                            debugLog("*SNOW TOOL BELT* Adding new tab to existing group:", existingGroupId);
-                            await chrome.tabs.group({
-                                groupId: existingGroupId,
-                                tabIds: [newTabResult.id]
-                            });
-                            debugLog("*SNOW TOOL BELT* Successfully added tab to group");
-                        }
-                    } catch (error) {
-                        debugLog("*SNOW TOOL BELT* Error adding new tab to group:", error);
-                        // Don't show error to user, just log it - tab creation still succeeded
+                    if (existingGroupId) {
+                        debugLog("*SNOW TOOL BELT* Adding new tab to existing group:", existingGroupId);
+                        await chrome.tabs.group({
+                            groupId: existingGroupId,
+                            tabIds: [newTabResult.id]
+                        });
+                        debugLog("*SNOW TOOL BELT* Successfully added tab to group");
                     }
+                } catch (error) {
+                    debugLog("*SNOW TOOL BELT* Error adding new tab to group:", error);
+                    // Don't show error to user, just log it - tab creation still succeeded
                 }
 
                 resolve(newTabResult);
@@ -589,13 +575,100 @@ const newTab = async (evt, url, windowId) => {
  * Handles when an instance checkbox is clicked (collapse)
  * @param {object} evt the event that triggered the action
  */
-const checkInstance = (evt) => {
+const checkInstance = async (evt) => {
     let instance = evt.target.getAttribute("data-instance");
+    let windowId = parseInt(evt.target.getAttribute("data-window-id"));
+    
     if (context.instanceOptions[instance] === undefined) {
         context.instanceOptions[instance] = {};
     }
     context.instanceOptions[instance]["checkState"] = evt.target.checked;
     saveInstanceOptions();
+    
+    // Sync with tab group if available
+    try {
+        // Find existing group for this instance
+        const existingGroupId = await findExistingGroupForInstance(instance, windowId);
+        
+        if (existingGroupId) {
+            // Update tab group collapsed state to match checkbox
+            // checkState=true means expanded, so collapsed=!checkState
+            const collapsed = !evt.target.checked;
+            
+            await chrome.tabGroups.update(existingGroupId, {
+                collapsed: collapsed
+            });
+            
+            debugLog("*SNOW TOOL BELT* Synced tab group", existingGroupId, "collapsed state to", collapsed);
+        }
+    } catch (error) {
+        debugLog("*SNOW TOOL BELT* Error syncing tab group state:", error);
+        // Don't show error to user - checkbox still works for popup
+    }
+};
+
+/**
+ * Syncs tab group collapsed state to popup checkbox
+ * @param {string} instance - The instance hostname
+ * @param {number} windowId - The window ID
+ * @param {boolean} collapsed - Whether the tab group is collapsed
+ */
+const syncTabGroupStateToPopup = (instance, windowId, collapsed) => {
+    // Find the checkbox for this instance and window
+    const checkbox = document.querySelector(
+        `input.instance-checkbox[data-instance="${instance}"][data-window-id="${windowId}"]`
+    );
+    
+    if (checkbox) {
+        // Update checkbox state (inverted: collapsed=true means unchecked)
+        const shouldBeChecked = !collapsed;
+        
+        if (checkbox.checked !== shouldBeChecked) {
+            checkbox.checked = shouldBeChecked;
+            
+            // Update context
+            if (!context.instanceOptions[instance]) {
+                context.instanceOptions[instance] = {};
+            }
+            context.instanceOptions[instance]["checkState"] = shouldBeChecked;
+            saveInstanceOptions();
+            
+            debugLog("*SNOW TOOL BELT* Synced popup checkbox for", instance, "to", shouldBeChecked);
+        }
+    }
+};
+
+/**
+ * Syncs initial tab group states when popup opens
+ * Checks all instances for existing tab groups and syncs their collapsed state
+ */
+const syncInitialTabGroupStates = async () => {
+    try {
+        debugLog("*SNOW TOOL BELT* Syncing initial tab group states");
+        
+        // Iterate through all instances in the popup
+        for (const instance in context.tabs) {
+            for (const windowId in context.tabs[instance]) {
+                const winId = parseInt(windowId);
+                
+                // Find existing group for this instance
+                const existingGroupId = await findExistingGroupForInstance(instance, winId);
+                
+                if (existingGroupId) {
+                    // Get the group details
+                    const group = await chrome.tabGroups.get(existingGroupId);
+                    
+                    // Sync the collapsed state to the popup checkbox
+                    syncTabGroupStateToPopup(instance, winId, group.collapsed);
+                    
+                    debugLog("*SNOW TOOL BELT* Synced initial state for", instance, "group", existingGroupId, "collapsed:", group.collapsed);
+                }
+            }
+        }
+    } catch (error) {
+        debugLog("*SNOW TOOL BELT* Error syncing initial tab group states:", error);
+        // Silently fail if tab groups API not available
+    }
 };
 
 /**
@@ -1535,6 +1608,10 @@ const getOptions = () => {
                 if (message.command === "tabStateUpdated") {
                     console.log("*SNOW TOOL BELT* Phase 3: Received tab state update for tab", message.tabId);
                     updateTabDisplayFromCache(message.tabId, message.tabState);
+                } else if (message.command === "tabGroupStateChanged") {
+                    // Tab group collapsed/expanded - sync with popup checkbox
+                    console.log("*SNOW TOOL BELT* Tab group state changed for", message.instance, "collapsed:", message.collapsed);
+                    syncTabGroupStateToPopup(message.instance, message.windowId, message.collapsed);
                 }
             });
 
@@ -1856,6 +1933,9 @@ const refreshList = () => {
         [].forEach.call(elements, (el) => {
             el.addEventListener("change", checkInstance);
         });
+        
+        // Sync initial tab group states with popup checkboxes
+        syncInitialTabGroupStates();
 
         // Save and close button
         document.getElementById("popin_color").addEventListener("click", saveColor);

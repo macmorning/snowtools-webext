@@ -1,5 +1,14 @@
 [
     {
+        "version": "8.2.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Tab groups is now synchronized with the instance expand/collapse state in the extension popup",
+            "",
+            ""
+        ]
+    },
+    {
         "version": "8.0.0",
         "msg": "Most notable changes:",
         "items": [
