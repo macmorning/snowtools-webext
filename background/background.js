@@ -934,17 +934,21 @@ const msgListener = (message, sender, sendResponse) => {
                 console.log("*SNOW TOOL BELT BG* Tab reopened:", newTab.id);
                 
                 // Try to add to same group if current tab is in a group
-                if (isChromium && currentTab && currentTab.groupId && currentTab.groupId !== -1) {
-                    chrome.tabs.group({
-                        tabIds: [newTab.id],
-                        groupId: currentTab.groupId
-                    }, () => {
-                        if (chrome.runtime.lastError) {
-                            console.log("*SNOW TOOL BELT BG* Could not add to group:", chrome.runtime.lastError.message);
-                        } else {
-                            console.log("*SNOW TOOL BELT BG* Tab added to group:", currentTab.groupId);
-                        }
-                    });
+                try {
+                    if (currentTab && currentTab.groupId && currentTab.groupId !== -1) {
+                        chrome.tabs.group({
+                            tabIds: [newTab.id],
+                            groupId: currentTab.groupId
+                        }, () => {
+                            if (chrome.runtime.lastError) {
+                                console.log("*SNOW TOOL BELT BG* Could not add to group:", chrome.runtime.lastError.message);
+                            } else {
+                                console.log("*SNOW TOOL BELT BG* Tab added to group:", currentTab.groupId);
+                            }
+                        });
+                    }
+                } catch (error) {
+                    console.log("*SNOW TOOL BELT BG* Tab groups not available:", error.message);
                 }
                 
                 sendResponse({ success: true, tabId: newTab.id });
@@ -1107,3 +1111,64 @@ chromeAPI.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 console.log("*SNOW TOOL BELT BG* Phase 1: Tab state cache management initialized");
+
+/**
+ * Tab Group Sync: Listen for tab group updates to sync collapse state with popup
+ * Uses feature detection with try-catch for cross-browser compatibility
+ */
+try {
+    if (chrome.tabGroups && chrome.tabGroups.onUpdated) {
+        chrome.tabGroups.onUpdated.addListener(async (group) => {
+            console.log("*SNOW TOOL BELT BG* Tab group updated:", group.id, "collapsed:", group.collapsed);
+            
+            // Find which instance this group belongs to
+            try {
+                const tabs = await chrome.tabs.query({ groupId: group.id });
+                if (tabs.length === 0) return;
+                
+                // Get instance from first tab in group
+                const firstTab = tabs[0];
+                if (!firstTab.url) return;
+                
+                const url = new URL(firstTab.url);
+                const instance = url.hostname;
+                
+                console.log("*SNOW TOOL BELT BG* Group belongs to instance:", instance);
+                
+                // Update instanceOptions checkState to match group collapsed state
+                // Note: checkState=true means expanded in popup, collapsed=true means collapsed in browser
+                // So we need to invert: checkState = !collapsed
+                if (!context.instanceOptions[instance]) {
+                    context.instanceOptions[instance] = {};
+                }
+                
+                context.instanceOptions[instance]["checkState"] = !group.collapsed;
+                
+                // Save to storage
+                saveContext();
+                
+                console.log("*SNOW TOOL BELT BG* Updated instance", instance, "checkState to", !group.collapsed);
+                
+                // Notify popup if it's open
+                chrome.runtime.sendMessage({
+                    command: "tabGroupStateChanged",
+                    instance: instance,
+                    windowId: group.windowId,
+                    collapsed: group.collapsed
+                }, () => {
+                    // Ignore errors if popup is not open
+                    if (chrome.runtime.lastError) {
+                        // Popup not open, that's fine
+                    }
+                });
+                
+            } catch (error) {
+                console.error("*SNOW TOOL BELT BG* Error syncing tab group state:", error);
+            }
+        });
+        
+        console.log("*SNOW TOOL BELT BG* Tab group sync initialized");
+    }
+} catch (error) {
+    console.log("*SNOW TOOL BELT BG* Tab groups API not available:", error.message);
+}

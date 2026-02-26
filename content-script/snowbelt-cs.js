@@ -1180,11 +1180,10 @@ function minimizePanel(panel, colors, isManual = false) {
     expandBtn.textContent = '▲';
     expandBtn.style.cssText = `
         color: ${colors.textSecondary};
-        font-size: 14px;
+        font-size: 16px;
         font-weight: normal;
         cursor: pointer;
         opacity: 0.9;
-        transition: opacity 0.2s ease;
     `;
     
     expandBtn.addEventListener('click', (e) => {
@@ -1205,11 +1204,10 @@ function minimizePanel(panel, colors, isManual = false) {
     miniCloseBtn.textContent = '✕';
     miniCloseBtn.style.cssText = `
         color: ${colors.textSecondary};
-        font-size: 14px;
+        font-size: 18px;
         font-weight: normal;
         cursor: pointer;
         opacity: 0.9;
-        transition: opacity 0.2s ease;
     `;
     
     miniCloseBtn.addEventListener('mouseenter', () => {
@@ -1260,10 +1258,16 @@ async function createInfoPanel() {
     debugLog("*SNOW TOOL BELT* createInfoPanel called");
     
     try {
-        // Check if already exists
-        if (document.querySelector('.sntb-info-panel')) {
-            debugLog("*SNOW TOOL BELT* Info panel already exists");
-            return true;
+        // Check if already exists and remove any duplicates
+        const existingPanels = document.querySelectorAll('.sntb-info-panel');
+        if (existingPanels.length > 0) {
+            debugLog("*SNOW TOOL BELT* Found ", existingPanels.length, " existing info panel(s)");
+            
+            // Remove all existing panels to prevent duplicates
+            existingPanels.forEach((panel, index) => {
+                debugLog("*SNOW TOOL BELT* Removing existing panel", index + 1);
+                panel.remove();
+            });
         }
         
         // Don't show panel on portals
@@ -1332,94 +1336,92 @@ async function createInfoPanel() {
             align-items: center;
             gap: 12px;
             max-width: 600px;
-            opacity: 1;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.4s, transform 0.4s;
         `;
         
-        // Create drag handle (grip)
-        const dragHandle = document.createElement('div');
-        dragHandle.className = 'sntb-info-panel-grip';
-        dragHandle.style.cssText = `
+        // Create position switch button (left/right arrow)
+        const positionBtn = document.createElement('div');
+        positionBtn.className = 'sntb-info-panel-position';
+        positionBtn.textContent = '▼';
+        positionBtn.style.cssText = `
             position: absolute;
             top: 4px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 40px;
-            height: 12px;
-            cursor: move;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 2px;
+            right: 52px;
+            font-size: 16px;
+            font-weight: normal;
+            color: ${colors.textMuted};
+            cursor: pointer;
+            line-height: 1;
+            padding: 2px;
+            opacity: 0.7;
         `;
         
-        // Add grip dots
-        for (let i = 0; i < 6; i++) {
-            const dot = document.createElement('div');
-            dot.style.cssText = `
-                width: 3px;
-                height: 3px;
-                background: ${colors.textMuted};
-                border-radius: 50%;
-                opacity: 0.5;
-            `;
-            dragHandle.appendChild(dot);
-        }
-        
-        // Make panel draggable
-        let isDragging = false;
-        let currentX;
-        let currentY;
-        let offsetX;
-        let offsetY;
-        
-        dragHandle.addEventListener('mousedown', (e) => {
-            isDragging = true;
+        // Function to update position button and panel position
+        const updatePanelPosition = (position, skipTransition = false) => {
+            const isLeft = position === 'left';
+            positionBtn.style.transform = isLeft ? 'rotate(-90deg)' : 'rotate(90deg)';
+            positionBtn.title = isLeft ? 'Move to right' : 'Move to left';
             
-            // Get current position - convert bottom to top if needed
-            const rect = panel.getBoundingClientRect();
-            const currentTop = rect.top;
-            const currentLeft = rect.left;
-            
-            // Calculate offset from mouse to panel corner
-            offsetX = e.clientX - currentLeft;
-            offsetY = e.clientY - currentTop;
-            
-            // Switch to top/left positioning for easier dragging
-            panel.style.bottom = 'auto';
-            panel.style.top = currentTop + 'px';
-            panel.style.left = currentLeft + 'px';
-            
-            dragHandle.style.cursor = 'grabbing';
-        });
-        
-        document.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                e.preventDefault();
-                
-                // Calculate new position
-                currentX = e.clientX - offsetX;
-                currentY = e.clientY - offsetY;
-                
-                // Keep panel within viewport bounds
-                const maxX = window.innerWidth - panel.offsetWidth;
-                const maxY = window.innerHeight - panel.offsetHeight;
-                
-                currentX = Math.max(0, Math.min(currentX, maxX));
-                currentY = Math.max(0, Math.min(currentY, maxY));
-                
-                panel.style.left = currentX + 'px';
-                panel.style.top = currentY + 'px';
+            // Temporarily disable transition for initial load
+            if (skipTransition) {
+                panel.style.transition = 'opacity 0.4s';
             }
-        });
-        
-        document.addEventListener('mouseup', () => {
-            if (isDragging) {
-                isDragging = false;
-                dragHandle.style.cursor = 'move';
+            
+            // Update panel position using transform for smooth animation
+            // Calculate the distance to move (window width - panel width - margins)
+            if (isLeft) {
+                panel.style.transform = 'translateX(0)';
+            } else {
+                // Move to right: calculate distance from left position to right position
+                const distance = window.innerWidth - panel.offsetWidth - 40; // 40 = 20px margin on each side
+                panel.style.transform = `translateX(${distance}px)`;
             }
+            
+            // Re-enable transition after initial positioning
+            if (skipTransition) {
+                setTimeout(() => {
+                    panel.style.transition = 'opacity 0.4s, transform 0.4s';
+                }, 50);
+            }
+            
+            // Make panel visible after positioning with fade-in
+            panel.style.visibility = 'visible';
+            panel.style.opacity = '1';
+        };
+        
+        // Load saved position preference
+        storageAPI.local.get(['infoPanelPosition'], (result) => {
+            const savedPosition = result.infoPanelPosition || 'left';
+            updatePanelPosition(savedPosition, true); // Skip transition on initial load
         });
         
-        panel.appendChild(dragHandle);
+        positionBtn.addEventListener('mouseenter', () => {
+            positionBtn.style.opacity = '1';
+            positionBtn.style.color = colors.accent;
+        });
+        
+        positionBtn.addEventListener('mouseleave', () => {
+            positionBtn.style.opacity = '0.7';
+            positionBtn.style.color = colors.textMuted;
+        });
+        
+        positionBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Toggle position - check transform value instead of left/right
+            const currentTransform = panel.style.transform;
+            const isCurrentlyLeft = currentTransform === 'translateX(0px)' || currentTransform === 'translateX(0)' || currentTransform === '';
+            const newPosition = isCurrentlyLeft ? 'right' : 'left';
+            
+            // Save preference
+            storageAPI.local.set({ infoPanelPosition: newPosition }, () => {
+                debugLog("*SNOW TOOL BELT* Info panel position changed to:", newPosition);
+            });
+            
+            // Update UI
+            updatePanelPosition(newPosition);
+        });
         
         // Create minimize button
         const minimizeBtn = document.createElement('div');
@@ -1428,8 +1430,8 @@ async function createInfoPanel() {
         minimizeBtn.style.cssText = `
             position: absolute;
             top: 4px;
-            right: 24px;
-            font-size: 12px;
+            right: 32px;
+            font-size: 16px;
             font-weight: normal;
             color: ${colors.textMuted};
             cursor: pointer;
@@ -1437,6 +1439,16 @@ async function createInfoPanel() {
             padding: 2px;
             opacity: 0.7;
         `;
+        
+        minimizeBtn.addEventListener('mouseenter', () => {
+            minimizeBtn.style.opacity = '1';
+            minimizeBtn.style.color = colors.accent;
+        });
+        
+        minimizeBtn.addEventListener('mouseleave', () => {
+            minimizeBtn.style.opacity = '0.7';
+            minimizeBtn.style.color = colors.textMuted;
+        });
         
         minimizeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1451,7 +1463,7 @@ async function createInfoPanel() {
             position: absolute;
             top: 4px;
             right: 6px;
-            font-size: 14px;
+            font-size: 18px;
             font-weight: normal;
             color: ${colors.textMuted};
             cursor: pointer;
@@ -1459,6 +1471,16 @@ async function createInfoPanel() {
             padding: 2px;
             opacity: 0.7;
         `;
+        
+        closeBtn.addEventListener('mouseenter', () => {
+            closeBtn.style.opacity = '1';
+            closeBtn.style.color = colors.accent;
+        });
+        
+        closeBtn.addEventListener('mouseleave', () => {
+            closeBtn.style.opacity = '0.7';
+            closeBtn.style.color = colors.textMuted;
+        });
         
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1469,6 +1491,7 @@ async function createInfoPanel() {
             });
         });
         
+        panel.appendChild(positionBtn);
         panel.appendChild(minimizeBtn);
         panel.appendChild(closeBtn);
         
@@ -1520,9 +1543,8 @@ async function createInfoPanel() {
         
         // Add click handler to toggle console
         panel.addEventListener('click', (e) => {
-            // Don't toggle console if clicking buttons or drag handle
-            if (e.target === closeBtn || e.target === minimizeBtn || 
-                e.target === dragHandle || dragHandle.contains(e.target)) return;
+            // Don't toggle console if clicking buttons
+            if (e.target === closeBtn || e.target === minimizeBtn || e.target === positionBtn) return;
             
             if (window.sntbToggleConsole) {
                 window.sntbToggleConsole();
@@ -1617,12 +1639,21 @@ function setupInfoPanel() {
         
         let attempts = 0;
         const maxAttempts = 10;
+        let isCreating = false; // Flag to prevent concurrent attempts
         
         const tryCreate = async () => {
+            // Skip if already creating
+            if (isCreating) {
+                debugLog("*SNOW TOOL BELT* Panel creation already in progress, skipping attempt");
+                return false;
+            }
+            
             attempts++;
+            isCreating = true;
             debugLog("*SNOW TOOL BELT* Attempt", attempts, "to create info panel");
             
             const success = await createInfoPanel();
+            isCreating = false;
             
             if (success) {
                 debugLog("*SNOW TOOL BELT* Info panel successfully created");
@@ -2726,7 +2757,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         },
         {
             table: 'sys_user',
-            query: `${buildQuery('user_name', cleanSearchValue, searchPattern)}^OR${buildQuery('employee_number', cleanSearchValue, searchPattern)}^OR${buildQuery('email', cleanSearchValue, searchPattern)}`,
+            query: `${buildQuery('user_name', cleanSearchValue, searchPattern)}^OR${buildQuery('last_name', cleanSearchValue, searchPattern)}^OR${buildQuery('employee_number', cleanSearchValue, searchPattern)}^OR${buildQuery('email', cleanSearchValue, searchPattern)}`,
             fields: 'sys_id,user_name,name,first_name,last_name,email,employee_number,active',
             nameField: 'user_name',
             displayName: 'User'

@@ -170,18 +170,34 @@ async function createInfoPanel() {
     debugLog("*SNOW TOOL BELT* createInfoPanel called");
     
     try {
-        // Check if already exists
-        if (document.querySelector('.sntb-info-panel')) {
-            debugLog("*SNOW TOOL BELT* Info panel already exists");
+        // Check if already exists and remove any duplicates
+        const existingPanels = document.querySelectorAll('.sntb-info-panel');
+        if (existingPanels.length > 0) {
+            debugLog("*SNOW TOOL BELT* Found", existingPanels.length, "existing info panel(s)");
+            
+            // If there's more than one, remove all but the first
+            if (existingPanels.length > 1) {
+                debugLog("*SNOW TOOL BELT* Removing", existingPanels.length - 1, "duplicate panel(s)");
+                for (let i = 1; i < existingPanels.length; i++) {
+                    existingPanels[i].remove();
+                }
+            }
+            
+            // Panel already exists, don't create another
             return true;
         }
         
-        // Don't show panel on portals
+        // Don't show panel on portals or workspaces
         const tabInfo = window.sntbGetTabInfo();
         if (tabInfo.type === "portal") {
             debugLog("*SNOW TOOL BELT* Info panel not shown on portal pages");
             return false;
         }
+        
+        /*if (tabInfo.type === "workspace") {
+            debugLog("*SNOW TOOL BELT* Info panel not shown on workspace pages");
+            return false;
+        }*/
         
         // Don't show panel on certain pages
         const currentPath = window.location.pathname;

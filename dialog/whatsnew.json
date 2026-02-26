@@ -1,5 +1,17 @@
 [
     {
+        "version": "8.2.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Tab groups is now synchronized with the instance expand/collapse state in the extension popup",
+            "When created from the extension popup, a tab group should have a color that is not too far from the color you defined",
+            "When created from the extension popup, a tab group should have the friendly name you have set for the instance",
+            "Information panel should not create multiple instances anymore",
+            "Replaced the panel handle with a left/right icon and saved that in the local user preferences",
+            "Search now includes user last names"
+        ]
+    },
+    {
         "version": "8.0.0",
         "msg": "Most notable changes:",
         "items": [
