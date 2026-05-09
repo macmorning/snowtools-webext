@@ -1,5 +1,16 @@
 [
     {
+        "version": "8.3.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Settings are now always stored locally for improved reliability. Cloud storage settings have been automatically migrated.",
+            "Reduced the number of log lines generated in the page by the content script",
+            "In the information panel, the update set is now clickable and opens its record in a popup",
+            "In the information panel, the scope is now clickable and shows recently used scopes in the console (new command scopes|sc)",
+            "Reduced the information panel size",
+            "Corrected the console popin/popout animation"
+        ]
+    },    {
         "version": "8.2.0",
         "msg": "Most notable changes:",
         "items": [

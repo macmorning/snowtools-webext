@@ -19,15 +19,14 @@ const context = {
     knownNodes: {},
     tempInformations: {}, // store temporary data per instance, such as nodes and updates
     showUpdatesets: true,
-    useSync: false,
     extraDomains: false,
-    storageArea: {},
     commands: {},
     updateSets: {}, // one value per window and instance
     frameExceptions: ["/navpage.do", "/stats.do", "/nav_to.do", "/cache.do", "/login.do", "/workflow_ide.do", "/hi_login.do", "/auth_redirect.do", "/ssologin.do", "/profile_update.do"], // URLs that should not be reframed
     contentScriptEnabled: true, // Whether content script features are enabled
     debugMode: false // Debug mode flag, loaded from storage on DOMContentLoaded
-
+    // Note: useSync and storageArea removed — popup no longer reads/writes storage directly.
+    // All settings I/O goes through the background service worker via chrome.runtime.sendMessage.
 };
 
 /**
@@ -1469,24 +1468,36 @@ const sortInstances = (arr) => {
 // sortProperties is now in shared/utils.js
 
 /**
- * Saves the known instances; called after the open tabs have been parsed
+ * Saves the known instances via the background settings API.
+ * Background is the sole writer of storage — popup never writes directly.
  */
 const saveKnownInstances = () => {
-    context.storageArea.set({
-        "knownInstances": JSON.stringify(context.knownInstances)
-    }, function () {
-        console.log("Saved instances to storage");
+    chrome.runtime.sendMessage({
+        command: "updateSettings",
+        settings: { knownInstances: context.knownInstances }
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error("*SNOW TOOL BELT* Error saving knownInstances:", chrome.runtime.lastError);
+        } else {
+            debugLog("*SNOW TOOL BELT* Saved knownInstances via background API");
+        }
     });
 };
 
 /**
- * Saves the instances checked states
+ * Saves the instance options via the background settings API.
+ * Background is the sole writer of storage — popup never writes directly.
  */
 const saveInstanceOptions = () => {
-    context.storageArea.set({
-        "instanceOptions": JSON.stringify(context.instanceOptions)
-    }, () => {
-        console.log("Saved instance options to storage");
+    chrome.runtime.sendMessage({
+        command: "updateSettings",
+        settings: { instanceOptions: context.instanceOptions }
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error("*SNOW TOOL BELT* Error saving instanceOptions:", chrome.runtime.lastError);
+        } else {
+            debugLog("*SNOW TOOL BELT* Saved instanceOptions via background API");
+        }
     });
 };
 
@@ -1497,14 +1508,25 @@ const saveInstanceOptions = () => {
 const saveColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    // document.getElementById("colorPicker").style.display = "none";
     location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
     }
-    context.instanceOptions[targetInstance]["color"] = document.getElementById("colorPickerColor").value;
+    const color = document.getElementById("colorPickerColor").value;
+    context.instanceOptions[targetInstance]["color"] = color;
     updateColor(targetInstance);
-    saveInstanceOptions();
+    chrome.runtime.sendMessage({
+        command: "updateInstanceOption",
+        instance: targetInstance,
+        key: "color",
+        value: color
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error("*SNOW TOOL BELT* Error saving color:", chrome.runtime.lastError);
+        } else {
+            debugLog("*SNOW TOOL BELT* Saved color for", targetInstance);
+        }
+    });
 };
 
 /**
@@ -1514,7 +1536,6 @@ const saveColor = (evt) => {
 const saveNoColor = (evt) => {
     let targetInstance = "";
     targetInstance = context.clicked.getAttribute("data-instance");
-    // document.getElementById("colorPicker").style.display = "none";
     location.hash = "";
     if (context.instanceOptions[targetInstance] === undefined) {
         context.instanceOptions[targetInstance] = {};
@@ -1525,7 +1546,19 @@ const saveNoColor = (evt) => {
         console.error(e);
     }
     updateColor(targetInstance);
-    saveInstanceOptions();
+    // Send undefined to remove the color key via background
+    chrome.runtime.sendMessage({
+        command: "updateInstanceOption",
+        instance: targetInstance,
+        key: "color",
+        value: undefined
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error("*SNOW TOOL BELT* Error removing color:", chrome.runtime.lastError);
+        } else {
+            debugLog("*SNOW TOOL BELT* Removed color for", targetInstance);
+        }
+    });
 };
 
 /**
@@ -1587,77 +1620,61 @@ const disableContentScriptFeatures = () => {
 };
 
 /**
- * Retrieves saved options
+ * Retrieves saved options from the background service worker.
+ * The background is the sole reader/writer of storage — popup never accesses storage directly.
  */
 const getOptions = () => {
-
     chrome.commands.getAll((result) => {
         context.commands = result;
     });
-    context.urlFilters = "service-now.com";
-    context.urlFiltersArr = ["service-now.com"];
-    context.extraDomains = false;
-    context.knownInstances = {};
-    context.instanceOptions = {};
-    chrome.storage.local.get("useSync", (result1) => {
-        context.useSync = result1.useSync;
-        context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "contentScriptEnabled"], (result) => {
-            context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
-            if (context.extraDomains) {
-                context.urlFilters = result.urlFilters || "service-now.com";
-                context.urlFiltersArr = context.urlFilters.split(";");
-            }
-            context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
-            try {
-                context.knownInstances = JSON.parse(result.knownInstances);
-            } catch (e) {
-                context.knownInstances = {};
-                console.error(e);
-            }
-            try {
-                context.instanceOptions = JSON.parse(result.instanceOptions);
-            } catch (e) {
-                context.instanceOptions = {};
-                console.error(e);
-            }
 
-            console.log("Loaded options");
-            console.log(context);
-            
-            // Check if content script features are enabled (from same storage as other settings)
-            const contentScriptEnabled = (result.contentScriptEnabled === "true" || result.contentScriptEnabled === true || result.contentScriptEnabled === undefined);
-            context.contentScriptEnabled = contentScriptEnabled;
-            
+    chrome.runtime.sendMessage({ command: "getSettings" }, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error("*SNOW TOOL BELT* Error getting settings from background:", chrome.runtime.lastError);
+            // Fallback: proceed with empty context so popup still opens
             bootStrap();
+            return;
+        }
 
-            document.getElementById("config").addEventListener("click", openOptions);
-            document.getElementById("open_in_panel").addEventListener("click", openInPanel);
-            document.getElementById("show_news").addEventListener("click", showWhatsNew);
-            document.getElementById("shortcuts").addEventListener("click", openShortcutsPage);
+        // Populate context from background's authoritative settings
+        context.knownInstances = response.knownInstances || {};
+        context.instanceOptions = response.instanceOptions || {};
+        context.urlFilters = response.urlFilters || "service-now.com";
+        context.urlFiltersArr = context.urlFilters.split(";");
+        context.extraDomains = response.extraDomains || false;
+        context.showUpdatesets = (response.showUpdatesets !== false); // default true
+        context.contentScriptEnabled = (response.contentScriptEnabled !== false); // default true
 
-            // Load and display keyboard shortcuts in tooltip
-            loadShortcutsTooltip();
-            
-            // Phase 3: Listen for real-time tab state updates from background
-            chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-                if (message.command === "tabStateUpdated") {
-                    console.log("*SNOW TOOL BELT* Received tab state update for tab", message.tabId);
-                    updateTabDisplayFromCache(message.tabId, message.tabState);
-                } else if (message.command === "tabGroupStateChanged") {
-                    // Tab group collapsed/expanded - sync with popup checkbox
-                    console.log("*SNOW TOOL BELT* Tab group state changed for", message.instance, "collapsed:", message.collapsed);
-                    syncTabGroupStateToPopup(message.instance, message.windowId, message.collapsed);
-                }
-            });
+        console.log("*SNOW TOOL BELT* Loaded options from background");
+        debugLog("*SNOW TOOL BELT* Context:", context);
 
+        bootStrap();
 
-            document.getElementById("new_tab").addEventListener("change", newTab);
-            document.getElementById("search_custom").addEventListener("click", searchNow);
-            document.getElementById("search_doc").addEventListener("click", searchNow);
-            document.getElementById("search_api").addEventListener("click", searchNow);
-            document.getElementById("searchInput").addEventListener("keyup", function (event) {
-                event.preventDefault();
+        document.getElementById("config").addEventListener("click", openOptions);
+        document.getElementById("open_in_panel").addEventListener("click", openInPanel);
+        document.getElementById("show_news").addEventListener("click", showWhatsNew);
+        document.getElementById("shortcuts").addEventListener("click", openShortcutsPage);
+
+        // Load and display keyboard shortcuts in tooltip
+        loadShortcutsTooltip();
+
+        // Listen for real-time tab state updates and tab group changes from background
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            if (message.command === "tabStateUpdated") {
+                debugLog("*SNOW TOOL BELT* Received tab state update for tab", message.tabId);
+                updateTabDisplayFromCache(message.tabId, message.tabState);
+            } else if (message.command === "tabGroupStateChanged") {
+                debugLog("*SNOW TOOL BELT* Tab group state changed for", message.instance, "collapsed:", message.collapsed);
+                syncTabGroupStateToPopup(message.instance, message.windowId, message.collapsed);
+            }
+        });
+
+        document.getElementById("new_tab").addEventListener("change", newTab);
+        document.getElementById("search_custom").addEventListener("click", searchNow);
+        document.getElementById("search_doc").addEventListener("click", searchNow);
+        document.getElementById("search_api").addEventListener("click", searchNow);
+        document.getElementById("searchInput").addEventListener("keyup", function (event) {
+            event.preventDefault();
                 if (event.key === "Enter") {
                     document.getElementById("search_custom").click();
                 }
@@ -1712,12 +1729,11 @@ const getOptions = () => {
                 });
             }
 
-            // listen to tabs events
-            chrome.tabs.onUpdated.addListener(tabUpdated);
-            chrome.tabs.onRemoved.addListener(tabRemoved);
-            chrome.tabs.onAttached.addListener(tabAttached);
-            chrome.tabs.onActivated.addListener(tabActivated);
-        });
+        // listen to tabs events
+        chrome.tabs.onUpdated.addListener(tabUpdated);
+        chrome.tabs.onRemoved.addListener(tabRemoved);
+        chrome.tabs.onAttached.addListener(tabAttached);
+        chrome.tabs.onActivated.addListener(tabActivated);
     });
 };
 /**
@@ -2457,7 +2473,7 @@ const tabUpdated = (tabId, changeInfo, tab) => {
         
         if (tab.instance !== instance) {
             // frack it, just redraw everything
-            bootStrap();
+            debouncedBootStrap();
         } else {
             tabLi.innerText = transformTitle(changeInfo.title);
             for (let tabSearch in context.tabs[instance][tab.windowId]) {
@@ -2470,7 +2486,7 @@ const tabUpdated = (tabId, changeInfo, tab) => {
         }
     } else if (!tabLi) {
         if (tabCreated(tab)) {
-            bootStrap();
+            debouncedBootStrap();
         }
     }
 };
@@ -2483,7 +2499,7 @@ const tabUpdated = (tabId, changeInfo, tab) => {
 const tabAttached = (tabId, attachInfo) => {
     if (document.getElementById("tab" + tabId)) {
         // frack it, just redraw everything
-        bootStrap();
+        debouncedBootStrap();
     }
 }
 
@@ -2496,7 +2512,7 @@ const tabRemoved = (tabId, removeInfo) => {
     // Recent tabs tracking is now handled by background script
     if (document.getElementById("tab" + tabId)) {
         // Redraw everything
-        window.setTimeout(bootStrap, 200);
+        debouncedBootStrap();
     }
 };
 
@@ -2554,11 +2570,11 @@ const openInPanel = () => {
     let createData = {
         type: "popup",
         url: (isChromium ? "dialog/snowbelt.html" : "snowbelt.html"),
-        width: 720,  // Slightly wider to account for browser chrome
-        height: 600  // Taller to better accommodate content
+        width: 720,
+        height: 600
     };
-    let creating = chrome.windows.create(createData);
-}
+    chrome.windows.create(createData);
+};
 
 const openOptions = (elt) => {
     if (chrome.runtime.openOptionsPage) {
@@ -2688,6 +2704,7 @@ const displayWhatsNew = async () => {
  */
 const bootStrap = () => {
     console.info("** bootstrapin' **");
+
     chrome.windows.getCurrent((wi) => {
         context.windowType = wi.type;
         if (context.windowType == "popup") {
@@ -2735,13 +2752,71 @@ const bootStrap = () => {
     chrome.tabs.query({}, getTabs);
 };
 
+/**
+ * Debounced version of bootStrap for tab event handlers.
+ * Prevents rapid successive redraws during events like SSO redirects,
+ * where a single tab may fire multiple URL changes in quick succession.
+ * The initial call from getOptions() uses bootStrap() directly and is unaffected.
+ */
+let _bootStrapDebounceTimer = null;
+const debouncedBootStrap = () => {
+    clearTimeout(_bootStrapDebounceTimer);
+    _bootStrapDebounceTimer = setTimeout(bootStrap, 300);
+};
+
 document.addEventListener("DOMContentLoaded", () => {
-    // Load debug mode setting
+    // Load debug mode setting (always local, not routed through background)
     chrome.storage.local.get("debugMode", (data) => {
         context.debugMode = data.debugMode === true;
         console.log("*SNOW TOOL BELT* Debug mode:", context.debugMode ? "enabled" : "disabled");
     });
-    
+
+    // Phase 5: React to storage changes made by the options page or background
+    // while the popup is open, without doing a full reload.
+    chrome.storage.onChanged.addListener((changes, area) => {
+        // Ignore session storage (tabStateCache) and local-only keys
+        if (area === "session") return;
+        const LOCAL_ONLY_KEYS = new Set(["debugMode", "showInfoPanel", "whatsnew", "recentTabs", "useSync",
+            "trackRecentTabs", "maxRecentTabs", "removeAfterReopen", "groupRecentByInstance"]);
+
+        let needsRerender = false;
+
+        if (changes.knownInstances) {
+            try {
+                const updated = JSON.parse(changes.knownInstances.newValue || "{}");
+                // Only accept if not a regression (more or equal instances than current)
+                if (Object.keys(updated).length >= Object.keys(context.knownInstances).length) {
+                    context.knownInstances = updated;
+                    needsRerender = true;
+                    debugLog("*SNOW TOOL BELT* Storage change: knownInstances updated");
+                }
+            } catch (e) { console.error("*SNOW TOOL BELT* Error parsing knownInstances change:", e); }
+        }
+
+        if (changes.instanceOptions) {
+            try {
+                const updated = JSON.parse(changes.instanceOptions.newValue || "{}");
+                context.instanceOptions = updated;
+                needsRerender = true;
+                debugLog("*SNOW TOOL BELT* Storage change: instanceOptions updated");
+            } catch (e) { console.error("*SNOW TOOL BELT* Error parsing instanceOptions change:", e); }
+        }
+
+        if (changes.showUpdatesets) {
+            context.showUpdatesets = (changes.showUpdatesets.newValue === true || changes.showUpdatesets.newValue === "true");
+            needsRerender = true;
+        }
+
+        if (changes.contentScriptEnabled) {
+            context.contentScriptEnabled = (changes.contentScriptEnabled.newValue !== false && changes.contentScriptEnabled.newValue !== "false");
+        }
+
+        if (needsRerender) {
+            debugLog("*SNOW TOOL BELT* Re-rendering popup due to storage change");
+            debouncedBootStrap();
+        }
+    });
+
     // Initialize tips context (from tips.js)
     if (typeof initializeTipsContext === 'function') {
         initializeTipsContext();

@@ -14,6 +14,30 @@ var runtimeAPI = window.SNOWBELT_runtimeAPI;
 
 console.log("*SNOW TOOL BELT* Basic content script loaded");
 
+// Guard against double-injection (e.g. Firefox static manifest + dynamic registration both firing)
+// Uses the same window-based pattern as isChromium/runtimeAPI above
+if (typeof window.SNOWBELT_context === 'undefined') {
+    window.SNOWBELT_context = {
+        g_ck: "",
+        debugMode: false
+    };
+}
+var context = window.SNOWBELT_context;
+
+/**
+ * Debug logging function - only logs when debug mode is enabled
+ * @param {...any} args - Arguments to log
+ */
+if (typeof window.SNOWBELT_debugLog === 'undefined') {
+    window.SNOWBELT_debugLog = function(...args) {
+        if (window.SNOWBELT_context && window.SNOWBELT_context.debugMode) {
+            console.log(...args);
+        }
+    };
+}
+var debugLog = window.SNOWBELT_debugLog;
+
+
 /**
  * Convert hex color to RGB object
  * @param {string} hex - Hex color string (e.g., "#ff0000")
@@ -33,43 +57,30 @@ function hexToRgb(hex) {
  * @param {string} color - The color to use for the favicon border
  */
 function updateFavicon(color) {
-    console.log("*SNOW TOOL BELT* update favicon color to: " + color);
+    debugLog("*SNOW TOOL BELT* update favicon color to: " + color);
     
     // Store the instance color for the info panel
     if (color && color !== "") {
         instanceColor = color;
         isDefaultColor = false;
-        // Update info panel color if it exists
-        const colorSquare = document.querySelector('.sntb-info-panel-color');
-        if (colorSquare) {
-            colorSquare.style.backgroundColor = color;
-            colorSquare.style.boxShadow = `0 0 15px ${color}`;
-            colorSquare.style.opacity = '1';
-            // Remove question mark when custom color is set
-            colorSquare.textContent = '';
-        }
+        // Update info panel border color if it exists
         const panel = document.querySelector('.sntb-info-panel');
         if (panel) {
             panel.style.borderColor = color;
-            panel.style.boxShadow = `0 4px 20px ${color}40`;
+            panel.style.boxShadow = `2px 0 12px ${color}40`;
+            // Update icon colors
+            const icons = panel.querySelectorAll('.sntb-info-panel-position, .sntb-info-panel-close');
+            icons.forEach(icon => { icon.style.color = color; });
         }
     } else {
-        // No custom color set, use default teal with question mark
+        // No custom color set, use default teal
         isDefaultColor = true;
-        const colors = getThemeColors();
-        const colorSquare = document.querySelector('.sntb-info-panel-color');
-        if (colorSquare) {
-            colorSquare.style.backgroundColor = instanceColor;
-            colorSquare.style.boxShadow = `0 0 15px ${instanceColor}`;
-            colorSquare.style.opacity = '1';
-            colorSquare.style.color = colors.textSecondary;
-            // Add question mark for default color
-            colorSquare.textContent = '?';
-        }
         const panel = document.querySelector('.sntb-info-panel');
         if (panel) {
             panel.style.borderColor = instanceColor;
-            panel.style.boxShadow = `0 4px 20px ${instanceColor}40`;
+            panel.style.boxShadow = `2px 0 12px ${instanceColor}40`;
+            const icons = panel.querySelectorAll('.sntb-info-panel-position, .sntb-info-panel-close');
+            icons.forEach(icon => { icon.style.color = instanceColor; });
         }
     }
     
@@ -87,15 +98,15 @@ function updateFavicon(color) {
     let canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 256;
-    let context = canvas.getContext("2d");
+    let canvasContext = canvas.getContext("2d");
 
     let img = document.createElement("img");
     img.onload = function (ev) {
         // Draw the original image
-        context.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+        canvasContext.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
 
         // Get image data to analyze colors
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
 
         // Find the most used non-transparent color
@@ -127,7 +138,7 @@ function updateFavicon(color) {
             }
         }
 
-        console.log("*SNOW TOOL BELT* Dominant color found:", dominantColor, "with", maxCount, "pixels");
+        debugLog("*SNOW TOOL BELT* Dominant color found:", dominantColor, "with", maxCount, "pixels");
 
         if (dominantColor) {
             // Replace the dominant color with the instance color
@@ -159,14 +170,14 @@ function updateFavicon(color) {
                 }
 
                 // Put the modified image data back
-                context.putImageData(imageData, 0, 0);
+                canvasContext.putImageData(imageData, 0, 0);
             }
         } else {
             // Fallback to the old method if no dominant color found
-            console.log("*SNOW TOOL BELT* No dominant color found, using fallback method");
-            context.globalCompositeOperation = "source-in";
-            context.fillStyle = color;
-            context.fillRect(0, 0, 256, 256);
+            debugLog("*SNOW TOOL BELT* No dominant color found, using fallback method");
+            canvasContext.globalCompositeOperation = "source-in";
+            canvasContext.fillStyle = color;
+            canvasContext.fillRect(0, 0, 256, 256);
         }
 
         link.href = canvas.toDataURL();
@@ -185,7 +196,7 @@ function initBasicScript() {
         "hostname": window.location.hostname,
         "url": window.location.href
     }, function (response) {
-        console.log("*SNOW TOOL BELT* Basic script - isServiceNow response:", response);
+        debugLog("*SNOW TOOL BELT* Basic script - isServiceNow response:", response);
         
         if (runtimeAPI.lastError) {
             console.error("*SNOW TOOL BELT* Basic script - Runtime error:", runtimeAPI.lastError);
@@ -193,7 +204,7 @@ function initBasicScript() {
         }
         
         if (response && response.isServiceNow && response.favIconColor) {
-            console.log("*SNOW TOOL BELT* Basic script - Updating favicon with color:", response.favIconColor);
+            debugLog("*SNOW TOOL BELT* Basic script - Updating favicon with color:", response.favIconColor);
             updateFavicon(response.favIconColor);
         }
     });

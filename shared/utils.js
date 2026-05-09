@@ -172,12 +172,3 @@ if (typeof isDarkMode === 'undefined') {
     };
 }
 
-/**
- * Checks if window is small (like a popup)
- * @returns {boolean} True if window is small
- */
-if (typeof isSmallWindow === 'undefined') {
-    var isSmallWindow = function() {
-        return window.innerWidth < 600 || window.innerHeight < 400;
-    };
-}
