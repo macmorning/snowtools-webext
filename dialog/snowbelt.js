@@ -1803,8 +1803,10 @@ const refreshList = () => {
             openTabs.innerHTML += instanceRow;
         }
     }
-    saveKnownInstances();
-    saveInstanceOptions();
+    // Note: saveKnownInstances() and saveInstanceOptions() removed here.
+    // The popup should never do a full overwrite of these objects just because it rendered the tab list.
+    // New instances are discovered by the background's isServiceNow() → saveNewInstance() path.
+    // Instance options are saved individually by checkInstance(), saveColor(), hideInstance(), etc.
 
     if (context.tabCount === 0) {
         window.setTimeout(function () {

@@ -9,11 +9,29 @@
 // BROWSER COMPATIBILITY
 // ============================================================================
 
+const getPlatform = () => {
+  const { userAgent } = navigator;
+
+  if (userAgent.includes("Firefox")) {
+    return "Firefox";
+  } else if ("brave" in navigator) {
+    return "Brave";
+  } else if (userAgent.includes("Edg/")) {
+    return "Edge";
+  } else if (userAgent.includes("OPR")) {
+    return "Opera";
+  }
+  return "Chrome";
+};
+
 /**
  * Detects if running in Chromium-based browser (Chrome, Edge, etc.)
  */
 if (typeof isChromium === 'undefined') {
-    var isChromium = (typeof browser === "undefined");
+    var agent = getPlatform();
+    var isChromium = ["Chrome", "Edge", "Brave"].includes(agent);
+    var isEdge = (agent === "Edge");
+    var isChrome = (agent === "Chrome");
 }
 
 // ============================================================================

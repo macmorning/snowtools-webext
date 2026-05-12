@@ -1,5 +1,13 @@
-// Firefox compatibility - background scripts can't load shared/utils.js
-const isChromium = (typeof browser === "undefined");
+// Browser detection — duplicated from shared/utils.js since service worker can't load it
+const getPlatform = () => {
+    const { userAgent } = navigator;
+    if (userAgent.includes("Firefox")) return "Firefox";
+    else if ("brave" in navigator) return "Brave";
+    else if (userAgent.includes("Edg/")) return "Edge";
+    else if (userAgent.includes("OPR")) return "Opera";
+    return "Chrome";
+};
+const isChromium = ["Chrome", "Edge", "Brave"].includes(getPlatform());
 const chromeAPI = isChromium ? chrome : browser;
 
 // Recent tabs tracking - always keep last 10 per instance
@@ -180,8 +188,24 @@ const context = {
     contentScriptEnabled: true, // Whether content script features are enabled
     showUpdatesets: true, // Whether to show update sets in the popup
     maxSearchResults: 50, // Maximum number of search results
-    storageArea: {} // Always chromeAPI.storage.local after migration
+    useSync: false, // Whether to mirror settings to sync storage
+    storageArea: {} // Always chromeAPI.storage.local — sync is only a mirror
 };
+
+/**
+ * Mirrors data to sync storage (fire-and-forget).
+ * Called after every local write when useSync is enabled.
+ * Silently fails if sync quota is exceeded.
+ * @param {Object} data - The key/value pairs to mirror to sync
+ */
+function mirrorToSync(data) {
+    if (!context.useSync) return;
+    chromeAPI.storage.sync.set(data, () => {
+        if (chromeAPI.runtime.lastError) {
+            console.warn("*SNOW TOOL BELT BG* Sync mirror failed (quota?):", chromeAPI.runtime.lastError.message);
+        }
+    });
+}
 
 /**
  * Tab state cache - Phase 1 implementation
@@ -237,14 +261,14 @@ async function saveNewInstance(hostname) {
 /**
  * Retrieves saved options. Always reads from local storage (sync migration ensures data is here).
  */
-const getOptions = () => {
-    // After migration, useSync is always false — always use local storage
-    context.useSync = false;
+const getOptions = (onReady) => {
+    // Always read from local storage — sync is only a mirror
     context.storageArea = chromeAPI.storage.local;
-    context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "contentScriptEnabled", "showUpdatesets", "maxSearchResults"], (result) => {
+    context.storageArea.get(["useSync", "extraDomains", "urlFilters", "knownInstances", "instanceOptions", "contentScriptEnabled", "showUpdatesets", "maxSearchResults"], (result) => {
             // Use per-key defaults instead of wiping everything when result is empty.
             // An empty result can mean "first run" OR "wrong storage bucket" — we can't tell
             // the difference, so we must never reset to defaults for keys that have a safe fallback.
+            context.useSync = (result.useSync === true || result.useSync === "true");
             const regex = /http[s]{0,1}:\/\//gm;
             const regex2 = /\/[^;]*/gm;
             context.urlFilters = (result.urlFilters || "service-now.com;").replace(regex, "").replace(regex2, "");
@@ -337,6 +361,8 @@ const getOptions = () => {
                     }
                 }
             });
+    
+    if (onReady) onReady();
     });
 };
 
@@ -970,17 +996,20 @@ const msgListener = (message, sender, sendResponse) => {
 
     /**
      * Returns the full current settings to the caller (popup or options page).
-     * The caller should use this instead of reading storage directly.
+     * Waits for settings to be loaded from storage before responding (handles service worker restart race).
      */
     if (message.command === "getSettings") {
-        sendResponse({
-            knownInstances: context.knownInstances,
-            instanceOptions: context.instanceOptions,
-            urlFilters: context.urlFilters,
-            extraDomains: context.extraDomains,
-            showUpdatesets: context.showUpdatesets,
-            maxSearchResults: context.maxSearchResults,
-            contentScriptEnabled: context.contentScriptEnabled
+        settingsReady.then(() => {
+            sendResponse({
+                knownInstances: context.knownInstances,
+                instanceOptions: context.instanceOptions,
+                urlFilters: context.urlFilters,
+                extraDomains: context.extraDomains,
+                showUpdatesets: context.showUpdatesets,
+                maxSearchResults: context.maxSearchResults,
+                contentScriptEnabled: context.contentScriptEnabled,
+                useSync: context.useSync
+            });
         });
         return true;
     }
@@ -1012,6 +1041,20 @@ const msgListener = (message, sender, sendResponse) => {
                 sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
             } else {
                 console.log("*SNOW TOOL BELT BG* Saved instanceOption", key, "for", instance);
+                mirrorToSync({ instanceOptions: JSON.stringify(context.instanceOptions) });
+                
+                // Broadcast color changes to all tabs for this instance
+                if (key === "color") {
+                    chrome.tabs.query({ url: `*://${instance}/*` }, (tabs) => {
+                        if (chrome.runtime.lastError) return;
+                        tabs.forEach(tab => {
+                            chrome.tabs.sendMessage(tab.id, { command: "updateFavicon", color: value || "" }, () => {
+                                if (chrome.runtime.lastError) { /* tab not ready, ignore */ }
+                            });
+                        });
+                    });
+                }
+                
                 sendResponse({ success: true });
             }
         });
@@ -1037,6 +1080,7 @@ const msgListener = (message, sender, sendResponse) => {
                 sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
             } else {
                 console.log("*SNOW TOOL BELT BG* Saved friendly name for", instance, "->", name);
+                mirrorToSync({ knownInstances: JSON.stringify(context.knownInstances) });
                 sendResponse({ success: true });
             }
         });
@@ -1069,14 +1113,118 @@ const msgListener = (message, sender, sendResponse) => {
             sendResponse({ success: false, error: "No valid keys provided" });
             return true;
         }
+
+        // Clean instanceOptions: remove entries for instances not in knownInstances
+        if (updates.knownInstances || message.settings.knownInstances) {
+            const currentKnown = context.knownInstances || {};
+            let cleaned = false;
+            for (const key of Object.keys(context.instanceOptions)) {
+                if (currentKnown[key] === undefined) {
+                    delete context.instanceOptions[key];
+                    cleaned = true;
+                }
+            }
+            if (cleaned) {
+                updates.instanceOptions = JSON.stringify(context.instanceOptions);
+                console.log("*SNOW TOOL BELT BG* Cleaned orphaned instanceOptions entries");
+            }
+        }
+
         context.storageArea.set(updates, () => {
             if (chromeAPI.runtime.lastError) {
                 console.error("*SNOW TOOL BELT BG* Error saving settings:", chromeAPI.runtime.lastError);
                 sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
             } else {
                 console.log("*SNOW TOOL BELT BG* Saved settings:", Object.keys(updates));
+                mirrorToSync(updates);
                 sendResponse({ success: true });
             }
+        });
+        return true;
+    }
+
+    /**
+     * Toggles sync mirroring. If enabling, merges local ↔ sync (both directions) then writes merged to both.
+     * For instanceOptions: per-instance deep merge — sync fills missing keys (e.g. color) that local doesn't have.
+     * message: { command, useSync: boolean }
+     */
+    if (message.command === "setUseSync") {
+        const newUseSync = (message.useSync === true || message.useSync === "true");
+        context.useSync = newUseSync;
+        chromeAPI.storage.local.set({ useSync: newUseSync }, async () => {
+            if (chromeAPI.runtime.lastError) {
+                sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
+                return;
+            }
+
+            if (newUseSync) {
+                try {
+                    // Read sync data
+                    const syncData = await chromeAPI.storage.sync.get([
+                        "knownInstances", "instanceOptions", "urlFilters",
+                        "extraDomains", "showUpdatesets", "contentScriptEnabled", "maxSearchResults"
+                    ]);
+
+                    // Parse
+                    let syncInstances = {}, syncOptions = {};
+                    try { syncInstances = JSON.parse(syncData.knownInstances || "{}"); } catch(e) {}
+                    try { syncOptions = JSON.parse(syncData.instanceOptions || "{}"); } catch(e) {}
+
+                    // Merge knownInstances: union of both.
+                    // If local has the hostname as name (not renamed), prefer sync's friendly name.
+                    const mergedInstances = { ...syncInstances };
+                    for (const inst of Object.keys(context.knownInstances)) {
+                        const localName = context.knownInstances[inst];
+                        const syncName = syncInstances[inst];
+                        if (localName && localName !== inst) {
+                            mergedInstances[inst] = localName;
+                        } else if (syncName && syncName !== inst) {
+                            mergedInstances[inst] = syncName;
+                        } else {
+                            mergedInstances[inst] = localName || syncName || inst;
+                        }
+                    }
+
+                    // Merge instanceOptions: per-instance deep merge.
+                    // For each instance, sync fills keys that local doesn't have (e.g. color from sync).
+                    const mergedOptions = {};
+                    const allInstanceKeys = new Set([...Object.keys(syncOptions), ...Object.keys(context.instanceOptions)]);
+                    for (const inst of allInstanceKeys) {
+                        const syncOpts = syncOptions[inst] || {};
+                        const localOpts = context.instanceOptions[inst] || {};
+                        // Sync fills gaps, local wins for keys it has
+                        mergedOptions[inst] = { ...syncOpts, ...localOpts };
+                    }
+
+                    // Update in-memory context
+                    context.knownInstances = mergedInstances;
+                    context.instanceOptions = mergedOptions;
+
+                    // Write merged result to both local and sync
+                    const mergedData = {
+                        knownInstances: JSON.stringify(mergedInstances),
+                        instanceOptions: JSON.stringify(mergedOptions),
+                        urlFilters: context.urlFilters,
+                        extraDomains: context.extraDomains,
+                        showUpdatesets: context.showUpdatesets,
+                        contentScriptEnabled: context.contentScriptEnabled,
+                        maxSearchResults: context.maxSearchResults
+                    };
+                    await chromeAPI.storage.local.set(mergedData);
+                    chromeAPI.storage.sync.set(mergedData, () => {
+                        if (chromeAPI.runtime.lastError) {
+                            console.warn("*SNOW TOOL BELT BG* Sync upload after merge failed:", chromeAPI.runtime.lastError.message);
+                        } else {
+                            console.log("*SNOW TOOL BELT BG* Sync enabled: merged and uploaded");
+                        }
+                    });
+                } catch (e) {
+                    console.error("*SNOW TOOL BELT BG* Error during sync enable merge:", e);
+                }
+            }
+
+            console.log("*SNOW TOOL BELT BG* useSync set to", newUseSync);
+            sendResponse({ success: true });
         });
         return true;
     }
@@ -1092,39 +1240,33 @@ chromeAPI.commands.onCommand.addListener(cmdListener);
 console.log("*SNOW TOOL BELT BG* Background script initializing, browser:", isChromium ? "Chrome" : "Firefox");
 
 /**
- * One-time migration: copies settings from sync storage to local storage.
- * Runs once per install/update. After migration, the extension always uses local storage.
- * Sync data is left untouched (not deleted) so older versions still work if user downgrades.
+ * Startup sync merge: if useSync is enabled, merges any new data from sync into local.
+ * Local is always primary. Sync entries not in local are added (e.g. from another device).
+ * Local entries always win for conflicts.
+ * Runs every startup (not just once) so cross-device sync works continuously.
  */
-async function migrateFromSyncToLocal() {
+async function mergeSyncOnStartup() {
     try {
-        const migrationResult = await chromeAPI.storage.local.get(['_migrationDone']);
-        if (migrationResult._migrationDone) return; // Already migrated
-
         const useSyncResult = await chromeAPI.storage.local.get(['useSync']);
-        const useSync = (useSyncResult.useSync === true || useSyncResult.useSync === "true");
+        context.useSync = (useSyncResult.useSync === true || useSyncResult.useSync === "true");
 
-        if (!useSync) {
-            // Already on local — just mark as done
-            await chromeAPI.storage.local.set({ _migrationDone: true, useSync: false });
-            console.log("*SNOW TOOL BELT BG* Migration: already using local storage, marked as done");
+        if (!context.useSync) {
+            console.log("*SNOW TOOL BELT BG* Sync disabled, skipping merge");
             return;
         }
 
-        console.log("*SNOW TOOL BELT BG* Migration: useSync was true, copying sync → local...");
+        console.log("*SNOW TOOL BELT BG* Sync enabled, merging sync → local...");
 
-        // Read from sync
+        // Read from both
         const syncData = await chromeAPI.storage.sync.get([
             "knownInstances", "instanceOptions", "urlFilters",
             "extraDomains", "showUpdatesets", "contentScriptEnabled", "maxSearchResults"
         ]);
-
-        // Read from local (may have richer data from direct writes)
         const localData = await chromeAPI.storage.local.get([
             "knownInstances", "instanceOptions", "urlFilters"
         ]);
 
-        // Parse both
+        // Parse
         let syncInstances = {}, localInstances = {};
         let syncOptions = {}, localOptions = {};
         try { syncInstances = JSON.parse(syncData.knownInstances || "{}"); } catch(e) {}
@@ -1132,35 +1274,107 @@ async function migrateFromSyncToLocal() {
         try { syncOptions = JSON.parse(syncData.instanceOptions || "{}"); } catch(e) {}
         try { localOptions = JSON.parse(localData.instanceOptions || "{}"); } catch(e) {}
 
-        // Merge: local wins for conflicts (more likely to be current)
-        const mergedInstances = { ...syncInstances, ...localInstances };
-        const mergedOptions = { ...syncOptions, ...localOptions };
+        // Merge knownInstances: union of both.
+        // If local has the hostname as name (not renamed), prefer sync's friendly name.
+        const mergedInstances = { ...syncInstances };
+        for (const inst of Object.keys(localInstances)) {
+            const localName = localInstances[inst];
+            const syncName = syncInstances[inst];
+            if (localName && localName !== inst) {
+                mergedInstances[inst] = localName; // local has a real name
+            } else if (syncName && syncName !== inst) {
+                mergedInstances[inst] = syncName; // sync has a real name, local doesn't
+            } else {
+                mergedInstances[inst] = localName || syncName || inst;
+            }
+        }
 
-        // Write merged data to local
-        await chromeAPI.storage.local.set({
-            knownInstances: JSON.stringify(mergedInstances),
-            instanceOptions: JSON.stringify(mergedOptions),
-            urlFilters: localData.urlFilters || syncData.urlFilters || "service-now.com;",
-            extraDomains: syncData.extraDomains || false,
-            showUpdatesets: syncData.showUpdatesets !== undefined ? syncData.showUpdatesets : true,
-            contentScriptEnabled: syncData.contentScriptEnabled !== undefined ? syncData.contentScriptEnabled : true,
-            maxSearchResults: syncData.maxSearchResults || 20,
-            useSync: false,
-            _migrationDone: true
-        });
+        // Deep merge instanceOptions: per-instance, sync fills missing keys
+        const mergedOptions = {};
+        const allInstanceKeys = new Set([...Object.keys(syncOptions), ...Object.keys(localOptions)]);
+        for (const inst of allInstanceKeys) {
+            const sOpts = syncOptions[inst] || {};
+            const lOpts = localOptions[inst] || {};
+            mergedOptions[inst] = { ...sOpts, ...lOpts };
+        }
 
-        console.log("*SNOW TOOL BELT BG* Migration complete: sync → local.",
-            "Merged", Object.keys(mergedInstances).length, "instances,",
-            Object.keys(mergedOptions).length, "instance options");
+        const syncAdded = Object.keys(mergedInstances).length - Object.keys(localInstances).length;
+        if (syncAdded > 0) {
+            console.log("*SNOW TOOL BELT BG* Sync merge added", syncAdded, "instances from sync");
+        }
+
+        // Write merged data back to local (only if sync added something)
+        if (syncAdded > 0 || Object.keys(mergedOptions).length > Object.keys(localOptions).length) {
+            await chromeAPI.storage.local.set({
+                knownInstances: JSON.stringify(mergedInstances),
+                instanceOptions: JSON.stringify(mergedOptions)
+            });
+        }
+
+        // Also pull non-instance settings from sync if local doesn't have them
+        const settingsToMerge = {};
+        if (!localData.urlFilters && syncData.urlFilters) settingsToMerge.urlFilters = syncData.urlFilters;
+        if (syncData.extraDomains !== undefined && !localData.extraDomains) settingsToMerge.extraDomains = syncData.extraDomains;
+        if (Object.keys(settingsToMerge).length > 0) {
+            await chromeAPI.storage.local.set(settingsToMerge);
+        }
+
+        console.log("*SNOW TOOL BELT BG* Sync merge complete");
     } catch (error) {
-        console.error("*SNOW TOOL BELT BG* Migration error:", error);
-        // Don't block startup — getOptions will still work with whatever storage has
+        console.error("*SNOW TOOL BELT BG* Sync merge error:", error);
     }
 }
 
-// Run migration before loading options
-migrateFromSyncToLocal().then(() => {
-    getOptions();
+// ============================================================================
+// TEMPORARY DIAGNOSTIC: Monitor all writes to knownInstances/instanceOptions
+// Remove this block once the data loss root cause is identified.
+// ============================================================================
+chromeAPI.storage.onChanged.addListener((changes, area) => {
+    if (changes.knownInstances || changes.instanceOptions) {
+        let kiOldCount = '(unchanged)', kiNewCount = '(unchanged)';
+        let ioOldCount = '(unchanged)', ioNewCount = '(unchanged)';
+        
+        if (changes.knownInstances) {
+            try { kiOldCount = Object.keys(JSON.parse(changes.knownInstances.oldValue || "{}")).length; } catch(e) { kiOldCount = 'parse-error'; }
+            try { kiNewCount = Object.keys(JSON.parse(changes.knownInstances.newValue || "{}")).length; } catch(e) { kiNewCount = 'parse-error'; }
+        }
+        if (changes.instanceOptions) {
+            try { ioOldCount = Object.keys(JSON.parse(changes.instanceOptions.oldValue || "{}")).length; } catch(e) { ioOldCount = 'parse-error'; }
+            try { ioNewCount = Object.keys(JSON.parse(changes.instanceOptions.newValue || "{}")).length; } catch(e) { ioNewCount = 'parse-error'; }
+        }
+        
+        const timestamp = new Date().toISOString();
+        console.warn(`*SNOW TOOL BELT BG* [STORAGE MONITOR ${timestamp}] area=${area} knownInstances: ${kiOldCount} → ${kiNewCount}, instanceOptions: ${ioOldCount} → ${ioNewCount}`);
+        
+        // ALERT: data regression detected
+        if (changes.knownInstances && changes.knownInstances.oldValue && changes.knownInstances.newValue) {
+            try {
+                const oldCount = Object.keys(JSON.parse(changes.knownInstances.oldValue)).length;
+                const newCount = Object.keys(JSON.parse(changes.knownInstances.newValue)).length;
+                if (newCount < oldCount) {
+                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] knownInstances REDUCED from ${oldCount} to ${newCount}!`);
+                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] Old value had:`, Object.keys(JSON.parse(changes.knownInstances.oldValue)).slice(0, 5), '...');
+                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] New value has:`, Object.keys(JSON.parse(changes.knownInstances.newValue)).slice(0, 5), '...');
+                }
+            } catch(e) {}
+        }
+        if (changes.instanceOptions && changes.instanceOptions.oldValue && changes.instanceOptions.newValue) {
+            try {
+                const oldCount = Object.keys(JSON.parse(changes.instanceOptions.oldValue)).length;
+                const newCount = Object.keys(JSON.parse(changes.instanceOptions.newValue)).length;
+                if (newCount < oldCount) {
+                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] instanceOptions REDUCED from ${oldCount} to ${newCount}!`);
+                }
+            } catch(e) {}
+        }
+    }
+});
+
+// Run sync merge before loading options.
+// settingsReady resolves once getOptions has finished loading data from storage.
+// Any message handler that needs settings (like getSettings) must await this.
+const settingsReady = mergeSyncOnStartup().then(() => {
+    return new Promise(resolve => getOptions(resolve));
 });
 
 

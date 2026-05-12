@@ -285,23 +285,31 @@ const restoreOptions = () => {
         context.showInfoPanel = showInfoPanel;
     });
 
-    // Load all other settings from background
-    chrome.runtime.sendMessage({ command: "getSettings" }, (response) => {
-        if (chrome.runtime.lastError) {
-            console.error("*SNOW TOOL BELT* Error getting settings from background:", chrome.runtime.lastError);
-            displayMessage("Could not load settings. Please try reloading the page.");
-            return;
-        }
+    // Load all other settings from background.
+    // Retry once after a short delay if the service worker isn't ready yet.
+    const loadFromBackground = (retryCount = 0) => {
+        chrome.runtime.sendMessage({ command: "getSettings" }, (response) => {
+            if (chrome.runtime.lastError) {
+                if (retryCount < 2) {
+                    console.log("*SNOW TOOL BELT* Background not ready, retrying in 500ms...");
+                    setTimeout(() => loadFromBackground(retryCount + 1), 500);
+                } else {
+                    console.error("*SNOW TOOL BELT* Error getting settings from background:", chrome.runtime.lastError);
+                    displayMessage("Could not load settings. Please try reloading the page.");
+                }
+                return;
+            }
 
-        context.knownInstances = response.knownInstances || {};
-        context.instanceOptions = response.instanceOptions || {};
+            context.knownInstances = response.knownInstances || {};
+            context.instanceOptions = response.instanceOptions || {};
         context.urlFilters = response.urlFilters || "service-now.com;";
         context.extraDomains = response.extraDomains || false;
         context.showUpdatesets = (response.showUpdatesets !== false);
         context.contentScriptEnabled = (response.contentScriptEnabled !== false);
         context.maxSearchResults = response.maxSearchResults || 20;
 
-        // Populate UI (useSync is always false now — toggle is disabled)
+        // Populate UI
+        document.getElementById("useSync").checked = response.useSync || false;
         document.getElementById("extraDomains").checked = context.extraDomains;
         document.getElementById("showUpdatesets").checked = context.showUpdatesets;
         document.getElementById("contentScriptEnabled").checked = context.contentScriptEnabled;
@@ -373,6 +381,8 @@ const restoreOptions = () => {
             });
         }
     });
+    };
+    loadFromBackground();
 };
 
 /**
@@ -665,13 +675,22 @@ const importOptions = (evt) => {
 };
 
 /**
- * Triggered when user changes the "useSync" toggle (deprecated — now always local)
+ * Triggered when user changes the "useSync" toggle
  * @param {Event} evt the event that triggered the action
  */
 const toggleSync = (evt) => {
-    // Migration has moved all data to local. Revert the toggle.
-    evt.target.checked = false;
-    displayMessage("Settings are now always stored locally for improved reliability. Your cloud settings have been automatically migrated.");
+    const newUseSync = evt.target.checked;
+    chrome.runtime.sendMessage({ command: "setUseSync", useSync: newUseSync }, (response) => {
+        if (chrome.runtime.lastError || (response && !response.success)) {
+            console.error("*SNOW TOOL BELT* Error setting useSync:", chrome.runtime.lastError || response.error);
+            displayMessage("There was an error switching sync mode.");
+            evt.target.checked = !newUseSync;
+            return;
+        }
+        displayMessage(newUseSync 
+            ? "Sync enabled. Your settings will be mirrored to cloud storage." 
+            : "Sync disabled. Settings are stored locally only.");
+    });
 };
 
 /**

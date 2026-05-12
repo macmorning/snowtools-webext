@@ -1,14 +1,22 @@
 // Reuse variables from basic script if already declared, otherwise declare them
 // Using window to avoid redeclaration errors when both scripts load
 if (typeof window.SNOWBELT_isChromium === 'undefined') {
-    window.SNOWBELT_isChromium = (typeof browser === "undefined");
+    // Fallback detection if basic script hasn't run yet
+    const _gp = () => {
+        const { userAgent } = navigator;
+        if (userAgent.includes("Firefox")) return "Firefox";
+        else if ("brave" in navigator) return "Brave";
+        else if (userAgent.includes("Edg/")) return "Edge";
+        else if (userAgent.includes("OPR")) return "Opera";
+        return "Chrome";
+    };
+    window.SNOWBELT_isChromium = ["Chrome", "Edge", "Brave"].includes(_gp());
 }
 if (typeof window.SNOWBELT_runtimeAPI === 'undefined') {
-    // Firefox compatibility: use browser API if available
-    window.SNOWBELT_runtimeAPI = typeof browser !== "undefined" ? browser.runtime : chrome.runtime;
+    window.SNOWBELT_runtimeAPI = window.SNOWBELT_isChromium ? chrome.runtime : browser.runtime;
 }
 if (typeof window.SNOWBELT_storageAPI === 'undefined') {
-    window.SNOWBELT_storageAPI = typeof browser !== "undefined" ? browser.storage : chrome.storage;
+    window.SNOWBELT_storageAPI = window.SNOWBELT_isChromium ? chrome.storage : browser.storage;
 }
 
 // Reference window properties directly throughout this file
@@ -1209,7 +1217,7 @@ async function createInfoPanel() {
             border: 2px solid ${instanceColor};
             border-radius: 0 6px 6px 0;
             box-shadow: 2px 0 12px ${instanceColor}40;
-            padding: 6px 5px;
+            padding: 16px 5px;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             color: ${colors.textPrimary};
             z-index: 999998;
@@ -1238,10 +1246,11 @@ async function createInfoPanel() {
         positionBtn.className = 'sntb-info-panel-position';
         positionBtn.textContent = '▶';
         positionBtn.style.cssText = `
-            font-size: 12px;
+            font-size: 16px;
             color: ${instanceColor};
             cursor: pointer;
             line-height: 1;
+            padding: 4px;
             opacity: 0.8;
         `;
         positionBtn.title = 'Move to right';
@@ -1254,10 +1263,11 @@ async function createInfoPanel() {
         closeBtn.className = 'sntb-info-panel-close';
         closeBtn.textContent = '✕';
         closeBtn.style.cssText = `
-            font-size: 12px;
+            font-size: 16px;
             color: ${instanceColor};
             cursor: pointer;
             line-height: 1;
+            padding: 4px;
             opacity: 0.8;
         `;
         closeBtn.title = 'Hide info panel';
@@ -4760,9 +4770,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     );
 
                     if (response.ok) {
-                        consoleResults.innerHTML = `<div class="sntb-console-success">✓ Switched to scope: ${safeName}</div>`;
-                        // Refresh the info panel to show the new scope and update set
-                        refreshInfoPanel();
+                        consoleResults.innerHTML = `<div class="sntb-console-success">✓ Switched to scope: ${safeName}. Reloading...</div>`;
+                        setTimeout(() => window.location.reload(), 800);
                     } else {
                         const errorBody = await response.text().catch(() => '');
                         item.style.opacity = '1';

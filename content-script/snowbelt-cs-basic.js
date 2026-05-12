@@ -1,6 +1,14 @@
-// Firefox compatibility - store on window to share with main script
-window.SNOWBELT_isChromium = (typeof browser === "undefined");
-window.SNOWBELT_runtimeAPI = typeof browser !== "undefined" ? browser.runtime : chrome.runtime;
+// Browser detection — duplicated from shared/utils.js since basic script loads before it
+const _getPlatform = () => {
+    const { userAgent } = navigator;
+    if (userAgent.includes("Firefox")) return "Firefox";
+    else if ("brave" in navigator) return "Brave";
+    else if (userAgent.includes("Edg/")) return "Edge";
+    else if (userAgent.includes("OPR")) return "Opera";
+    return "Chrome";
+};
+window.SNOWBELT_isChromium = ["Chrome", "Edge", "Brave"].includes(_getPlatform());
+window.SNOWBELT_runtimeAPI = window.SNOWBELT_isChromium ? chrome.runtime : browser.runtime;
 
 // Use window properties directly
 var isChromium = window.SNOWBELT_isChromium;
