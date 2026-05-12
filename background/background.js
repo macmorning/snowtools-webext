@@ -1,5 +1,13 @@
-// Firefox compatibility - background scripts can't load shared/utils.js
-const isChromium = (typeof browser === "undefined");
+// Browser detection — duplicated from shared/utils.js since service worker can't load it
+const getPlatform = () => {
+    const { userAgent } = navigator;
+    if (userAgent.includes("Firefox")) return "Firefox";
+    else if ("brave" in navigator) return "Brave";
+    else if (userAgent.includes("Edg/")) return "Edge";
+    else if (userAgent.includes("OPR")) return "Opera";
+    return "Chrome";
+};
+const isChromium = ["Chrome", "Edge", "Brave"].includes(getPlatform());
 const chromeAPI = isChromium ? chrome : browser;
 
 // Recent tabs tracking - always keep last 10 per instance
@@ -178,9 +186,26 @@ const context = {
     knownInstances: {}, // { "url1": "instance 1 name", "url2": "instance 2 name", ...}
     instanceOptions: {}, // { "url1": { "checkState": boolean, "colorSet": boolean, "color": color, "hidden": boolean}, "url2": ...}
     contentScriptEnabled: true, // Whether content script features are enabled
-    useSync: false,
-    storageArea: {}
+    showUpdatesets: true, // Whether to show update sets in the popup
+    maxSearchResults: 50, // Maximum number of search results
+    useSync: false, // Whether to mirror settings to sync storage
+    storageArea: {} // Always chromeAPI.storage.local — sync is only a mirror
 };
+
+/**
+ * Mirrors data to sync storage (fire-and-forget).
+ * Called after every local write when useSync is enabled.
+ * Silently fails if sync quota is exceeded.
+ * @param {Object} data - The key/value pairs to mirror to sync
+ */
+function mirrorToSync(data) {
+    if (!context.useSync) return;
+    chromeAPI.storage.sync.set(data, () => {
+        if (chromeAPI.runtime.lastError) {
+            console.warn("*SNOW TOOL BELT BG* Sync mirror failed (quota?):", chromeAPI.runtime.lastError.message);
+        }
+    });
+}
 
 /**
  * Tab state cache - Phase 1 implementation
@@ -192,40 +217,63 @@ const tabStateCache = {
 };
 
 /**
- * Saves context into storage sync area
+ * Safely saves a newly discovered instance by merging with current storage contents.
+ * Reads from storage first to avoid overwriting richer data written by the popup or options page.
+ * Only writes if the instance is genuinely absent from storage.
+ * @param {string} hostname - The instance hostname to save
  */
-function saveContext() {
-    context.storageArea.set({
-        "knownInstances": JSON.stringify(context.knownInstances),
-        "instanceOptions": JSON.stringify(context.instanceOptions),
-        "urlFilters": context.urlFilters
-    }, function () {
-        console.log("*SNOW TOOL BELT BG* Options saved!");
-    });
+async function saveNewInstance(hostname) {
+    try {
+        const result = await context.storageArea.get(["knownInstances", "instanceOptions"]);
+
+        let knownInstances = {};
+        let instanceOptions = {};
+        try { knownInstances = JSON.parse(result.knownInstances || "{}"); } catch (e) { knownInstances = {}; }
+        try { instanceOptions = JSON.parse(result.instanceOptions || "{}"); } catch (e) { instanceOptions = {}; }
+
+        // Only write if genuinely missing — never overwrite existing entries
+        if (knownInstances[hostname] !== undefined) {
+            console.log("*SNOW TOOL BELT BG* Instance already in storage, skipping save:", hostname);
+            // Still update in-memory context to match storage
+            context.knownInstances = knownInstances;
+            context.instanceOptions = instanceOptions;
+            return;
+        }
+
+        knownInstances[hostname] = hostname;
+        instanceOptions[hostname] = { hidden: false };
+
+        await context.storageArea.set({
+            "knownInstances": JSON.stringify(knownInstances),
+            "instanceOptions": JSON.stringify(instanceOptions)
+        });
+
+        // Keep in-memory context in sync with what we just wrote
+        context.knownInstances = knownInstances;
+        context.instanceOptions = instanceOptions;
+
+        console.log("*SNOW TOOL BELT BG* Saved new instance to storage:", hostname);
+    } catch (e) {
+        console.error("*SNOW TOOL BELT BG* Error saving new instance:", e);
+    }
 }
 
 /**
- * Retrieves saved options
+ * Retrieves saved options. Always reads from local storage (sync migration ensures data is here).
  */
-const getOptions = () => {
-    chromeAPI.storage.local.get("useSync", (result1) => {
-        context.useSync = result1.useSync;
-        context.storageArea = (context.useSync ? chromeAPI.storage.sync : chromeAPI.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "contentScriptEnabled"], (result) => {
-            if (Object.keys(result).length === 0) {
-                // Nothing is stored yet
-                context.urlFilters = "service-now.com;";
-                context.knownInstances = "{}";
-                context.instanceOptions = "{}";
-            } else {
-                // remove http:// and https:// from filter string
-                const regex = /http[s]{0,1}:\/\//gm;
-                const regex2 = /\/[^;]*/gm;
-                context.urlFilters = (result.urlFilters || "service-now.com;").replace(regex, "").replace(regex2, "");
-                context.knownInstances = result.knownInstances;
-                context.instanceOptions = result.instanceOptions;
-            }
-
+const getOptions = (onReady) => {
+    // Always read from local storage — sync is only a mirror
+    context.storageArea = chromeAPI.storage.local;
+    context.storageArea.get(["useSync", "extraDomains", "urlFilters", "knownInstances", "instanceOptions", "contentScriptEnabled", "showUpdatesets", "maxSearchResults"], (result) => {
+            // Use per-key defaults instead of wiping everything when result is empty.
+            // An empty result can mean "first run" OR "wrong storage bucket" — we can't tell
+            // the difference, so we must never reset to defaults for keys that have a safe fallback.
+            context.useSync = (result.useSync === true || result.useSync === "true");
+            const regex = /http[s]{0,1}:\/\//gm;
+            const regex2 = /\/[^;]*/gm;
+            context.urlFilters = (result.urlFilters || "service-now.com;").replace(regex, "").replace(regex2, "");
+            const rawKnownInstances = result.knownInstances || "{}";
+            const rawInstanceOptions = result.instanceOptions || "{}";
 
             context.urlFiltersArr = context.urlFilters.split(";");
             console.log("*SNOW TOOL BELT BG* urlFilters:", context.urlFilters);
@@ -238,6 +286,9 @@ const getOptions = () => {
             const contentScriptEnabled = (result.contentScriptEnabled === "true" || result.contentScriptEnabled === true || result.contentScriptEnabled === undefined);
             context.contentScriptEnabled = contentScriptEnabled;
             console.log("*SNOW TOOL BELT BG* Content script features enabled:", contentScriptEnabled);
+
+            context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
+            context.maxSearchResults = result.maxSearchResults || 20;
             
             if (contentScriptEnabled) {
                 // Register main content scripts for service-now.com
@@ -267,7 +318,7 @@ const getOptions = () => {
                 });
             }
             try {
-                context.knownInstances = JSON.parse(context.knownInstances);
+                context.knownInstances = JSON.parse(rawKnownInstances);
             } catch (e) {
                 console.log(e);
                 context.knownInstances = {};
@@ -282,7 +333,7 @@ const getOptions = () => {
             }, 500);
             
             try {
-                context.instanceOptions = JSON.parse(context.instanceOptions);
+                context.instanceOptions = JSON.parse(rawInstanceOptions);
             } catch (e) {
                 console.log(e);
                 context.instanceOptions = {};
@@ -310,7 +361,8 @@ const getOptions = () => {
                     }
                 }
             });
-        });
+    
+    if (onReady) onReady();
     });
 };
 
@@ -628,26 +680,6 @@ const reloadInstanceTabs = async (instance, windowId) => {
 }
 
 /**
- * Handles a change event coming from storage
- * @param {Object} objChanged an object that contains the items that changed with newValue and oldValue
- * @param {String} area Storage area (should be "sync")
- */
-function storageEvent(objChanged, area) {
-    // Phase 1: Ignore tabStateCache updates to avoid unnecessary reloads
-    if (objChanged.tabStateCache) {
-        console.log("*SNOW TOOL BELT BG* Tab state cache updated, skipping options reload");
-        return false;
-    }
-    
-    // FF doesn't check if there is an actual change between new and old values
-    if ((objChanged.instanceOptions && objChanged.instanceOptions.newValue === objChanged.instanceOptions.oldValue) || (objChanged.knownInstances && objChanged.knownInstances.newValue === objChanged.knownInstances.oldValue)) {
-        return false;
-    } else {
-        console.log("*SNOW TOOL BELT BG* Storage update, reloading options");
-        getOptions();
-    }
-}
-/**
  * Command listener
  * @param {String} command Id of the command that was issued
  */
@@ -757,7 +789,7 @@ const isServiceNow = (hostname) => {
                 context.instanceOptions[hostname] = {
                     'hidden': false
                 };
-                saveContext();
+                saveNewInstance(hostname);
             }
 
             // Get friendly name from knownInstances
@@ -958,17 +990,392 @@ const msgListener = (message, sender, sendResponse) => {
         return true; // Async response
     }
     
+    // -------------------------------------------------------------------------
+    // Settings API (Phase 2) — background is the sole writer of settings storage
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the full current settings to the caller (popup or options page).
+     * Waits for settings to be loaded from storage before responding (handles service worker restart race).
+     */
+    if (message.command === "getSettings") {
+        settingsReady.then(() => {
+            sendResponse({
+                knownInstances: context.knownInstances,
+                instanceOptions: context.instanceOptions,
+                urlFilters: context.urlFilters,
+                extraDomains: context.extraDomains,
+                showUpdatesets: context.showUpdatesets,
+                maxSearchResults: context.maxSearchResults,
+                contentScriptEnabled: context.contentScriptEnabled,
+                useSync: context.useSync
+            });
+        });
+        return true;
+    }
+
+    /**
+     * Updates a single key for a single instance in instanceOptions and persists.
+     * message: { command, instance, key, value }
+     */
+    if (message.command === "updateInstanceOption") {
+        const { instance, key, value } = message;
+        if (!instance || key === undefined) {
+            sendResponse({ success: false, error: "Missing instance or key" });
+            return true;
+        }
+        if (!context.instanceOptions[instance]) {
+            context.instanceOptions[instance] = {};
+        }
+        // value === null means delete the key (e.g. removing a color)
+        if (value === null || value === undefined) {
+            delete context.instanceOptions[instance][key];
+        } else {
+            context.instanceOptions[instance][key] = value;
+        }
+        context.storageArea.set({
+            "instanceOptions": JSON.stringify(context.instanceOptions)
+        }, () => {
+            if (chromeAPI.runtime.lastError) {
+                console.error("*SNOW TOOL BELT BG* Error saving instanceOptions:", chromeAPI.runtime.lastError);
+                sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
+            } else {
+                console.log("*SNOW TOOL BELT BG* Saved instanceOption", key, "for", instance);
+                mirrorToSync({ instanceOptions: JSON.stringify(context.instanceOptions) });
+                
+                // Broadcast color changes to all tabs for this instance
+                if (key === "color") {
+                    chrome.tabs.query({ url: `*://${instance}/*` }, (tabs) => {
+                        if (chrome.runtime.lastError) return;
+                        tabs.forEach(tab => {
+                            chrome.tabs.sendMessage(tab.id, { command: "updateFavicon", color: value || "" }, () => {
+                                if (chrome.runtime.lastError) { /* tab not ready, ignore */ }
+                            });
+                        });
+                    });
+                }
+                
+                sendResponse({ success: true });
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Updates the friendly name for an instance in knownInstances and persists.
+     * message: { command, instance, name }
+     */
+    if (message.command === "updateKnownInstance") {
+        const { instance, name } = message;
+        if (!instance || name === undefined) {
+            sendResponse({ success: false, error: "Missing instance or name" });
+            return true;
+        }
+        context.knownInstances[instance] = name;
+        context.storageArea.set({
+            "knownInstances": JSON.stringify(context.knownInstances)
+        }, () => {
+            if (chromeAPI.runtime.lastError) {
+                console.error("*SNOW TOOL BELT BG* Error saving knownInstances:", chromeAPI.runtime.lastError);
+                sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
+            } else {
+                console.log("*SNOW TOOL BELT BG* Saved friendly name for", instance, "->", name);
+                mirrorToSync({ knownInstances: JSON.stringify(context.knownInstances) });
+                sendResponse({ success: true });
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Bulk-updates settings (used by options page for urlFilters, extraDomains, etc.).
+     * message: { command, settings: { key: value, ... } }
+     * Only whitelisted keys are accepted to prevent accidental overwrites.
+     */
+    if (message.command === "updateSettings") {
+        const ALLOWED_KEYS = [
+            "urlFilters", "extraDomains", "showUpdatesets",
+            "contentScriptEnabled", "maxSearchResults",
+            "knownInstances", "instanceOptions"
+        ];
+        const updates = {};
+        for (const key of ALLOWED_KEYS) {
+            if (message.settings && message.settings[key] !== undefined) {
+                // Update in-memory context
+                context[key] = message.settings[key];
+                // Serialize objects to JSON for storage
+                updates[key] = (typeof message.settings[key] === "object")
+                    ? JSON.stringify(message.settings[key])
+                    : message.settings[key];
+            }
+        }
+        if (Object.keys(updates).length === 0) {
+            sendResponse({ success: false, error: "No valid keys provided" });
+            return true;
+        }
+
+        // Clean instanceOptions: remove entries for instances not in knownInstances
+        if (updates.knownInstances || message.settings.knownInstances) {
+            const currentKnown = context.knownInstances || {};
+            let cleaned = false;
+            for (const key of Object.keys(context.instanceOptions)) {
+                if (currentKnown[key] === undefined) {
+                    delete context.instanceOptions[key];
+                    cleaned = true;
+                }
+            }
+            if (cleaned) {
+                updates.instanceOptions = JSON.stringify(context.instanceOptions);
+                console.log("*SNOW TOOL BELT BG* Cleaned orphaned instanceOptions entries");
+            }
+        }
+
+        context.storageArea.set(updates, () => {
+            if (chromeAPI.runtime.lastError) {
+                console.error("*SNOW TOOL BELT BG* Error saving settings:", chromeAPI.runtime.lastError);
+                sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
+            } else {
+                console.log("*SNOW TOOL BELT BG* Saved settings:", Object.keys(updates));
+                mirrorToSync(updates);
+                sendResponse({ success: true });
+            }
+        });
+        return true;
+    }
+
+    /**
+     * Toggles sync mirroring. If enabling, merges local ↔ sync (both directions) then writes merged to both.
+     * For instanceOptions: per-instance deep merge — sync fills missing keys (e.g. color) that local doesn't have.
+     * message: { command, useSync: boolean }
+     */
+    if (message.command === "setUseSync") {
+        const newUseSync = (message.useSync === true || message.useSync === "true");
+        context.useSync = newUseSync;
+        chromeAPI.storage.local.set({ useSync: newUseSync }, async () => {
+            if (chromeAPI.runtime.lastError) {
+                sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
+                return;
+            }
+
+            if (newUseSync) {
+                try {
+                    // Read sync data
+                    const syncData = await chromeAPI.storage.sync.get([
+                        "knownInstances", "instanceOptions", "urlFilters",
+                        "extraDomains", "showUpdatesets", "contentScriptEnabled", "maxSearchResults"
+                    ]);
+
+                    // Parse
+                    let syncInstances = {}, syncOptions = {};
+                    try { syncInstances = JSON.parse(syncData.knownInstances || "{}"); } catch(e) {}
+                    try { syncOptions = JSON.parse(syncData.instanceOptions || "{}"); } catch(e) {}
+
+                    // Merge knownInstances: union of both.
+                    // If local has the hostname as name (not renamed), prefer sync's friendly name.
+                    const mergedInstances = { ...syncInstances };
+                    for (const inst of Object.keys(context.knownInstances)) {
+                        const localName = context.knownInstances[inst];
+                        const syncName = syncInstances[inst];
+                        if (localName && localName !== inst) {
+                            mergedInstances[inst] = localName;
+                        } else if (syncName && syncName !== inst) {
+                            mergedInstances[inst] = syncName;
+                        } else {
+                            mergedInstances[inst] = localName || syncName || inst;
+                        }
+                    }
+
+                    // Merge instanceOptions: per-instance deep merge.
+                    // For each instance, sync fills keys that local doesn't have (e.g. color from sync).
+                    const mergedOptions = {};
+                    const allInstanceKeys = new Set([...Object.keys(syncOptions), ...Object.keys(context.instanceOptions)]);
+                    for (const inst of allInstanceKeys) {
+                        const syncOpts = syncOptions[inst] || {};
+                        const localOpts = context.instanceOptions[inst] || {};
+                        // Sync fills gaps, local wins for keys it has
+                        mergedOptions[inst] = { ...syncOpts, ...localOpts };
+                    }
+
+                    // Update in-memory context
+                    context.knownInstances = mergedInstances;
+                    context.instanceOptions = mergedOptions;
+
+                    // Write merged result to both local and sync
+                    const mergedData = {
+                        knownInstances: JSON.stringify(mergedInstances),
+                        instanceOptions: JSON.stringify(mergedOptions),
+                        urlFilters: context.urlFilters,
+                        extraDomains: context.extraDomains,
+                        showUpdatesets: context.showUpdatesets,
+                        contentScriptEnabled: context.contentScriptEnabled,
+                        maxSearchResults: context.maxSearchResults
+                    };
+                    await chromeAPI.storage.local.set(mergedData);
+                    chromeAPI.storage.sync.set(mergedData, () => {
+                        if (chromeAPI.runtime.lastError) {
+                            console.warn("*SNOW TOOL BELT BG* Sync upload after merge failed:", chromeAPI.runtime.lastError.message);
+                        } else {
+                            console.log("*SNOW TOOL BELT BG* Sync enabled: merged and uploaded");
+                        }
+                    });
+                } catch (e) {
+                    console.error("*SNOW TOOL BELT BG* Error during sync enable merge:", e);
+                }
+            }
+
+            console.log("*SNOW TOOL BELT BG* useSync set to", newUseSync);
+            sendResponse({ success: true });
+        });
+        return true;
+    }
+
     sendResponse("");
 };
 
 chromeAPI.runtime.onMessage.addListener(msgListener);
 chromeAPI.tabs.onUpdated.addListener(tabUpdated);
-chromeAPI.storage.onChanged.addListener(storageEvent);
 chromeAPI.commands.onCommand.addListener(cmdListener);
 
 // Firefox-specific: Add initialization logging
 console.log("*SNOW TOOL BELT BG* Background script initializing, browser:", isChromium ? "Chrome" : "Firefox");
-getOptions();
+
+/**
+ * Startup sync merge: if useSync is enabled, merges any new data from sync into local.
+ * Local is always primary. Sync entries not in local are added (e.g. from another device).
+ * Local entries always win for conflicts.
+ * Runs every startup (not just once) so cross-device sync works continuously.
+ */
+async function mergeSyncOnStartup() {
+    try {
+        const useSyncResult = await chromeAPI.storage.local.get(['useSync']);
+        context.useSync = (useSyncResult.useSync === true || useSyncResult.useSync === "true");
+
+        if (!context.useSync) {
+            console.log("*SNOW TOOL BELT BG* Sync disabled, skipping merge");
+            return;
+        }
+
+        console.log("*SNOW TOOL BELT BG* Sync enabled, merging sync → local...");
+
+        // Read from both
+        const syncData = await chromeAPI.storage.sync.get([
+            "knownInstances", "instanceOptions", "urlFilters",
+            "extraDomains", "showUpdatesets", "contentScriptEnabled", "maxSearchResults"
+        ]);
+        const localData = await chromeAPI.storage.local.get([
+            "knownInstances", "instanceOptions", "urlFilters"
+        ]);
+
+        // Parse
+        let syncInstances = {}, localInstances = {};
+        let syncOptions = {}, localOptions = {};
+        try { syncInstances = JSON.parse(syncData.knownInstances || "{}"); } catch(e) {}
+        try { localInstances = JSON.parse(localData.knownInstances || "{}"); } catch(e) {}
+        try { syncOptions = JSON.parse(syncData.instanceOptions || "{}"); } catch(e) {}
+        try { localOptions = JSON.parse(localData.instanceOptions || "{}"); } catch(e) {}
+
+        // Merge knownInstances: union of both.
+        // If local has the hostname as name (not renamed), prefer sync's friendly name.
+        const mergedInstances = { ...syncInstances };
+        for (const inst of Object.keys(localInstances)) {
+            const localName = localInstances[inst];
+            const syncName = syncInstances[inst];
+            if (localName && localName !== inst) {
+                mergedInstances[inst] = localName; // local has a real name
+            } else if (syncName && syncName !== inst) {
+                mergedInstances[inst] = syncName; // sync has a real name, local doesn't
+            } else {
+                mergedInstances[inst] = localName || syncName || inst;
+            }
+        }
+
+        // Deep merge instanceOptions: per-instance, sync fills missing keys
+        const mergedOptions = {};
+        const allInstanceKeys = new Set([...Object.keys(syncOptions), ...Object.keys(localOptions)]);
+        for (const inst of allInstanceKeys) {
+            const sOpts = syncOptions[inst] || {};
+            const lOpts = localOptions[inst] || {};
+            mergedOptions[inst] = { ...sOpts, ...lOpts };
+        }
+
+        const syncAdded = Object.keys(mergedInstances).length - Object.keys(localInstances).length;
+        if (syncAdded > 0) {
+            console.log("*SNOW TOOL BELT BG* Sync merge added", syncAdded, "instances from sync");
+        }
+
+        // Write merged data back to local (only if sync added something)
+        if (syncAdded > 0 || Object.keys(mergedOptions).length > Object.keys(localOptions).length) {
+            await chromeAPI.storage.local.set({
+                knownInstances: JSON.stringify(mergedInstances),
+                instanceOptions: JSON.stringify(mergedOptions)
+            });
+        }
+
+        // Also pull non-instance settings from sync if local doesn't have them
+        const settingsToMerge = {};
+        if (!localData.urlFilters && syncData.urlFilters) settingsToMerge.urlFilters = syncData.urlFilters;
+        if (syncData.extraDomains !== undefined && !localData.extraDomains) settingsToMerge.extraDomains = syncData.extraDomains;
+        if (Object.keys(settingsToMerge).length > 0) {
+            await chromeAPI.storage.local.set(settingsToMerge);
+        }
+
+        console.log("*SNOW TOOL BELT BG* Sync merge complete");
+    } catch (error) {
+        console.error("*SNOW TOOL BELT BG* Sync merge error:", error);
+    }
+}
+
+// ============================================================================
+// TEMPORARY DIAGNOSTIC: Monitor all writes to knownInstances/instanceOptions
+// Remove this block once the data loss root cause is identified.
+// ============================================================================
+chromeAPI.storage.onChanged.addListener((changes, area) => {
+    if (changes.knownInstances || changes.instanceOptions) {
+        let kiOldCount = '(unchanged)', kiNewCount = '(unchanged)';
+        let ioOldCount = '(unchanged)', ioNewCount = '(unchanged)';
+        
+        if (changes.knownInstances) {
+            try { kiOldCount = Object.keys(JSON.parse(changes.knownInstances.oldValue || "{}")).length; } catch(e) { kiOldCount = 'parse-error'; }
+            try { kiNewCount = Object.keys(JSON.parse(changes.knownInstances.newValue || "{}")).length; } catch(e) { kiNewCount = 'parse-error'; }
+        }
+        if (changes.instanceOptions) {
+            try { ioOldCount = Object.keys(JSON.parse(changes.instanceOptions.oldValue || "{}")).length; } catch(e) { ioOldCount = 'parse-error'; }
+            try { ioNewCount = Object.keys(JSON.parse(changes.instanceOptions.newValue || "{}")).length; } catch(e) { ioNewCount = 'parse-error'; }
+        }
+        
+        const timestamp = new Date().toISOString();
+        console.warn(`*SNOW TOOL BELT BG* [STORAGE MONITOR ${timestamp}] area=${area} knownInstances: ${kiOldCount} → ${kiNewCount}, instanceOptions: ${ioOldCount} → ${ioNewCount}`);
+        
+        // ALERT: data regression detected
+        if (changes.knownInstances && changes.knownInstances.oldValue && changes.knownInstances.newValue) {
+            try {
+                const oldCount = Object.keys(JSON.parse(changes.knownInstances.oldValue)).length;
+                const newCount = Object.keys(JSON.parse(changes.knownInstances.newValue)).length;
+                if (newCount < oldCount) {
+                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] knownInstances REDUCED from ${oldCount} to ${newCount}!`);
+                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] Old value had:`, Object.keys(JSON.parse(changes.knownInstances.oldValue)).slice(0, 5), '...');
+                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] New value has:`, Object.keys(JSON.parse(changes.knownInstances.newValue)).slice(0, 5), '...');
+                }
+            } catch(e) {}
+        }
+        if (changes.instanceOptions && changes.instanceOptions.oldValue && changes.instanceOptions.newValue) {
+            try {
+                const oldCount = Object.keys(JSON.parse(changes.instanceOptions.oldValue)).length;
+                const newCount = Object.keys(JSON.parse(changes.instanceOptions.newValue)).length;
+                if (newCount < oldCount) {
+                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] instanceOptions REDUCED from ${oldCount} to ${newCount}!`);
+                }
+            } catch(e) {}
+        }
+    }
+});
+
+// Run sync merge before loading options.
+// settingsReady resolves once getOptions has finished loading data from storage.
+// Any message handler that needs settings (like getSettings) must await this.
+const settingsReady = mergeSyncOnStartup().then(() => {
+    return new Promise(resolve => getOptions(resolve));
+});
 
 
 /**
@@ -1143,9 +1550,15 @@ try {
                 }
                 
                 context.instanceOptions[instance]["checkState"] = !group.collapsed;
-                
-                // Save to storage
-                saveContext();
+
+                // Save only instanceOptions — targeted write, no full context overwrite
+                context.storageArea.set({
+                    "instanceOptions": JSON.stringify(context.instanceOptions)
+                }, () => {
+                    if (chromeAPI.runtime.lastError) {
+                        console.error("*SNOW TOOL BELT BG* Error saving instanceOptions after tab group sync:", chromeAPI.runtime.lastError);
+                    }
+                });
                 
                 console.log("*SNOW TOOL BELT BG* Updated instance", instance, "checkState to", !group.collapsed);
                 

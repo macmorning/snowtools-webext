@@ -4,10 +4,6 @@ const mozURL = "https://addons.mozilla.org/fr/firefox/addon/snow-tool-belt/";
 const gitURL = "https://github.com/macmorning/snowtools-webext";
 
 
-// Browser detection now comes from shared/utils.js
-// Detect specific browser (Chrome vs Edge)
-const isEdge = isChromium && navigator.userAgent.includes('Edg/');
-const isChrome = isChromium && !isEdge;
 
 const shortcutsURL = (isChromium ? "chrome://extensions/shortcuts" : "Firefox shortcuts settings");
 

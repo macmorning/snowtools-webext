@@ -1,9 +1,9 @@
 const context = {
     knownInstances: {},
     instanceOptions: {},
-    useSync: false,
-    storageArea: {},
     contentScriptEnabled: true
+    // Note: useSync and storageArea removed — options page no longer reads/writes storage directly.
+    // All settings I/O goes through the background service worker via chrome.runtime.sendMessage.
 };
 chrome.commands.getAll((result) => {
     context.commands = result;
@@ -19,41 +19,39 @@ const toggleAdvancedFeaturesOptions = (enabled, autoToggle = false) => {
         advancedOptions.style.opacity = enabled ? "1" : "0.5";
         advancedOptions.style.pointerEvents = enabled ? "auto" : "none";
     }
-    
+
     // Auto-toggle dependent options when requested
     if (autoToggle) {
         const showUpdatesets = document.getElementById("showUpdatesets");
         const showInfoPanel = document.getElementById("showInfoPanel");
-        
+
         if (enabled) {
-            // When enabling advanced features, turn on updatesets and info panel
             if (showUpdatesets && !showUpdatesets.checked) {
                 showUpdatesets.checked = true;
                 context.showUpdatesets = true;
-                context.storageArea.set({ "showUpdatesets": true }, () => {});
+                chrome.runtime.sendMessage({ command: "updateSettings", settings: { showUpdatesets: true } });
             }
             if (showInfoPanel && !showInfoPanel.checked) {
                 showInfoPanel.checked = true;
                 context.showInfoPanel = true;
-                chrome.storage.local.set({ "showInfoPanel": true }, () => {});
+                chrome.storage.local.set({ "showInfoPanel": true });
             }
         } else {
-            // When disabling advanced features, turn off all three dependent options
             if (showUpdatesets && showUpdatesets.checked) {
                 showUpdatesets.checked = false;
                 context.showUpdatesets = false;
-                context.storageArea.set({ "showUpdatesets": false }, () => {});
+                chrome.runtime.sendMessage({ command: "updateSettings", settings: { showUpdatesets: false } });
             }
             if (showInfoPanel && showInfoPanel.checked) {
                 showInfoPanel.checked = false;
                 context.showInfoPanel = false;
-                chrome.storage.local.set({ "showInfoPanel": false }, () => {});
+                chrome.storage.local.set({ "showInfoPanel": false });
             }
             const debugMode = document.getElementById("debugMode");
             if (debugMode && debugMode.checked) {
                 debugMode.checked = false;
                 context.debugMode = false;
-                chrome.storage.local.set({ "debugMode": false }, () => {});
+                chrome.storage.local.set({ "debugMode": false });
             }
         }
     }
@@ -266,162 +264,125 @@ const rebuildDomainsList = () => {
     }
 };
 /**
- * Restores the options saved into storage area
+ * Restores the options from the background service worker.
+ * Background is the sole reader/writer of storage — options page never accesses storage directly.
  */
 const restoreOptions = () => {
-    // clearOptions first
+    // Clear the instances list first
     let instancesDiv = document.getElementById("knownInstancesList");
     while (instancesDiv.firstChild) {
         instancesDiv.removeChild(instancesDiv.firstChild);
-    };
-    chrome.storage.local.get("useSync", (result1) => {
-        context.useSync = (result1.useSync === "true" || result1.useSync === true);
-        document.getElementById("useSync").checked = context.useSync;
-        // load options from storage area depending on the useSync setting
-        context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-        context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults", "contentScriptEnabled"], (result) => {
-            context.extraDomains = (result.extraDomains === "true" || result.extraDomains === true);
-            context.urlFilters = result.urlFilters || "service-now.com;";
-            rebuildDomainsList();
+    }
 
-            document.getElementById("extraDomains").checked = context.extraDomains;
-            // document.getElementById("urlFilters").value = context.urlFilters;
+    // Load always-local settings (debugMode, showInfoPanel) in parallel with background settings
+    chrome.storage.local.get(["debugMode", "showInfoPanel", "trackRecentTabs", "maxRecentTabs", "removeAfterReopen", "groupRecentByInstance"], (localResult) => {
+        const debugMode = localResult.debugMode === true;
+        document.getElementById("debugMode").checked = debugMode;
+        context.debugMode = debugMode;
 
-            document.getElementById("showUpdatesets").checked = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
-            
-            // Load content script enabled setting (same storage as showUpdatesets)
-            console.log("*SNOW TOOL BELT* Loading contentScriptEnabled from storage:", result.contentScriptEnabled, "type:", typeof result.contentScriptEnabled);
-            // Handle boolean, string, or undefined (default to true)
-            let contentScriptEnabled;
-            if (result.contentScriptEnabled === undefined) {
-                contentScriptEnabled = true; // Default to enabled
-            } else if (typeof result.contentScriptEnabled === 'boolean') {
-                contentScriptEnabled = result.contentScriptEnabled;
-            } else {
-                contentScriptEnabled = (result.contentScriptEnabled === "true");
-            }
-            console.log("*SNOW TOOL BELT* Parsed contentScriptEnabled value:", contentScriptEnabled);
-            document.getElementById("contentScriptEnabled").checked = contentScriptEnabled;
-            context.contentScriptEnabled = contentScriptEnabled;
-            
-            // Show/hide advanced features options based on setting
-            toggleAdvancedFeaturesOptions(contentScriptEnabled);
-            
-            // Load max search results setting
-            const maxSearchResults = result.maxSearchResults || 20;
-            document.getElementById("maxSearchResults").value = maxSearchResults;
-            context.maxSearchResults = maxSearchResults;
-
-            // Load theme preference and debug mode
-            chrome.storage.local.get(["debugMode", "showInfoPanel", "trackRecentTabs", "maxRecentTabs", "removeAfterReopen", "groupRecentByInstance"], (localResult) => {
-                const debugMode = localResult.debugMode === true;
-                document.getElementById("debugMode").checked = debugMode;
-                context.debugMode = debugMode;
-                
-                const showInfoPanel = localResult.showInfoPanel !== false; // Default to true
-                document.getElementById("showInfoPanel").checked = showInfoPanel;
-                context.showInfoPanel = showInfoPanel;
-            });
-            try {
-                if (result.knownInstances !== undefined) { context.knownInstances = JSON.parse(result.knownInstances); }
-                else { context.knownInstances = {}; }
-            } catch (e) {
-                context.knownInstances = {};
-                console.log(e);
-            }
-            try {
-                if (result.instanceOptions !== undefined) { context.instanceOptions = JSON.parse(result.instanceOptions); }
-                else { context.instanceOptions = {}; }
-            } catch (e) {
-                context.instanceOptions = {};
-                console.log(e);
-            }
-            if (Object.keys(context.knownInstances).length !== 0) {
-                // if knownInstances is not empty, build the input fields
-                sortInstances(sortProperties(context.knownInstances, false));
-                for (var key in context.knownInstances) {
-                    if (!key.endsWith("service-now.com") && !context.extraDomains) {
-                        document.getElementById("extraDomainsHighlight").style.display = "inline";
-                    }
-                    let input = document.createElement("input");
-                    input.setAttribute("type", "text");
-                    input.setAttribute("name", "instanceLabel");
-                    input.setAttribute("id", key);
-                    input.value = context.knownInstances[key];
-                    var hidden = (context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
-                    let label = document.createElement("label");
-                    label.className = "instance-label";
-                    label.setAttribute("for", input.id);
-                    // Sanitize key to prevent XSS
-                    const safeKey = escapeHtml(key);
-                    label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + safeKey + "\" title=\"pick a color\">&#9632;</a>" + safeKey +
-                        " <span class='pull-right'>" +
-                        "<label class='switch'  title=\"show or hide this instance\"><input name='showOrHide' type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
-                        " <a class=\"no_underline button\" data-instance=\"" + safeKey + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
-
-                    instancesDiv.appendChild(label);
-                    instancesDiv.appendChild(input);
-                }
-
-                // add remove instance
-                let elements = {};
-                elements = document.querySelectorAll("a[title=\"forget this instance\"]");
-                [].forEach.call(elements, (el) => {
-                    el.addEventListener("click", deleteInstance);
-                });
-
-                // show/hide actions
-                elements = document.querySelectorAll("input[name=\"showOrHide\"]");
-                [].forEach.call(elements, (el) => {
-                    el.addEventListener("change", saveOptions);
-                });
-
-                // store label change
-                elements = document.querySelectorAll("input[name=\"instanceLabel\"]");
-                [].forEach.call(elements, (el) => {
-                    el.addEventListener("change", saveOptions);
-                });
-
-                // add close tab actions
-                elements = document.querySelectorAll("a[title=\"pick a color\"]");
-                [].forEach.call(elements, (el) => {
-                    let instance = el.getAttribute("data-instance");
-                    let color = "";
-                    if (instance) {
-                        color = (context.instanceOptions[instance]["color"] !== undefined ? context.instanceOptions[instance]["color"] : "");
-                    }
-                    if (color) {
-                        el.style.backgroundColor = color;
-                    } else {
-                        el.style.backgroundColor = "black";
-                    }
-                    el.addEventListener("click", (e) => {
-                        context.clicked = e.target;
-                        selectColor(e);
-                    });
-                });
-
-                // Save and close button
-                document.getElementById("popin_color").addEventListener("click", saveColor);
-                document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
-
-                // Filter instances
-                document.getElementById("instanceFilter").addEventListener("keyup", (ev) => {
-                    let elements = document.getElementById("knownInstancesList").querySelectorAll("input[type='text']");
-                    [].forEach.call(elements, (el) => {
-                        if (el.value !== "" && el.value.toLowerCase().indexOf(ev.target.value.toLowerCase()) === -1
-                            && el.id.toLowerCase().indexOf(ev.target.value.toLowerCase()) === -1) {
-                            el.style.display = "none";
-                            document.getElementById("knownInstancesList").querySelector("label[for='" + el.id + "']").style.display = "none";
-                        } else {
-                            el.style.display = "initial";
-                            document.getElementById("knownInstancesList").querySelector("label[for='" + el.id + "']").style.display = "initial";
-                        }
-                    });
-                });
-            }
-        });
+        const showInfoPanel = localResult.showInfoPanel !== false; // Default to true
+        document.getElementById("showInfoPanel").checked = showInfoPanel;
+        context.showInfoPanel = showInfoPanel;
     });
+
+    // Load all other settings from background.
+    // Retry once after a short delay if the service worker isn't ready yet.
+    const loadFromBackground = (retryCount = 0) => {
+        chrome.runtime.sendMessage({ command: "getSettings" }, (response) => {
+            if (chrome.runtime.lastError) {
+                if (retryCount < 2) {
+                    console.log("*SNOW TOOL BELT* Background not ready, retrying in 500ms...");
+                    setTimeout(() => loadFromBackground(retryCount + 1), 500);
+                } else {
+                    console.error("*SNOW TOOL BELT* Error getting settings from background:", chrome.runtime.lastError);
+                    displayMessage("Could not load settings. Please try reloading the page.");
+                }
+                return;
+            }
+
+            context.knownInstances = response.knownInstances || {};
+            context.instanceOptions = response.instanceOptions || {};
+        context.urlFilters = response.urlFilters || "service-now.com;";
+        context.extraDomains = response.extraDomains || false;
+        context.showUpdatesets = (response.showUpdatesets !== false);
+        context.contentScriptEnabled = (response.contentScriptEnabled !== false);
+        context.maxSearchResults = response.maxSearchResults || 20;
+
+        // Populate UI
+        document.getElementById("useSync").checked = response.useSync || false;
+        document.getElementById("extraDomains").checked = context.extraDomains;
+        document.getElementById("showUpdatesets").checked = context.showUpdatesets;
+        document.getElementById("contentScriptEnabled").checked = context.contentScriptEnabled;
+        document.getElementById("maxSearchResults").value = context.maxSearchResults;
+
+        toggleAdvancedFeaturesOptions(context.contentScriptEnabled);
+        rebuildDomainsList();
+
+        if (Object.keys(context.knownInstances).length !== 0) {
+            sortInstances(sortProperties(context.knownInstances, false));
+            for (var key in context.knownInstances) {
+                if (!key.endsWith("service-now.com") && !context.extraDomains) {
+                    document.getElementById("extraDomainsHighlight").style.display = "inline";
+                }
+                let input = document.createElement("input");
+                input.setAttribute("type", "text");
+                input.setAttribute("name", "instanceLabel");
+                input.setAttribute("id", key);
+                input.value = context.knownInstances[key];
+                var hidden = (context.instanceOptions[key] && context.instanceOptions[key]["hidden"] !== undefined ? context.instanceOptions[key]["hidden"] : false);
+                let label = document.createElement("label");
+                label.className = "instance-label";
+                label.setAttribute("for", input.id);
+                const safeKey = escapeHtml(key);
+                label.innerHTML = "<a class=\"no_underline button color-indicator\" data-instance=\"" + safeKey + "\" title=\"pick a color\">&#9632;</a>" + safeKey +
+                    " <span class='pull-right'>" +
+                    "<label class='switch' title=\"show or hide this instance\"><input name='showOrHide' type='checkbox' id=\"show#" + input.id + "\" " + (!hidden ? "checked" : "") + "><span class='slider round'></span></label>" +
+                    " <a class=\"no_underline button\" data-instance=\"" + safeKey + "\" title=\"forget this instance\" id=\"del#" + input.id + "\">&#10799;</a></span>";
+
+                instancesDiv.appendChild(label);
+                instancesDiv.appendChild(input);
+            }
+
+            let elements = document.querySelectorAll("a[title=\"forget this instance\"]");
+            [].forEach.call(elements, (el) => { el.addEventListener("click", deleteInstance); });
+
+            elements = document.querySelectorAll("input[name=\"showOrHide\"]");
+            [].forEach.call(elements, (el) => { el.addEventListener("change", saveOptions); });
+
+            elements = document.querySelectorAll("input[name=\"instanceLabel\"]");
+            [].forEach.call(elements, (el) => { el.addEventListener("change", saveOptions); });
+
+            elements = document.querySelectorAll("a[title=\"pick a color\"]");
+            [].forEach.call(elements, (el) => {
+                let instance = el.getAttribute("data-instance");
+                let color = (instance && context.instanceOptions[instance] && context.instanceOptions[instance]["color"]) ? context.instanceOptions[instance]["color"] : "";
+                el.style.backgroundColor = color || "black";
+                el.addEventListener("click", (e) => {
+                    context.clicked = e.target;
+                    selectColor(e);
+                });
+            });
+
+            document.getElementById("popin_color").addEventListener("click", saveColor);
+            document.getElementById("popin_no_color").addEventListener("click", saveNoColor);
+
+            document.getElementById("instanceFilter").addEventListener("keyup", (ev) => {
+                let elements = document.getElementById("knownInstancesList").querySelectorAll("input[type='text']");
+                [].forEach.call(elements, (el) => {
+                    if (el.value !== "" && el.value.toLowerCase().indexOf(ev.target.value.toLowerCase()) === -1
+                        && el.id.toLowerCase().indexOf(ev.target.value.toLowerCase()) === -1) {
+                        el.style.display = "none";
+                        document.getElementById("knownInstancesList").querySelector("label[for='" + el.id + "']").style.display = "none";
+                    } else {
+                        el.style.display = "initial";
+                        document.getElementById("knownInstancesList").querySelector("label[for='" + el.id + "']").style.display = "initial";
+                    }
+                });
+            });
+        }
+    });
+    };
+    loadFromBackground();
 };
 
 /**
@@ -438,39 +399,44 @@ const sortInstances = (arr) => {
 // sortProperties is now in shared/utils.js
 
 /**
- * Saves selected color
+ * Saves selected color via background API
  * @param {object} evt the event that triggered the action
  */
 const saveColor = (evt) => {
-    let targetInstance = "";
-    targetInstance = context.clicked.getAttribute("data-instance");
-    context.clicked.style.backgroundColor = document.getElementById("colorPickerColor").value;
+    const targetInstance = context.clicked.getAttribute("data-instance");
+    const color = document.getElementById("colorPickerColor").value;
+    context.clicked.style.backgroundColor = color;
     location.hash = "";
-    if (context.instanceOptions[targetInstance] === undefined) {
-        context.instanceOptions[targetInstance] = {};
-    }
-    context.instanceOptions[targetInstance]["color"] = document.getElementById("colorPickerColor").value;
-    saveInstanceOptions();
+    if (!context.instanceOptions[targetInstance]) context.instanceOptions[targetInstance] = {};
+    context.instanceOptions[targetInstance]["color"] = color;
+    chrome.runtime.sendMessage({
+        command: "updateInstanceOption",
+        instance: targetInstance,
+        key: "color",
+        value: color
+    }, (response) => {
+        if (chrome.runtime.lastError) console.error("*SNOW TOOL BELT* Error saving color:", chrome.runtime.lastError);
+    });
 };
 
 /**
- * Saves no color for the instance
+ * Saves no color for the instance via background API
  * @param {object} evt the event that triggered the action
  */
 const saveNoColor = (evt) => {
-    let targetInstance = "";
-    targetInstance = context.clicked.getAttribute("data-instance");
+    const targetInstance = context.clicked.getAttribute("data-instance");
     context.clicked.style.backgroundColor = "#000000";
     location.hash = "";
-    if (context.instanceOptions[targetInstance] === undefined) {
-        context.instanceOptions[targetInstance] = {};
-    }
-    try {
-        delete context.instanceOptions[targetInstance]["color"];
-    } catch (e) {
-        console.log(e);
-    }
-    saveInstanceOptions();
+    if (!context.instanceOptions[targetInstance]) context.instanceOptions[targetInstance] = {};
+    try { delete context.instanceOptions[targetInstance]["color"]; } catch (e) { console.log(e); }
+    chrome.runtime.sendMessage({
+        command: "updateInstanceOption",
+        instance: targetInstance,
+        key: "color",
+        value: null  // null = delete the key in background handler
+    }, (response) => {
+        if (chrome.runtime.lastError) console.error("*SNOW TOOL BELT* Error removing color:", chrome.runtime.lastError);
+    });
 };
 
 /**
@@ -488,26 +454,27 @@ const deleteInstance = (evt) => {
 };
 
 /**
- * Saves the domain filters
+ * Saves the domain filters via background API
  */
 const saveFilters = () => {
-    context.storageArea.set({ "urlFilters": context.urlFilters }, () => { });
-}
+    chrome.runtime.sendMessage({
+        command: "updateSettings",
+        settings: { urlFilters: context.urlFilters }
+    }, (response) => {
+        if (chrome.runtime.lastError) console.error("*SNOW TOOL BELT* Error saving urlFilters:", chrome.runtime.lastError);
+    });
+};
+
 /**
- * Saves the instances checked states
+ * Saves the instance options via background API
  */
 const saveInstanceOptions = () => {
-    try {
-        context.storageArea.set({
-            "instanceOptions": JSON.stringify(context.instanceOptions)
-        }, () => {
-            // displayMessage("Options saved");
-            console.log("Saved instance options");
-        });
-    } catch (e) {
-        console.log(e);
-        displayMessage("Options could not be saved. Please report this error with below details.", e);
-    }
+    chrome.runtime.sendMessage({
+        command: "updateSettings",
+        settings: { instanceOptions: context.instanceOptions }
+    }, (response) => {
+        if (chrome.runtime.lastError) console.error("*SNOW TOOL BELT* Error saving instanceOptions:", chrome.runtime.lastError);
+    });
 };
 
 async function register(hosts, code) {
@@ -519,7 +486,7 @@ async function register(hosts, code) {
 }
 
 /**
- * Saves the options into storage
+ * Saves the options via background API
  * @param {object} evt the event that triggered the action
  */
 const saveOptions = (evt) => {
@@ -527,77 +494,53 @@ const saveOptions = (evt) => {
     try {
         if (evt.target.id === "showUpdatesets") {
             context.showUpdatesets = evt.target.checked;
-            context.storageArea.set({ "showUpdatesets": context.showUpdatesets }, () => { });
+            chrome.runtime.sendMessage({ command: "updateSettings", settings: { showUpdatesets: context.showUpdatesets } });
 
         } else if (evt.target.id === "debugMode") {
+            // debugMode is always local — not routed through background
             context.debugMode = evt.target.checked;
-            chrome.storage.local.set({ "debugMode": context.debugMode }, () => {});
+            chrome.storage.local.set({ "debugMode": context.debugMode });
+
         } else if (evt.target.id === "showInfoPanel") {
+            // showInfoPanel is always local — not routed through background
             context.showInfoPanel = evt.target.checked;
-            chrome.storage.local.set({ "showInfoPanel": context.showInfoPanel }, () => {});
+            chrome.storage.local.set({ "showInfoPanel": context.showInfoPanel });
+
         } else if (evt.target.id === "contentScriptEnabled") {
             context.contentScriptEnabled = evt.target.checked;
-            console.log("*SNOW TOOL BELT* Saving contentScriptEnabled:", context.contentScriptEnabled);
-            console.log("*SNOW TOOL BELT* Using storage area:", context.useSync ? "sync" : "local");
-            console.log("*SNOW TOOL BELT* storageArea exists:", !!context.storageArea);
-            
-            // Show/hide advanced features options and auto-toggle dependent options
             toggleAdvancedFeaturesOptions(context.contentScriptEnabled, true);
-            
-            // Ensure storageArea is initialized
-            if (!context.storageArea) {
-                chrome.storage.local.get("useSync", (result1) => {
-                    context.useSync = result1.useSync;
-                    context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-                    saveContentScriptSetting();
+            chrome.runtime.sendMessage({
+                command: "updateSettings",
+                settings: { contentScriptEnabled: context.contentScriptEnabled }
+            }, () => {
+                // Also notify background to register/unregister content scripts
+                chrome.runtime.sendMessage({
+                    command: "updateContentScriptRegistration",
+                    enabled: context.contentScriptEnabled
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        console.error("*SNOW TOOL BELT* Error notifying background:", chrome.runtime.lastError);
+                    }
                 });
-            } else {
-                saveContentScriptSetting();
-            }
-            
-            function saveContentScriptSetting() {
-                context.storageArea.set({ "contentScriptEnabled": context.contentScriptEnabled }, () => {
-                    console.log("*SNOW TOOL BELT* contentScriptEnabled saved successfully");
-                    // Notify background script to register/unregister content scripts
-                    chrome.runtime.sendMessage({ 
-                        command: "updateContentScriptRegistration", 
-                        enabled: context.contentScriptEnabled 
-                    }, (response) => {
-                        if (chrome.runtime.lastError) {
-                            console.error("*SNOW TOOL BELT* Error sending message:", chrome.runtime.lastError);
-                        } else {
-                            console.log("*SNOW TOOL BELT* Background script notified:", response);
-                        }
-                    });
-                    displayMessage("Advanced content script features " + (context.contentScriptEnabled ? "enabled" : "disabled") + ". Please reload ServiceNow pages for changes to take effect.");
-                });
-            }
+                displayMessage("Advanced content script features " + (context.contentScriptEnabled ? "enabled" : "disabled") + ". Please reload ServiceNow pages for changes to take effect.");
+            });
+
         } else if (evt.target.id === "maxSearchResults") {
             const value = parseInt(evt.target.value);
             if (value >= 5 && value <= 100) {
                 context.maxSearchResults = value;
-                context.storageArea.set({ "maxSearchResults": context.maxSearchResults }, () => {
-                    console.log("Max search results saved:", context.maxSearchResults);
-                });
+                chrome.runtime.sendMessage({ command: "updateSettings", settings: { maxSearchResults: context.maxSearchResults } });
             } else {
                 evt.target.value = context.maxSearchResults || 20;
                 displayMessage("Maximum search results must be between 5 and 100.");
             }
+
         } else if (evt.target.id === "extraDomains") {
-            console.log(evt.target.checked);
             context.extraDomains = evt.target.checked;
             if (context.extraDomains) {
-                chrome.permissions.contains({
-                    origins: ["https://*/*"]
-                }, (result) => {
-                    console.log("result before > " + result);
-                });
-                chrome.permissions.request({
-                    origins: ["https://*/*"]
-                }, granted => {
+                chrome.permissions.request({ origins: ["https://*/*"] }, granted => {
                     if (granted) {
-                        context.storageArea.set({ "extraDomains": context.extraDomains }, () => {
-                            // this should trigger an event that will be catched by the background script, which will ask the browser to inject the content script
+                        chrome.runtime.sendMessage({ command: "updateSettings", settings: { extraDomains: context.extraDomains } }, () => {
                             rebuildDomainsList();
                         });
                     } else {
@@ -606,33 +549,33 @@ const saveOptions = (evt) => {
                         rebuildDomainsList();
                         displayMessage("Your permission is required to use the extension outside of service-now.com domains.");
                     }
-                    chrome.permissions.contains({
-                        origins: ["https://*/*"]
-                    }, (result) => {
-                        console.log("result after > " + result);
-                    });
                 });
             } else {
-                chrome.permissions.remove({
-                    origins: ["https://*/*"]
-                });
-                context.storageArea.set({ "extraDomains": context.extraDomains }, () => {
+                chrome.permissions.remove({ origins: ["https://*/*"] });
+                chrome.runtime.sendMessage({ command: "updateSettings", settings: { extraDomains: context.extraDomains } }, () => {
                     rebuildDomainsList();
                 });
             }
+
         } else {
+            // Instance label or visibility change — collect all and save
             for (var key in context.knownInstances) {
                 context.knownInstances[key] = document.getElementById(key).value;
-                if (context.instanceOptions[key] === undefined) {
-                    context.instanceOptions[key] = {};
-                }
+                if (!context.instanceOptions[key]) context.instanceOptions[key] = {};
                 context.instanceOptions[key].hidden = !document.getElementById("show#" + key).checked;
             }
-            context.storageArea.set({
-                "knownInstances": JSON.stringify(context.knownInstances),
-                "instanceOptions": JSON.stringify(context.instanceOptions),
-            }, () => {
-                console.log("Options saved!");
+            chrome.runtime.sendMessage({
+                command: "updateSettings",
+                settings: {
+                    knownInstances: context.knownInstances,
+                    instanceOptions: context.instanceOptions
+                }
+            }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error("*SNOW TOOL BELT* Error saving options:", chrome.runtime.lastError);
+                } else {
+                    console.log("*SNOW TOOL BELT* Options saved via background API");
+                }
             });
         }
     } catch (e) {
@@ -641,17 +584,28 @@ const saveOptions = (evt) => {
     }
 };
 /**
- * Exports the options into storage
+ * Exports the options via background API
  * @param {object} evt the event that triggered the action
  */
 const exportOptions = (evt) => {
-    chrome.permissions.request({
-        permissions: ['downloads']
-    }, (granted) => {
+    chrome.permissions.request({ permissions: ['downloads'] }, (granted) => {
         if (granted) {
-            context.storageArea.get(["extraDomains", "urlFilters", "knownInstances", "instanceOptions", "showUpdatesets", "maxSearchResults", "contentScriptEnabled"], (result) => {
-                // let string = encodeURIComponent(JSON.stringify(result));
-                var blob = new Blob([JSON.stringify(result)], { type: "application/json;charset=utf-8" });
+            chrome.runtime.sendMessage({ command: "getSettings" }, (response) => {
+                if (chrome.runtime.lastError) {
+                    displayMessage("Could not export settings.", chrome.runtime.lastError.message);
+                    return;
+                }
+                // Build export object matching the original format
+                const exportObj = {
+                    knownInstances: JSON.stringify(response.knownInstances || {}),
+                    instanceOptions: JSON.stringify(response.instanceOptions || {}),
+                    urlFilters: response.urlFilters || "service-now.com;",
+                    extraDomains: response.extraDomains || false,
+                    showUpdatesets: response.showUpdatesets !== false,
+                    maxSearchResults: response.maxSearchResults || 20,
+                    contentScriptEnabled: response.contentScriptEnabled !== false
+                };
+                var blob = new Blob([JSON.stringify(exportObj)], { type: "application/json;charset=utf-8" });
                 try {
                     chrome.downloads.download({
                         filename: "snow-toolbelt-backup.json",
@@ -669,8 +623,9 @@ const exportOptions = (evt) => {
     });
     evt.preventDefault();
 };
+
 /**
- * Imports the options into storage
+ * Imports the options via background API
  * @param {object} evt the event that triggered the action
  */
 const importOptions = (evt) => {
@@ -685,39 +640,38 @@ const importOptions = (evt) => {
         try {
             let obj = JSON.parse(event.target.result);
             if (obj.knownInstances !== undefined) {
-                // verify json integrity
-                JSON.parse(obj.knownInstances);
-                JSON.parse(obj.instanceOptions);
+                // Verify JSON integrity
+                const knownInstances = JSON.parse(obj.knownInstances);
+                const instanceOptions = JSON.parse(obj.instanceOptions);
 
-                context.storageArea.set({
-                    "knownInstances": obj.knownInstances,
-                    "instanceOptions": obj.instanceOptions,
-                    "extraDomains": false, // always set to false by default to request the all_urls permission again if required
-                    "urlFilters": obj.urlFilters,
-                    "showUpdatesets": obj.showUpdatesets,
-                    "maxSearchResults": obj.maxSearchResults || 20,
-                    "contentScriptEnabled": obj.contentScriptEnabled !== undefined ? obj.contentScriptEnabled : true
-                }, () => {
-
-                    displayMessage("Options restored from file");
-                    restoreOptions();
+                chrome.runtime.sendMessage({
+                    command: "updateSettings",
+                    settings: {
+                        knownInstances: knownInstances,
+                        instanceOptions: instanceOptions,
+                        extraDomains: false, // always reset to avoid permission issues
+                        urlFilters: obj.urlFilters,
+                        showUpdatesets: obj.showUpdatesets,
+                        maxSearchResults: obj.maxSearchResults || 20,
+                        contentScriptEnabled: obj.contentScriptEnabled !== undefined ? obj.contentScriptEnabled : true
+                    }
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        displayMessage("Sorry, there was an error importing your file.", chrome.runtime.lastError.message);
+                    } else {
+                        displayMessage("Options restored from file");
+                        restoreOptions();
+                    }
                 });
             }
         } catch (e) {
             console.log(e);
-            displayMessage("Sorry, there was an error importing your file. Please report it the details below.", e);
+            displayMessage("Sorry, there was an error importing your file. Please report the details below.", e);
         } finally {
             evt.target.value = "";
         }
     };
     reader.readAsText(file);
-};
-/**
- * Opens the file selection window
- * @param {Event} evt the event that triggered the action
- */
-const openFileSelect = (evt) => {
-    document.getElementById("importFile").click();
 };
 
 /**
@@ -725,21 +679,27 @@ const openFileSelect = (evt) => {
  * @param {Event} evt the event that triggered the action
  */
 const toggleSync = (evt) => {
-    context.useSync = evt.target.checked;
-    context.storageArea = (context.useSync ? chrome.storage.sync : chrome.storage.local);
-    try {
-        context.storageArea.get(["urlFilters"], (result) => {
-            chrome.storage.local.set({
-                "useSync": context.useSync
-            });
-            restoreOptions();
-        });
-    } catch (e) {
-        console.error(e);
-        displayMessage("There was an error accessing the desired storage area.", e);
-        evt.target.checked = !context.useSync;
-    }
-}
+    const newUseSync = evt.target.checked;
+    chrome.runtime.sendMessage({ command: "setUseSync", useSync: newUseSync }, (response) => {
+        if (chrome.runtime.lastError || (response && !response.success)) {
+            console.error("*SNOW TOOL BELT* Error setting useSync:", chrome.runtime.lastError || response.error);
+            displayMessage("There was an error switching sync mode.");
+            evt.target.checked = !newUseSync;
+            return;
+        }
+        displayMessage(newUseSync 
+            ? "Sync enabled. Your settings will be mirrored to cloud storage." 
+            : "Sync disabled. Settings are stored locally only.");
+    });
+};
+
+/**
+ * Opens the file selection window
+ * @param {Event} evt the event that triggered the action
+ */
+const openFileSelect = (evt) => {
+    document.getElementById("importFile").click();
+};
 
 document.addEventListener("DOMContentLoaded", restoreOptions);
 document.querySelector("form").addEventListener("submit", saveOptions);

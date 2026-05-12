@@ -1,14 +1,22 @@
 // Reuse variables from basic script if already declared, otherwise declare them
 // Using window to avoid redeclaration errors when both scripts load
 if (typeof window.SNOWBELT_isChromium === 'undefined') {
-    window.SNOWBELT_isChromium = (typeof browser === "undefined");
+    // Fallback detection if basic script hasn't run yet
+    const _gp = () => {
+        const { userAgent } = navigator;
+        if (userAgent.includes("Firefox")) return "Firefox";
+        else if ("brave" in navigator) return "Brave";
+        else if (userAgent.includes("Edg/")) return "Edge";
+        else if (userAgent.includes("OPR")) return "Opera";
+        return "Chrome";
+    };
+    window.SNOWBELT_isChromium = ["Chrome", "Edge", "Brave"].includes(_gp());
 }
 if (typeof window.SNOWBELT_runtimeAPI === 'undefined') {
-    // Firefox compatibility: use browser API if available
-    window.SNOWBELT_runtimeAPI = typeof browser !== "undefined" ? browser.runtime : chrome.runtime;
+    window.SNOWBELT_runtimeAPI = window.SNOWBELT_isChromium ? chrome.runtime : browser.runtime;
 }
 if (typeof window.SNOWBELT_storageAPI === 'undefined') {
-    window.SNOWBELT_storageAPI = typeof browser !== "undefined" ? browser.storage : chrome.storage;
+    window.SNOWBELT_storageAPI = window.SNOWBELT_isChromium ? chrome.storage : browser.storage;
 }
 
 // Reference window properties directly throughout this file
@@ -55,19 +63,11 @@ const COLORS = {
 const INFO_PANEL_EXCLUSIONS = [
     '/sys_script_execution_history.do',
     '/sys_script_execution_history_list.do',
-    '/sys_update_set.do',
-    '/sys_update_set_list.do',
-    '/sys_update_version.do',
-    '/sys_update_version_list.do',
     '/sys.scripts.modern.do',
     '/sys.scripts.do',
     '/sn_glider_app/ide.do'
 ];
 
-const context = {
-    g_ck: "",
-    debugMode: false
-}
 
 /**
  * Escapes HTML special characters to prevent XSS attacks
@@ -87,15 +87,6 @@ if (typeof escapeHtml === 'undefined') {
     };
 }
 
-/**
- * Debug logging function - only logs when debug mode is enabled
- * @param {...any} args - Arguments to log
- */
-function debugLog(...args) {
-    if (context.debugMode) {
-        console.log(...args);
-    }
-}
 
 /**
  * Recursively finds all elements matching a selector, including inside shadow DOM
@@ -1118,13 +1109,29 @@ function updateInfoPanel(parsed) {
         const scopeName = parsed.currentApplication?.name || 'Global';
         const rawUpdateSetName = parsed.currentUpdateSet?.name || 'Default';
         const updateSetName = cleanUpdateSetName(rawUpdateSetName, scopeName);
-        
+
         const scopeText = document.querySelector('.sntb-info-panel-scope');
         const updateSetText = document.querySelector('.sntb-info-panel-updateset');
-        
+
         if (scopeText && updateSetText) {
             scopeText.textContent = scopeName;
+            // Keep the scope line clickable after live updates
+            scopeText.style.cursor = 'pointer';
+            scopeText.title = 'Click to list and switch application scopes';
             updateSetText.textContent = updateSetName;
+
+            // Refresh clickability with the new sys_id
+            const updateSetSysId = parsed.currentUpdateSet?.sysId || parsed.currentUpdateSet?.sys_id;
+            if (updateSetSysId) {
+                updateSetText.style.cursor = 'pointer';
+                updateSetText.title = `Click to open update set: ${updateSetName}`;
+                updateSetText.setAttribute('data-update-set-sys-id', updateSetSysId);
+            } else {
+                updateSetText.style.cursor = '';
+                updateSetText.title = '';
+                updateSetText.removeAttribute('data-update-set-sys-id');
+            }
+
             debugLog("*SNOW TOOL BELT* Updated info panel");
         }
     } catch (error) {
@@ -1132,124 +1139,6 @@ function updateInfoPanel(parsed) {
     }
 }
 
-// Track if user manually changed panel state
-let panelManuallyMinimized = false;
-
-/**
- * Checks if window is small (like a popup)
- */
-function isSmallWindow() {
-    return window.innerWidth < 600 || window.innerHeight < 400;
-}
-
-/**
- * Minimizes the info panel to a compact version
- */
-function minimizePanel(panel, colors, isManual = false) {
-    debugLog("*SNOW TOOL BELT* Minimizing info panel", isManual ? "(manual)" : "(automatic)");
-    
-    if (isManual) {
-        panelManuallyMinimized = true;
-    }
-    
-    // Hide the full panel
-    panel.style.display = 'none';
-    
-    // Create minimized version
-    const miniPanel = document.createElement('div');
-    miniPanel.className = 'sntb-info-panel-mini';
-    miniPanel.style.cssText = `
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        background: ${instanceColor};
-        border: 2px solid ${instanceColor};
-        border-radius: 4px 4px 0 0;
-        box-shadow: 0 2px 10px ${instanceColor}80;
-        padding: 6px 8px;
-        z-index: 999998;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    `;
-    
-    // Add expand button
-    const expandBtn = document.createElement('span');
-    expandBtn.textContent = '▲';
-    expandBtn.style.cssText = `
-        color: ${colors.textSecondary};
-        font-size: 16px;
-        font-weight: normal;
-        cursor: pointer;
-        opacity: 0.9;
-    `;
-    
-    expandBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        restorePanel(panel, miniPanel, true);
-    });
-    
-    expandBtn.addEventListener('mouseenter', () => {
-        expandBtn.style.opacity = '1';
-    });
-    
-    expandBtn.addEventListener('mouseleave', () => {
-        expandBtn.style.opacity = '0.9';
-    });
-    
-    // Add close button
-    const miniCloseBtn = document.createElement('span');
-    miniCloseBtn.textContent = '✕';
-    miniCloseBtn.style.cssText = `
-        color: ${colors.textSecondary};
-        font-size: 18px;
-        font-weight: normal;
-        cursor: pointer;
-        opacity: 0.9;
-    `;
-    
-    miniCloseBtn.addEventListener('mouseenter', () => {
-        miniCloseBtn.style.opacity = '1';
-    });
-    
-    miniCloseBtn.addEventListener('mouseleave', () => {
-        miniCloseBtn.style.opacity = '0.9';
-    });
-    
-    miniCloseBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        storageAPI.local.set({ showInfoPanel: false }, () => {
-            debugLog("*SNOW TOOL BELT* Info panel closed from mini view");
-            miniPanel.remove();
-            panel.remove();
-        });
-    });
-    
-    // Click anywhere on mini panel to expand
-    miniPanel.addEventListener('click', () => {
-        restorePanel(panel, miniPanel, true);
-    });
-    
-    miniPanel.appendChild(expandBtn);
-    miniPanel.appendChild(miniCloseBtn);
-    document.body.appendChild(miniPanel);
-}
-
-/**
- * Restores the info panel from minimized state
- */
-function restorePanel(panel, miniPanel, isManual = false) {
-    debugLog("*SNOW TOOL BELT* Restoring info panel", isManual ? "(manual)" : "(automatic)");
-    
-    if (isManual) {
-        panelManuallyMinimized = false;
-    }
-    
-    panel.style.display = 'flex';
-    if (miniPanel) miniPanel.remove();
-}
 
 /**
  * Creates the info panel at bottom-left of screen
@@ -1316,271 +1205,218 @@ async function createInfoPanel() {
         // Get theme colors
         const colors = getThemeColors();
         
-        // Create info panel container
+        // Create slim vertical info panel
         const panel = document.createElement('div');
         panel.className = 'sntb-info-panel';
         panel.style.cssText = `
             position: fixed;
-            bottom: 20px;
-            left: 20px;
+            bottom: 15%;
+            left: 0;
+            transform: translateX(-2px);
             background: ${colors.bgSurface};
             border: 2px solid ${instanceColor};
-            border-radius: 8px;
-            box-shadow: 0 4px 20px ${instanceColor}40;
-            padding: 12px 32px 12px 16px;
-            padding-top: 24px;
+            border-radius: 0 6px 6px 0;
+            box-shadow: 2px 0 12px ${instanceColor}40;
+            padding: 16px 5px;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             color: ${colors.textPrimary};
             z-index: 999998;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 12px;
-            max-width: 600px;
+            gap: 6px;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.4s, transform 0.4s;
+            transition: opacity 0.4s, left 0.3s, right 0.3s;
+            cursor: pointer;
         `;
         
-        // Create position switch button (left/right arrow)
+        // Icons row — side by side, colored with instance color
+        const iconsRow = document.createElement('div');
+        iconsRow.style.cssText = `
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 2px;
+        `;
+
+        // Position switch button (▶ pointing right when on left, ◀ when on right)
         const positionBtn = document.createElement('div');
         positionBtn.className = 'sntb-info-panel-position';
-        positionBtn.textContent = '▼';
+        positionBtn.textContent = '▶';
         positionBtn.style.cssText = `
-            position: absolute;
-            top: 4px;
-            right: 52px;
             font-size: 16px;
-            font-weight: normal;
-            color: ${colors.textMuted};
+            color: ${instanceColor};
             cursor: pointer;
             line-height: 1;
-            padding: 2px;
-            opacity: 0.7;
+            padding: 4px;
+            opacity: 0.8;
         `;
-        
-        // Function to update position button and panel position
-        const updatePanelPosition = (position, skipTransition = false) => {
-            const isLeft = position === 'left';
-            positionBtn.style.transform = isLeft ? 'rotate(-90deg)' : 'rotate(90deg)';
-            positionBtn.title = isLeft ? 'Move to right' : 'Move to left';
-            
-            // Temporarily disable transition for initial load
-            if (skipTransition) {
-                panel.style.transition = 'opacity 0.4s';
-            }
-            
-            // Update panel position using transform for smooth animation
-            // Calculate the distance to move (window width - panel width - margins)
-            if (isLeft) {
-                panel.style.transform = 'translateX(0)';
-            } else {
-                // Move to right: calculate distance from left position to right position
-                const distance = window.innerWidth - panel.offsetWidth - 40; // 40 = 20px margin on each side
-                panel.style.transform = `translateX(${distance}px)`;
-            }
-            
-            // Re-enable transition after initial positioning
-            if (skipTransition) {
-                setTimeout(() => {
-                    panel.style.transition = 'opacity 0.4s, transform 0.4s';
-                }, 50);
-            }
-            
-            // Make panel visible after positioning with fade-in
-            panel.style.visibility = 'visible';
-            panel.style.opacity = '1';
-        };
-        
-        // Load saved position preference
-        storageAPI.local.get(['infoPanelPosition'], (result) => {
-            const savedPosition = result.infoPanelPosition || 'left';
-            updatePanelPosition(savedPosition, true); // Skip transition on initial load
-        });
-        
-        positionBtn.addEventListener('mouseenter', () => {
-            positionBtn.style.opacity = '1';
-            positionBtn.style.color = colors.accent;
-        });
-        
-        positionBtn.addEventListener('mouseleave', () => {
-            positionBtn.style.opacity = '0.7';
-            positionBtn.style.color = colors.textMuted;
-        });
-        
-        positionBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // Toggle position - check transform value instead of left/right
-            const currentTransform = panel.style.transform;
-            const isCurrentlyLeft = currentTransform === 'translateX(0px)' || currentTransform === 'translateX(0)' || currentTransform === '';
-            const newPosition = isCurrentlyLeft ? 'right' : 'left';
-            
-            // Save preference
-            storageAPI.local.set({ infoPanelPosition: newPosition }, () => {
-                debugLog("*SNOW TOOL BELT* Info panel position changed to:", newPosition);
-            });
-            
-            // Update UI
-            updatePanelPosition(newPosition);
-        });
-        
-        // Create minimize button
-        const minimizeBtn = document.createElement('div');
-        minimizeBtn.className = 'sntb-info-panel-minimize';
-        minimizeBtn.textContent = '▼';
-        minimizeBtn.style.cssText = `
-            position: absolute;
-            top: 4px;
-            right: 32px;
-            font-size: 16px;
-            font-weight: normal;
-            color: ${colors.textMuted};
-            cursor: pointer;
-            line-height: 1;
-            padding: 2px;
-            opacity: 0.7;
-        `;
-        
-        minimizeBtn.addEventListener('mouseenter', () => {
-            minimizeBtn.style.opacity = '1';
-            minimizeBtn.style.color = colors.accent;
-        });
-        
-        minimizeBtn.addEventListener('mouseleave', () => {
-            minimizeBtn.style.opacity = '0.7';
-            minimizeBtn.style.color = colors.textMuted;
-        });
-        
-        minimizeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            minimizePanel(panel, colors, true);
-        });
-        
-        // Create close button
+        positionBtn.title = 'Move to right';
+
+        positionBtn.addEventListener('mouseenter', () => { positionBtn.style.opacity = '1'; });
+        positionBtn.addEventListener('mouseleave', () => { positionBtn.style.opacity = '0.8'; });
+
+        // Close button
         const closeBtn = document.createElement('div');
         closeBtn.className = 'sntb-info-panel-close';
         closeBtn.textContent = '✕';
         closeBtn.style.cssText = `
-            position: absolute;
-            top: 4px;
-            right: 6px;
-            font-size: 18px;
-            font-weight: normal;
-            color: ${colors.textMuted};
+            font-size: 16px;
+            color: ${instanceColor};
             cursor: pointer;
             line-height: 1;
-            padding: 2px;
-            opacity: 0.7;
+            padding: 4px;
+            opacity: 0.8;
         `;
-        
-        closeBtn.addEventListener('mouseenter', () => {
-            closeBtn.style.opacity = '1';
-            closeBtn.style.color = colors.accent;
-        });
-        
-        closeBtn.addEventListener('mouseleave', () => {
-            closeBtn.style.opacity = '0.7';
-            closeBtn.style.color = colors.textMuted;
-        });
-        
+        closeBtn.title = 'Hide info panel';
+
+        closeBtn.addEventListener('mouseenter', () => { closeBtn.style.opacity = '1'; });
+        closeBtn.addEventListener('mouseleave', () => { closeBtn.style.opacity = '0.8'; });
+
         closeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            // Save preference to hide the panel
             storageAPI.local.set({ showInfoPanel: false }, () => {
                 debugLog("*SNOW TOOL BELT* Info panel hidden by user");
                 panel.remove();
             });
         });
-        
-        panel.appendChild(positionBtn);
-        panel.appendChild(minimizeBtn);
-        panel.appendChild(closeBtn);
-        
-        // Create color square
-        const colorSquare = document.createElement('div');
-        colorSquare.className = 'sntb-info-panel-color';
-        colorSquare.style.cssText = `
-            width: 40px;
-            height: 40px;
-            background-color: ${instanceColor};
-            border-radius: 4px;
-            flex-shrink: 0;
-            box-shadow: 0 0 15px ${instanceColor};
-            opacity: 1;
+
+        iconsRow.appendChild(positionBtn);
+        iconsRow.appendChild(closeBtn);
+        panel.appendChild(iconsRow);
+
+        // Vertical text container — rotated clockwise (reads top-to-bottom)
+        // Uses writing-mode: vertical-lr which rotates text clockwise naturally
+        const textContainer = document.createElement('div');
+        textContainer.style.cssText = `
+            writing-mode: vertical-lr;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            font-weight: bold;
-            color: ${colors.textSecondary};
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-start;
+            font-size: 11px;
+            white-space: nowrap;
+            max-height: 300px;
+            overflow: hidden;
         `;
-        
-        // Add question mark if using default color
-        if (isDefaultColor) {
-            colorSquare.textContent = '?';
+
+        // Scope name (clickable — opens scopes command)
+        const scopeEl = document.createElement('span');
+        scopeEl.className = 'sntb-info-panel-scope';
+        scopeEl.textContent = scopeName;
+        scopeEl.style.cssText = `
+            color: ${colors.accent};
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 11px;
+        `;
+        scopeEl.title = 'Click to list and switch application scopes';
+        scopeEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.sntbToggleConsole) {
+                if (!document.querySelector('.sntb-console.open')) {
+                    window.sntbToggleConsole();
+                }
+                const consoleInput = document.querySelector('.sntb-console-input');
+                if (consoleInput) {
+                    consoleInput.value = 'scopes';
+                    consoleInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+                }
+            }
+        });
+
+        // Update set name (clickable — opens update set record)
+        const updateSetEl = document.createElement('span');
+        updateSetEl.className = 'sntb-info-panel-updateset';
+        updateSetEl.textContent = updateSetName;
+        updateSetEl.style.cssText = `
+            color: ${colors.textPrimary};
+            font-weight: 700;
+            font-size: 11px;
+        `;
+
+        const updateSetSysId = parsed.currentUpdateSet?.sysId || parsed.currentUpdateSet?.sys_id;
+        if (updateSetSysId) {
+            updateSetEl.style.cursor = 'pointer';
+            updateSetEl.title = `Click to open update set: ${updateSetName}`;
+            updateSetEl.setAttribute('data-update-set-sys-id', updateSetSysId);
+            updateSetEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const sysId = updateSetEl.getAttribute('data-update-set-sys-id');
+                if (sysId) {
+                    window.open(
+                        `${window.location.origin}/sys_update_set.do?sys_id=${sysId}`,
+                        '_blank',
+                        'width=1200,height=600,resizable=yes,scrollbars=yes'
+                    );
+                }
+            });
         }
-        
-        // Create text container
-        const textContainer = createStyledDiv(null, 'display: flex; flex-direction: column; gap: 2px; overflow: hidden;');
-        
-        // Create info lines with common truncation styles
-        const truncateStyle = 'white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
-        const instanceLine = createStyledDiv('sntb-info-panel-instance', 
-            `color: ${colors.textMuted}; font-size: 11px; font-weight: 400; ${truncateStyle} border-bottom: 1px solid ${colors.border}; padding-bottom: 4px; margin-bottom: 4px;`,
-            instanceDisplayName);
-        const scopeLine = createStyledDiv('sntb-info-panel-scope',
-            `color: ${colors.accent}; font-size: 12px; font-weight: 600; ${truncateStyle}`,
-            scopeName);
-        const updateSetLine = createStyledDiv('sntb-info-panel-updateset',
-            `color: ${colors.textPrimary}; font-size: 13px; font-weight: 700; ${truncateStyle}`,
-            updateSetName);
-        
-        textContainer.appendChild(instanceLine);
-        textContainer.appendChild(scopeLine);
-        textContainer.appendChild(updateSetLine);
-        
-        panel.appendChild(colorSquare);
+
+        textContainer.appendChild(scopeEl);
+        textContainer.appendChild(updateSetEl);
         panel.appendChild(textContainer);
-        
-        // Add click handler to toggle console
-        panel.addEventListener('click', (e) => {
-            // Don't toggle console if clicking buttons
-            if (e.target === closeBtn || e.target === minimizeBtn || e.target === positionBtn) return;
+
+        // Position logic
+        const updatePanelPosition = (position, skipTransition = false) => {
+            const isLeft = position === 'left';
             
+            if (skipTransition) {
+                panel.style.transition = 'opacity 0.4s';
+            }
+
+            if (isLeft) {
+                panel.style.left = '0';
+                panel.style.right = 'auto';
+                panel.style.borderRadius = '0 6px 6px 0';
+                panel.style.transform = 'translateX(-2px)';
+                positionBtn.textContent = '▶';
+                positionBtn.title = 'Move to right';
+            } else {
+                panel.style.left = 'auto';
+                panel.style.right = '0';
+                panel.style.borderRadius = '6px 0 0 6px';
+                panel.style.transform = 'translateX(2px)';
+                positionBtn.textContent = '◀';
+                positionBtn.title = 'Move to left';
+            }
+
+            if (skipTransition) {
+                setTimeout(() => {
+                    panel.style.transition = 'opacity 0.4s, left 0.3s, right 0.3s';
+                }, 50);
+            }
+
+            panel.style.visibility = 'visible';
+            panel.style.opacity = '1';
+        };
+
+        // Load saved position
+        storageAPI.local.get(['infoPanelPosition'], (result) => {
+            const savedPosition = result.infoPanelPosition || 'left';
+            updatePanelPosition(savedPosition, true);
+        });
+
+        positionBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isCurrentlyLeft = panel.style.left === '0px' || panel.style.left === '0';
+            const newPosition = isCurrentlyLeft ? 'right' : 'left';
+            storageAPI.local.set({ infoPanelPosition: newPosition });
+            updatePanelPosition(newPosition);
+        });
+
+        // Click panel body → toggle console
+        panel.addEventListener('click', (e) => {
+            if (e.target === closeBtn || e.target === positionBtn) return;
+            if (e.target === scopeEl || e.target === updateSetEl) return;
             if (window.sntbToggleConsole) {
                 window.sntbToggleConsole();
             }
         });
-        
-        // Add to document
+
         document.body.appendChild(panel);
-        
-        // Check initial window size and minimize if small
-        if (isSmallWindow()) {
-            debugLog("*SNOW TOOL BELT* Small window detected, auto-minimizing panel");
-            setTimeout(() => minimizePanel(panel, colors, false), 100);
-        }
-        
-        // Add resize listener to handle window size changes
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                const miniPanel = document.querySelector('.sntb-info-panel-mini');
-                const isCurrentlyMinimized = miniPanel !== null;
-                const shouldBeMinimized = isSmallWindow();
-                
-                // Only auto-adjust if user hasn't manually changed state
-                if (!panelManuallyMinimized) {
-                    if (shouldBeMinimized && !isCurrentlyMinimized) {
-                        debugLog("*SNOW TOOL BELT* Window became small, auto-minimizing");
-                        minimizePanel(panel, colors, false);
-                    } else if (!shouldBeMinimized && isCurrentlyMinimized) {
-                        debugLog("*SNOW TOOL BELT* Window became large, auto-restoring");
-                        restorePanel(panel, miniPanel, false);
-                    }
-                }
-            }, 250);
-        });
         
         debugLog("*SNOW TOOL BELT* Info panel created");
         return true;
@@ -1715,12 +1551,6 @@ function initScript(options) {
     if (options.instanceName !== undefined) {
         instanceDisplayName = options.instanceName;
         debugLog("*SNOW TOOL BELT* Instance name set to:", instanceDisplayName);
-        
-        // Update info panel if it already exists
-        const instanceLine = document.querySelector('.sntb-info-panel-instance');
-        if (instanceLine) {
-            instanceLine.textContent = instanceDisplayName;
-        }
     }
 
     // get session identifier "g_ck" from page
@@ -2918,7 +2748,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 "hostname": window.location.hostname,
                 "url": window.location.href
             }, function (response) {
-                console.log("*SNOW TOOL BELT* isServiceNow response:", response);
+                debugLog("*SNOW TOOL BELT* isServiceNow response:", response);
                 if (runtimeAPI.lastError) {
                     console.error("*SNOW TOOL BELT* Runtime error:", runtimeAPI.lastError);
                     // Firefox fallback: if background script fails, check if this looks like ServiceNow
@@ -2929,12 +2759,12 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                     return;
                 }
                 if (response === undefined || response.isServiceNow === false) {
-                    console.log("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
+                    debugLog("*SNOW TOOL BELT* Not a ServiceNow instance, stopping now");
                 } else if (response.contentScriptEnabled === false) {
-                    console.log("*SNOW TOOL BELT* ServiceNow instance detected, but content script features are disabled");
-                    console.log("*SNOW TOOL BELT* Basic script will handle favicon updates");
+                    debugLog("*SNOW TOOL BELT* ServiceNow instance detected, but content script features are disabled");
+                    debugLog("*SNOW TOOL BELT* Basic script will handle favicon updates");
                 } else {
-                    console.log("*SNOW TOOL BELT* ServiceNow instance detected, initializing full features...");
+                    debugLog("*SNOW TOOL BELT* ServiceNow instance detected, initializing full features...");
                     initScript(response);
                     
                     // Phase 1: Report initial tab state to background script
@@ -3048,13 +2878,13 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                                                     "status": 200 
                                                 });
                                             } catch (e) {
-                                                // console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
+                                                console.log("*SNOW TOOL BELT* there was an error while parsing concourse API response, stopping now: " + e);
                                                 sendResponse({ "currentUpdateSet": "", "currentApplication": "", "currentDomain": "", "status": 200 });
                                             }
                                         });
                                     } else {
                                         // there was an error while fetching xmlstats, stop here
-                                        // console.log("*SNOW TOOL BELT* there was an error while fetching concourse API, stopping now: " + response.status);
+                                        console.log("*SNOW TOOL BELT* there was an error while fetching concourse API, stopping now: " + response.status);
                                         sendResponse({ "currentUpdateSet": "", "currentApplication": "", "currentDomain": "", "status": response.status });
                                     }
                                 });
@@ -3271,7 +3101,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         debugLog("*SNOW TOOL BELT* Initializing console (lazy loaded)");
         
         // Console initialization happens when first toggled
-        console.log("*SNOW TOOL BELT* Console initialized");
+        debugLog("*SNOW TOOL BELT* Console initialized");
     };
     
     /**
@@ -3346,8 +3176,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 --sntb-color-border: ${consoleColors.accent};
                 --sntb-color-text: ${consoleColors.textPrimary};
                 --sntb-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                --sntb-transition-fast: 0.2s;
-                --sntb-transition-medium: 0.3s;
+                --sntb-transition-fast: 0.15s;
+                --sntb-transition-medium: 0.15s;
             }
             
             .sntb-console {
@@ -3364,8 +3194,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 color: var(--sntb-color-text);
                 padding: 0;
                 opacity: 0.9;
-                transform: translateY(calc(100% + 30px));
-                transition: transform var(--sntb-transition-medium) cubic-bezier(0.68, -0.55, 0.265, 1.55);
+                transform: translateY(100%);
+                transition: transform var(--sntb-transition-medium) ease-out, height var(--sntb-transition-medium) ease-out;
                 pointer-events: none;
                 overflow: hidden;
                 min-height: 200px;
@@ -3786,6 +3616,11 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         isConsoleOpen = !isConsoleOpen;
         
         if (isConsoleOpen) {
+            // Force a reflow before adding 'open' so the browser registers the
+            // initial translateY(100%) state and animates from it on first open.
+            // Without this, the element is inserted and shown in the same frame,
+            // skipping the transition entirely.
+            void consoleElement.offsetHeight;
             consoleElement.classList.add('open');
             consoleInput.focus();
             // Don't clear input or results - preserve state when reopening
@@ -3819,6 +3654,8 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 isResizing = true;
                 startY = e.clientY;
                 startHeight = consoleElement.offsetHeight;
+                // Disable height transition during drag so it tracks the cursor instantly
+                consoleElement.style.transition = 'transform var(--sntb-transition-medium) ease-out';
                 e.preventDefault();
             });
             
@@ -3831,6 +3668,10 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             });
             
             document.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    // Re-enable height transition after drag ends
+                    consoleElement.style.transition = '';
+                }
                 isResizing = false;
             });
         }
@@ -3997,7 +3838,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 html += '<div class="sntb-console-section-title">▸ AVAILABLE COMMANDS:</div>';
                 
                 // Only show main commands (not shortcuts), exclude help itself, and sort alphabetically
-                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang', 'reopen'].sort();
+                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang', 'reopen', 'scopes'].sort();
                 mainCommands.forEach(cmd => {
                     const command = commands[cmd];
                     // Use global escapeHtml function
@@ -4756,6 +4597,96 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             execute: async (args) => {
                 await commands.reopen.execute(args);
             }
+        },
+
+        scopes: {
+            description: 'List previously used application scopes and switch to one',
+            usage: 'scopes | sc',
+            execute: async () => {
+                try {
+                    consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Fetching recently used scopes...</div>';
+
+                    const headers = new Headers();
+                    headers.append('Content-Type', 'application/json');
+                    headers.append('Accept', 'application/json');
+                    headers.append('X-UserToken', context.g_ck);
+
+                    // Step 1: Get the user's recently used scopes from sys_user_preference.
+                    // ServiceNow stores one preference per scope named "updateSetForScope<scopeId>".
+                    // Ordered by sys_updated_on DESC gives us the most recently used first.
+                    const prefResponse = await fetch(
+                        `${window.location.origin}/api/now/table/sys_user_preference?sysparm_fields=sys_id,name&sysparm_query=nameSTARTSWITHupdateSetForScope^userDYNAMIC90d1921e5f510100a9ad2572f2b477fe^ORDERBYDESCsys_updated_on&sysparm_limit=20`,
+                        { credentials: 'same-origin', headers }
+                    );
+
+                    if (!prefResponse.ok) {
+                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ Could not fetch scope preferences. Make sure you have the required permissions.</div>';
+                        return;
+                    }
+
+                    const prefData = await prefResponse.json();
+                    const prefs = prefData.result || [];
+
+                    if (prefs.length === 0) {
+                        consoleResults.innerHTML = '<div class="sntb-console-info">▸ No recently used scopes found.</div>';
+                        return;
+                    }
+
+                    // Step 2: Extract scope identifiers from preference names.
+                    // Format: "updateSetForScope<scopeId>" where scopeId is either "global" or a sys_id.
+                    const scopeIds = prefs.map(p => p.name.replace('updateSetForScope', '')).filter(Boolean);
+
+                    // Step 3: Fetch scope details from sys_scope.
+                    // "global" is a special case — its sys_id is "global" and name is "Global".
+                    const realSysIds = scopeIds.filter(id => id !== 'global');
+                    let scopes = [];
+
+                    // Add Global first if it's in the list
+                    if (scopeIds.includes('global')) {
+                        scopes.push({ sysId: 'global', name: 'Global', scope: 'global' });
+                    }
+
+                    if (realSysIds.length > 0) {
+                        const sysIdQuery = realSysIds.map(id => `sys_id=${id}`).join('^OR');
+                        const scopeResponse = await fetch(
+                            `${window.location.origin}/api/now/table/sys_scope?sysparm_query=${encodeURIComponent(sysIdQuery)}&sysparm_fields=sys_id,name,scope&sysparm_limit=20`,
+                            { credentials: 'same-origin', headers }
+                        );
+                        if (scopeResponse.ok) {
+                            const scopeData = await scopeResponse.json();
+                            // Build a lookup map to preserve the order from preferences
+                            const byId = {};
+                            (scopeData.result || []).forEach(s => { byId[s.sys_id] = s; });
+                            // Add in the order they appeared in preferences (most recent first)
+                            realSysIds.forEach(id => {
+                                const s = byId[id];
+                                if (s) {
+                                    scopes.push({ sysId: s.sys_id, name: s.name, scope: s.scope });
+                                }
+                            });
+                        }
+                    }
+
+                    if (scopes.length === 0) {
+                        consoleResults.innerHTML = '<div class="sntb-console-info">▸ No recently used scopes found.</div>';
+                        return;
+                    }
+
+                    renderScopeResults(scopes, 'RECENTLY USED SCOPES');
+
+                } catch (error) {
+                    const errorMsg = escapeHtml(error.message);
+                    consoleResults.innerHTML = `<div class="sntb-console-error">✖ Error fetching scopes: ${errorMsg}</div>`;
+                }
+            }
+        },
+
+        sc: {
+            description: 'Alias for scopes',
+            usage: 'sc',
+            execute: async (args) => {
+                await commands.scopes.execute(args);
+            }
         }
     };
     
@@ -4769,6 +4700,93 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
         if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
         if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
         return Math.floor(seconds / 86400) + 'd ago';
+    };
+
+    /**
+     * Renders a list of scopes in the console results and wires up click-to-switch.
+     * @param {Array<{sysId: string, name: string, scope: string}>} scopes
+     * @param {string} title - Section title to display
+     */
+    const renderScopeResults = (scopes, title = 'AVAILABLE SCOPES') => {
+        if (!scopes || scopes.length === 0) {
+            consoleResults.innerHTML = '<div class="sntb-console-info">▸ No scopes found.</div>';
+            return;
+        }
+
+        // Get current scope name to highlight it
+        const currentScopeName = document.querySelector('.sntb-info-panel-scope')?.textContent || '';
+
+        let html = '<div class="sntb-console-info">';
+        html += `<div class="sntb-console-section-title">▸ ${escapeHtml(title)} (${scopes.length}) — click to switch:</div>`;
+
+        scopes.forEach((scope, index) => {
+            const safeName = escapeHtml(scope.name || 'Unknown');
+            const safeScope = escapeHtml(scope.scope || '');
+            const isCurrent = scope.name === currentScopeName;
+            const currentMarker = isCurrent ? ' <span style="opacity:0.6">(current)</span>' : '';
+
+            html += `
+                <div class="sntb-console-result-item" data-scope-sys-id="${escapeHtml(scope.sysId || '')}" data-index="${index}">
+                    <span class="sntb-console-result-name">${safeName}${currentMarker}</span>
+                    ${safeScope ? `<span class="sntb-console-result-details">${safeScope}</span>` : ''}
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        consoleResults.innerHTML = html;
+
+        // Wire up click handlers — switch scope then reload
+        const resultItems = consoleResults.querySelectorAll('.sntb-console-result-item');
+        resultItems.forEach((item, index) => {
+            const scope = scopes[index];
+            if (!scope.sysId) return; // can't switch without a sys_id
+
+            item.addEventListener('click', async () => {
+                const safeName = escapeHtml(scope.name);
+
+                // Visual feedback
+                item.style.opacity = '0.5';
+                item.style.pointerEvents = 'none';
+                const detailsSpan = item.querySelector('.sntb-console-result-details');
+                if (detailsSpan) detailsSpan.textContent = '▸ Switching...';
+
+                try {
+                    const headers = new Headers();
+                    headers.append('Content-Type', 'application/json');
+                    headers.append('Accept', 'application/json');
+                    headers.append('X-UserToken', context.g_ck);
+
+                    // Switch scope via concoursepicker PUT.
+                    // The body field name is 'app_id'.
+                    let response = await fetch(
+                        `${window.location.origin}/api/now/ui/concoursepicker/application`,
+                        {
+                            method: 'PUT',
+                            credentials: 'same-origin',
+                            headers,
+                            body: JSON.stringify({ app_id: scope.sysId })
+                        }
+                    );
+
+                    if (response.ok) {
+                        consoleResults.innerHTML = `<div class="sntb-console-success">✓ Switched to scope: ${safeName}. Reloading...</div>`;
+                        setTimeout(() => window.location.reload(), 800);
+                    } else {
+                        const errorBody = await response.text().catch(() => '');
+                        item.style.opacity = '1';
+                        item.style.pointerEvents = 'auto';
+                        if (detailsSpan) detailsSpan.textContent = scope.scope || '';
+                        consoleResults.innerHTML += `<div class="sntb-console-error">✖ Failed to switch scope (HTTP ${response.status})</div>`;
+                    }
+                } catch (error) {
+                    item.style.opacity = '1';
+                    item.style.pointerEvents = 'auto';
+                    if (detailsSpan) detailsSpan.textContent = scope.scope || '';
+                    consoleResults.innerHTML += `<div class="sntb-console-error">✖ Error switching scope: ${escapeHtml(error.message)}</div>`;
+                }
+            });
+        });
     };
     
     /**
@@ -4812,7 +4830,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             html += '<div class="sntb-console-info">';
             html += '<div class="sntb-console-section-title">▸ Available commands:</div>';
             
-            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang'];
+            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang', 'scopes'];
             mainCommands.forEach(cmd => {
                 const cmdObj = commands[cmd];
                 const safeUsage = escapeHtml(cmdObj.usage);
@@ -5058,7 +5076,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
     // Expose toggleConsole globally for info panel (lazy version)
     window.sntbToggleConsole = lazyToggleConsole;
     
-    console.log("*SNOW TOOL BELT* Console module ready (will initialize on first use)");
+    debugLog("*SNOW TOOL BELT* Console module ready (will initialize on first use)");
 })();
 
 

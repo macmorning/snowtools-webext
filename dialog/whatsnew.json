@@ -1,5 +1,18 @@
 [
     {
+        "version": "9.1.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "Changed how we identify current browser, after latest Edge update broke the old way",
+            "Corrected a bug that could cause a loss of preferences",
+            "Use of Sync storage is different now: local storage is always primary, sync is a mirror that fills gaps from other devices",
+            "In the information panel, the update set is now clickable and opens its record in a popup",
+            "In the information panel, the scope is now clickable and shows recently used scopes in the console (new command scopes|sc)",
+            "Reduced the information panel size",
+            "Reduced the number of log lines generated in the page by the content script",
+            "Corrected the console popin/popout animation"
+        ]
+    },    {
         "version": "8.2.0",
         "msg": "Most notable changes:",
         "items": [
