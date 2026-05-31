@@ -716,6 +716,34 @@ const closeTab = (evt) => {
 };
 
 /**
+ * Returns an array of tab IDs from all checked checkboxes
+ * @returns {number[]} Array of selected tab IDs
+ */
+const getSelectedTabIds = () => {
+    const checked = document.querySelectorAll(".tab-select-checkbox:checked");
+    return Array.from(checked).map(cb => parseInt(cb.getAttribute("data-id")));
+};
+
+/**
+ * Shows/hides the bulk action bar based on how many tabs are selected.
+ * Also toggles a class on the container to make all checkboxes more visible.
+ */
+const updateBulkActions = () => {
+    const count = document.querySelectorAll(".tab-select-checkbox:checked").length;
+    const bar = document.getElementById("bulk-actions");
+    const container = document.getElementById("opened_tabs");
+    
+    if (count > 0) {
+        bar.classList.remove("hidden");
+        if (container) container.classList.add("bulk-mode-active");
+        document.getElementById("bulk-count").textContent = count + " selected";
+    } else {
+        bar.classList.add("hidden");
+        if (container) container.classList.remove("bulk-mode-active");
+    }
+};
+
+/**
  * Moves tab into a navigation frame
  * @param {object} evt the event that triggered the action
  */
@@ -1578,21 +1606,6 @@ const updateColor = (instance) => {
  * Grays out features that require content script to be active
  */
 const disableContentScriptFeatures = () => {
-    // Add a faded notice below the instance list
-    const openedTabs = document.getElementById("opened_tabs");
-    if (openedTabs) {
-        const notice = document.createElement("div");
-        notice.style.cssText = "color: var(--muted-color, #999); padding: 10px; font-size: 12px; text-align: center; font-style: italic;";
-        notice.innerHTML = "Advanced content script features are disabled. <a href='#' id='enableContentScriptLink' style='color: var(--muted-color, #999); text-decoration: underline;'>Enable in options</a>";
-        openedTabs.parentNode.insertBefore(notice, openedTabs.nextSibling);
-        
-        // Add click handler to open options
-        document.getElementById("enableContentScriptLink").addEventListener("click", (e) => {
-            e.preventDefault();
-            openOptions();
-        });
-    }
-    
     // Gray out update set displays
     const updateSetElements = document.querySelectorAll(".updateset");
     updateSetElements.forEach(el => {
@@ -1614,7 +1627,6 @@ const disableContentScriptFeatures = () => {
         newBtn.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
-            displayMessage("Advanced content script features are disabled. Enable in options to use search.");
         });
     });
 };
@@ -1825,7 +1837,41 @@ const refreshList = () => {
             el.addEventListener("click", closeTab);
         });
 
+        // Bulk selection checkboxes
+        elements = document.querySelectorAll(".tab-select-checkbox");
+        [].forEach.call(elements, (el) => {
+            el.addEventListener("change", updateBulkActions);
+            // Prevent click from propagating to the tab row (which switches to the tab)
+            el.addEventListener("click", (e) => e.stopPropagation());
+        });
 
+        // Bulk action buttons
+        const bulkClose = document.getElementById("bulk-close");
+        const bulkReload = document.getElementById("bulk-reload");
+        const bulkDeselect = document.getElementById("bulk-deselect");
+
+        if (bulkClose) bulkClose.addEventListener("click", () => {
+            const ids = getSelectedTabIds();
+            if (ids.length > 0) {
+                // Remove the tab list items from the DOM immediately
+                document.querySelectorAll(".tab-select-checkbox:checked").forEach(cb => {
+                    const li = cb.closest("li");
+                    if (li) li.remove();
+                });
+                chrome.tabs.remove(ids);
+                updateBulkActions();
+            }
+        });
+        if (bulkReload) bulkReload.addEventListener("click", () => {
+            const ids = getSelectedTabIds();
+            ids.forEach(id => chrome.tabs.reload(id));
+            document.querySelectorAll(".tab-select-checkbox:checked").forEach(cb => { cb.checked = false; });
+            updateBulkActions();
+        });
+        if (bulkDeselect) bulkDeselect.addEventListener("click", () => {
+            document.querySelectorAll(".tab-select-checkbox:checked").forEach(cb => { cb.checked = false; });
+            updateBulkActions();
+        });
 
         // add the "open on" menu
         elements = document.querySelectorAll("a[title=\"open on...\"]");
@@ -1913,7 +1959,7 @@ const refreshList = () => {
                 let items = [
                     { 
                         title: "&#8681; Nodes" + (!context.contentScriptEnabled ? " <span style='opacity: 0.5;'>(disabled)</span>" : ""), 
-                        fn: context.contentScriptEnabled ? scanNodes : () => displayMessage("Advanced content script features are disabled. Enable in options.")
+                        fn: context.contentScriptEnabled ? scanNodes : () => {}
                     },
                     { title: "&#10000; Script", fn: openBackgroundScriptWindow },
                     { title: "&#8635; Reload tabs", fn: reloadInstanceTabs },
@@ -2516,6 +2562,8 @@ const tabRemoved = (tabId, removeInfo) => {
         // Redraw everything
         debouncedBootStrap();
     }
+    // Update bulk action bar (selected tabs may have been closed)
+    updateBulkActions();
 };
 
 /**

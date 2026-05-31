@@ -1,14 +1,17 @@
 // Browser detection — duplicated from shared/utils.js since basic script loads before it
-const _getPlatform = () => {
-    const { userAgent } = navigator;
-    if (userAgent.includes("Firefox")) return "Firefox";
-    else if ("brave" in navigator) return "Brave";
-    else if (userAgent.includes("Edg/")) return "Edge";
-    else if (userAgent.includes("OPR")) return "Opera";
-    return "Chrome";
-};
-window.SNOWBELT_isChromium = ["Chrome", "Edge", "Brave"].includes(_getPlatform());
-window.SNOWBELT_runtimeAPI = window.SNOWBELT_isChromium ? chrome.runtime : browser.runtime;
+// Guard against double-injection (script may run twice due to dynamic + static registration)
+if (typeof window.SNOWBELT_isChromium === 'undefined') {
+    const _getPlatform = () => {
+        const { userAgent } = navigator;
+        if (userAgent.includes("Firefox")) return "Firefox";
+        else if ("brave" in navigator) return "Brave";
+        else if (userAgent.includes("Edg/")) return "Edge";
+        else if (userAgent.includes("OPR")) return "Opera";
+        return "Chrome";
+    };
+    window.SNOWBELT_isChromium = ["Chrome", "Edge", "Brave"].includes(_getPlatform());
+    window.SNOWBELT_runtimeAPI = window.SNOWBELT_isChromium ? chrome.runtime : browser.runtime;
+}
 
 // Use window properties directly
 var isChromium = window.SNOWBELT_isChromium;
@@ -61,6 +64,42 @@ function hexToRgb(hex) {
 }
 
 /**
+ * Creates or updates a viewport border overlay with the instance color and glow effect.
+ * Uses a fixed full-screen element with inset box-shadow, pointer-events: none.
+ * @param {string} color - The color for the border, or empty string to remove
+ */
+function updateViewportBorder(color) {
+    // Check preference (default: enabled)
+    const storageAPI = window.SNOWBELT_isChromium ? chrome.storage : browser.storage;
+    storageAPI.local.get('showViewportBorder', (result) => {
+        const enabled = result.showViewportBorder !== false; // default true
+        let border = document.getElementById('sntb-viewport-border');
+        
+        if (!color || !enabled) {
+            if (border) border.remove();
+            return;
+        }
+        
+        if (!border) {
+            border = document.createElement('div');
+            border.id = 'sntb-viewport-border';
+            border.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                pointer-events: none;
+                z-index: 999997;
+            `;
+            document.body.appendChild(border);
+        }
+        
+        border.style.boxShadow = `inset 0 0 12px 2px ${color}90, inset 0 0 3px 1px ${color}`;
+    });
+}
+
+/**
  * Updates the favicon with a colored border
  * @param {string} color - The color to use for the favicon border
  */
@@ -75,21 +114,26 @@ function updateFavicon(color) {
         const panel = document.querySelector('.sntb-info-panel');
         if (panel) {
             panel.style.borderColor = color;
-            panel.style.boxShadow = `2px 0 12px ${color}40`;
+            panel.style.boxShadow = `4px 0 20px ${color}60`;
             // Update icon colors
             const icons = panel.querySelectorAll('.sntb-info-panel-position, .sntb-info-panel-close');
             icons.forEach(icon => { icon.style.color = color; });
         }
+        // Update viewport border
+        updateViewportBorder(color);
     } else {
-        // No custom color set, use default teal
+        // No custom color set, reset to default teal
         isDefaultColor = true;
+        instanceColor = '#4db6ac'; // COLORS.DEFAULT_INSTANCE
         const panel = document.querySelector('.sntb-info-panel');
         if (panel) {
             panel.style.borderColor = instanceColor;
-            panel.style.boxShadow = `2px 0 12px ${instanceColor}40`;
+            panel.style.boxShadow = `4px 0 20px ${instanceColor}60`;
             const icons = panel.querySelectorAll('.sntb-info-panel-position, .sntb-info-panel-close');
             icons.forEach(icon => { icon.style.color = instanceColor; });
         }
+        // Remove viewport border when no custom color
+        updateViewportBorder('');
     }
     
     if (color === undefined || color === "") {
@@ -247,8 +291,8 @@ function getTabInfo() {
  * Message listener for basic commands
  */
 runtimeAPI.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.command === "updateFavicon" && request.color) {
-        updateFavicon(request.color);
+    if (request.command === "updateFavicon") {
+        updateFavicon(request.color || "");
         sendResponse({ success: true });
         return true;
     }

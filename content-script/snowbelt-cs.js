@@ -1214,10 +1214,10 @@ async function createInfoPanel() {
             left: 0;
             transform: translateX(-2px);
             background: ${colors.bgSurface};
-            border: 2px solid ${instanceColor};
+            border: 3px solid ${instanceColor};
             border-radius: 0 6px 6px 0;
-            box-shadow: 2px 0 12px ${instanceColor}40;
-            padding: 16px 5px;
+            box-shadow: 4px 0 20px ${instanceColor}60;
+            padding: 8px 5px;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             color: ${colors.textPrimary};
             z-index: 999998;
@@ -1246,7 +1246,7 @@ async function createInfoPanel() {
         positionBtn.className = 'sntb-info-panel-position';
         positionBtn.textContent = '▶';
         positionBtn.style.cssText = `
-            font-size: 16px;
+            font-size: 18px;
             color: ${instanceColor};
             cursor: pointer;
             line-height: 1;
@@ -1263,7 +1263,7 @@ async function createInfoPanel() {
         closeBtn.className = 'sntb-info-panel-close';
         closeBtn.textContent = '✕';
         closeBtn.style.cssText = `
-            font-size: 16px;
+            font-size: 18px;
             color: ${instanceColor};
             cursor: pointer;
             line-height: 1;
@@ -3075,6 +3075,217 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
 })();
 
 /**
+ * SNTB Context Menu Enhancement
+ * Adds a "SNTB - Query" item to ServiceNow's field context menu.
+ * When clicked, navigates to the list view filtered by the field's current value.
+ */
+(function() {
+    const SNTB_MENU_ITEM_CLASS = 'sntb-context-query-item';
+
+    /**
+     * Extracts table and field name from existing context menu items.
+     * Parses href attributes like: personalizeField('sys_update_set.name', ...)
+     * @param {HTMLElement} menu - The context menu element
+     * @returns {{table: string, field: string}|null}
+     */
+    function extractTableAndField(menu) {
+        const items = menu.querySelectorAll('.context_item[href]');
+        for (const item of items) {
+            const href = item.getAttribute('href');
+            if (!href) continue;
+            // Match patterns like personalizeField('table.field', ...) or showDictionary('table', 'table.field')
+            const match = href.match(/['"]([a-zA-Z_]+)\.([a-zA-Z_]+)['"]/);
+            if (match) {
+                return { table: match[1], field: match[2] };
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Gets the current value of a form field.
+     * Tries multiple approaches: direct element ID, display value element.
+     * @param {string} table - Table name
+     * @param {string} field - Field name
+     * @param {Document} doc - Document to search in
+     * @returns {string|null}
+     */
+    function getFieldValue(table, field, doc) {
+        // Try the input element directly (table.field or just field)
+        let el = doc.getElementById(table + '.' + field) || doc.getElementById(field);
+        if (el) {
+            // For select elements, get the selected option text
+            if (el.tagName === 'SELECT') {
+                return el.options[el.selectedIndex]?.text || el.value;
+            }
+            return el.value || el.textContent;
+        }
+        // Try display value element (for reference fields: sys_display.table.field)
+        el = doc.getElementById('sys_display.' + table + '.' + field);
+        if (el) return el.value || el.textContent;
+        // Try readonly display
+        el = doc.getElementById('sys_readonly.' + table + '.' + field);
+        if (el) return el.value || el.textContent || el.innerText;
+        return null;
+    }
+
+    /**
+     * Injects the "SNTB - Query" item into the context menu
+     */
+    function injectQueryMenuItem(menu, doc) {
+        // Don't add if already present
+        if (menu.querySelector('.' + SNTB_MENU_ITEM_CLASS)) return;
+
+        const info = extractTableAndField(menu);
+        if (!info) return;
+
+        // Use the document where the menu lives to find field values
+        const searchDoc = doc || document;
+        const value = getFieldValue(info.table, info.field, searchDoc);
+        if (!value || !value.trim()) return;
+
+        // Add separator
+        const separator = document.createElement('div');
+        separator.className = 'context_item_hr';
+        menu.appendChild(separator);
+
+        // Add our menu item
+        const item = document.createElement('div');
+        item.className = 'context_item ' + SNTB_MENU_ITEM_CLASS;
+        item.setAttribute('role', 'menuitem');
+        item.setAttribute('tabindex', '-1');
+        item.textContent = 'SNTB - Query';
+
+        item.addEventListener('click', () => {
+            const encodedQuery = encodeURIComponent(`${info.field}=${value.trim()}`);
+            const listUrl = `/${info.table}_list.do?sysparm_query=${encodedQuery}`;
+            // Navigate using the top-level window (modern UI nav wrapper)
+            const origin = window.location.origin;
+            window.location.href = `${origin}/now/nav/ui/classic/params/target/${encodeURIComponent(info.table + '_list.do?sysparm_query=' + info.field + '=' + value.trim())}`;
+            // Hide the menu
+            menu.style.display = 'none';
+        });
+
+        menu.appendChild(item);
+    }
+
+    // The context menu lives inside an iframe (modern UI wraps forms in nested iframes).
+    // MutationObserver can't cross iframe boundaries, so we use a contextmenu event
+    // listener combined with polling to find and inject into the menu after it appears.
+    
+    let contextMenuCheckInterval = null;
+
+    const findAndInjectMenu = () => {
+        // Search in all accessible documents (main + iframes + shadow DOMs)
+        const docs = [document];
+        
+        // Try to access iframes
+        const iframes = document.querySelectorAll('iframe');
+        iframes.forEach(iframe => {
+            try { docs.push(iframe.contentWindow.document); } catch(e) {}
+        });
+        
+        // Also check shadow DOMs for iframes
+        document.querySelectorAll('*').forEach(el => {
+            if (el.shadowRoot) {
+                el.shadowRoot.querySelectorAll('iframe').forEach(iframe => {
+                    try { docs.push(iframe.contentWindow.document); } catch(e) {}
+                });
+            }
+        });
+
+        for (const doc of docs) {
+            try {
+                const menu = doc.getElementById('context_personalize_menu');
+                if (menu && menu.style.display === 'block' && menu.style.visibility === 'visible') {
+                    injectQueryMenuItem(menu, doc);
+                    return true;
+                }
+            } catch(e) {}
+        }
+        return false;
+    };
+
+    // Listen for right-click anywhere, then poll briefly for the SN context menu
+    document.addEventListener('contextmenu', () => {
+        // Clear any previous polling
+        if (contextMenuCheckInterval) clearInterval(contextMenuCheckInterval);
+        
+        let attempts = 0;
+        contextMenuCheckInterval = setInterval(() => {
+            attempts++;
+            if (findAndInjectMenu() || attempts > 10) {
+                clearInterval(contextMenuCheckInterval);
+                contextMenuCheckInterval = null;
+            }
+        }, 50); // Check every 50ms for up to 500ms
+    }, true); // Use capture to get it before SN's handlers
+
+    // Also listen inside iframes — re-attach when iframe content changes (SPA navigation)
+    const attachIframeListeners = () => {
+        const attachToDoc = (iframeDoc) => {
+            try {
+                // Skip if already attached
+                if (iframeDoc._sntbContextMenuAttached) return;
+                iframeDoc._sntbContextMenuAttached = true;
+                
+                iframeDoc.addEventListener('contextmenu', () => {
+                    if (contextMenuCheckInterval) clearInterval(contextMenuCheckInterval);
+                    let attempts = 0;
+                    contextMenuCheckInterval = setInterval(() => {
+                        attempts++;
+                        if (findAndInjectMenu() || attempts > 10) {
+                            clearInterval(contextMenuCheckInterval);
+                            contextMenuCheckInterval = null;
+                        }
+                    }, 50);
+                }, true);
+            } catch(e) {}
+        };
+
+        const scanIframes = () => {
+            // Direct iframes
+            document.querySelectorAll('iframe').forEach(iframe => {
+                try { attachToDoc(iframe.contentWindow.document); } catch(e) {}
+                // Re-attach on iframe navigation
+                try {
+                    iframe.addEventListener('load', () => {
+                        try { attachToDoc(iframe.contentWindow.document); } catch(e) {}
+                    });
+                } catch(e) {}
+            });
+            
+            // Shadow DOM iframes
+            document.querySelectorAll('*').forEach(el => {
+                if (el.shadowRoot) {
+                    el.shadowRoot.querySelectorAll('iframe').forEach(iframe => {
+                        try { attachToDoc(iframe.contentWindow.document); } catch(e) {}
+                        try {
+                            iframe.addEventListener('load', () => {
+                                try { attachToDoc(iframe.contentWindow.document); } catch(e) {}
+                            });
+                        } catch(e) {}
+                    });
+                }
+            });
+        };
+
+        scanIframes();
+        // Re-scan periodically to catch dynamically added iframes (SPA navigation)
+        setInterval(scanIframes, 3000);
+    };
+
+    // Attach iframe listeners after page loads (iframes may not be ready immediately)
+    if (document.readyState === 'complete') {
+        setTimeout(attachIframeListeners, 2000);
+    } else {
+        window.addEventListener('load', () => setTimeout(attachIframeListeners, 2000));
+    }
+
+    debugLog("*SNOW TOOL BELT* Context menu query feature initialized");
+})();
+
+/**
  * Tool Belt Console - Doom-style console for quick access to extension features
  * Lazy-loaded to improve page load performance
  */
@@ -3838,7 +4049,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
                 html += '<div class="sntb-console-section-title">▸ AVAILABLE COMMANDS:</div>';
                 
                 // Only show main commands (not shortcuts), exclude help itself, and sort alphabetically
-                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang', 'reopen', 'scopes'].sort();
+                const mainCommands = ['search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang', 'reopen', 'scopes', 'open', 'scout'].sort();
                 mainCommands.forEach(cmd => {
                     const command = commands[cmd];
                     // Use global escapeHtml function
@@ -4687,6 +4898,408 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             execute: async (args) => {
                 await commands.scopes.execute(args);
             }
+        },
+        open: {
+            description: 'Open a table in list view (supports partial names and wildcards)',
+            usage: 'open <table_name> | o <table_name>',
+            execute: async (args) => {
+                const searchTerm = args.join('_').trim();
+                
+                if (!searchTerm) {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Usage: open &lt;table_name&gt;<br>Examples: open sys_user, open sys_u, open *user</div>';
+                    return;
+                }
+                
+                consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Looking up table...</div>';
+                
+                try {
+                    const headers = new Headers();
+                    headers.append('Content-Type', 'application/json');
+                    headers.append('Accept', 'application/json');
+                    headers.append('X-UserToken', context.g_ck);
+                    
+                    // Build query based on input pattern
+                    let query;
+                    if (searchTerm.includes('*')) {
+                        // Dynamic wildcard search using ServiceNow query operators.
+                        // Split on * to get segments. Position determines the operator:
+                        // - First segment: STARTSWITH (or LIKE if pattern starts with *)
+                        // - Last segment: ENDSWITH (or LIKE if pattern ends with *)
+                        // - Middle segments: always LIKE
+                        const startsWild = searchTerm.startsWith('*');
+                        const endsWild = searchTerm.endsWith('*');
+                        const segments = searchTerm.split('*').filter(s => s.length > 0);
+                        
+                        if (segments.length === 0) {
+                            consoleResults.innerHTML = '<div class="sntb-console-error">✖ Invalid pattern</div>';
+                            return;
+                        }
+                        
+                        // Build conditions for name field
+                        const nameConditions = segments.map((seg, i) => {
+                            const isFirst = (i === 0);
+                            const isLast = (i === segments.length - 1);
+                            if (isFirst && !startsWild && segments.length > 1) return `nameSTARTSWITH${seg}`;
+                            if (isFirst && !startsWild && segments.length === 1 && !endsWild) return `nameSTARTSWITH${seg}`;
+                            if (isLast && !endsWild) return `nameENDSWITH${seg}`;
+                            return `nameLIKE${seg}`;
+                        });
+                        
+                        // Build conditions for label field
+                        const labelConditions = segments.map((seg, i) => {
+                            const isFirst = (i === 0);
+                            const isLast = (i === segments.length - 1);
+                            if (isFirst && !startsWild && segments.length > 1) return `labelSTARTSWITH${seg}`;
+                            if (isFirst && !startsWild && segments.length === 1 && !endsWild) return `labelSTARTSWITH${seg}`;
+                            if (isLast && !endsWild) return `labelENDSWITH${seg}`;
+                            return `labelLIKE${seg}`;
+                        });
+                        
+                        query = `${nameConditions.join('^')}^NQ${labelConditions.join('^')}`;
+                    } else {
+                        // Try exact match first, then starts-with, then contains
+                        query = `name=${searchTerm}^ORnameSTARTSWITH${searchTerm}^ORlabelSTARTSWITH${searchTerm}^ORnameLIKE${searchTerm}^ORlabelLIKE${searchTerm}`;
+                    }
+                    
+                    const url = `${window.location.origin}/api/now/table/sys_db_object?sysparm_query=${encodeURIComponent(query)}^ORDERBYname&sysparm_fields=name,label,sys_id&sysparm_limit=21`;
+                    
+                    const response = await fetch(url, {
+                        credentials: 'same-origin',
+                        headers: headers
+                    });
+                    
+                    if (!response.ok) {
+                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ API error: ' + response.status + '</div>';
+                        return;
+                    }
+                    
+                    const data = await response.json();
+                    const results = data.result || [];
+                    
+                    if (results.length === 0) {
+                        const safeTerm = escapeHtml(searchTerm);
+                        consoleResults.innerHTML = `<div class="sntb-console-error">✖ No table found matching "${safeTerm}"</div>`;
+                        return;
+                    }
+                    
+                    // Check for exact match
+                    const exactMatch = results.find(r => r.name === searchTerm);
+                    if (exactMatch) {
+                        window.open(`${window.location.origin}/${exactMatch.name}_list.do`, '_blank');
+                        const safeName = escapeHtml(exactMatch.name);
+                        const safeLabel = escapeHtml(exactMatch.label || exactMatch.name);
+                        consoleResults.innerHTML = `<div class="sntb-console-info">▸ Opened <strong>${safeLabel}</strong> [${safeName}]</div>`;
+                        return;
+                    }
+                    
+                    // Single result — open directly
+                    if (results.length === 1) {
+                        const table = results[0];
+                        window.open(`${window.location.origin}/${table.name}_list.do`, '_blank');
+                        const safeName = escapeHtml(table.name);
+                        const safeLabel = escapeHtml(table.label || table.name);
+                        consoleResults.innerHTML = `<div class="sntb-console-info">▸ Opened <strong>${safeLabel}</strong> [${safeName}]</div>`;
+                        return;
+                    }
+                    
+                    // Multiple results — list them for the user to pick
+                    const hasMore = results.length > 20;
+                    const displayResults = results.slice(0, 20);
+                    const safeTerm = escapeHtml(searchTerm);
+                    
+                    let html = '<div class="sntb-console-info">';
+                    html += `<div class="sntb-console-section-title">▸ ${displayResults.length}${hasMore ? '+' : ''} TABLES MATCHING "${safeTerm}":</div>`;
+                    
+                    displayResults.forEach((table) => {
+                        const safeName = escapeHtml(table.name);
+                        const safeLabel = escapeHtml(table.label || '');
+                        const displayLabel = safeLabel ? `${safeLabel} [${safeName}]` : safeName;
+                        
+                        html += `
+                            <div class="sntb-console-result-item" data-url="${window.location.origin}/${safeName}_list.do">
+                                <span class="sntb-console-result-name">${displayLabel}</span>
+                            </div>
+                        `;
+                    });
+                    
+                    if (hasMore) {
+                        html += '<div style="opacity: 0.6; font-size: 11px; margin-top: 4px;">… more results available. Refine your search.</div>';
+                    }
+                    
+                    html += '</div>';
+                    consoleResults.innerHTML = html;
+                    
+                    // Add click handlers
+                    const resultItems = consoleResults.querySelectorAll('.sntb-console-result-item');
+                    resultItems.forEach((item) => {
+                        item.addEventListener('click', () => {
+                            const tableUrl = item.getAttribute('data-url');
+                            window.open(tableUrl, '_blank');
+                            item.style.opacity = '0.5';
+                        });
+                    });
+                    
+                } catch (error) {
+                    const errorMsg = escapeHtml(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Error: ' + errorMsg + '</div>';
+                }
+            }
+        },
+        o: {
+            description: 'Alias for open',
+            usage: 'o <table_name>',
+            execute: async (args) => {
+                await commands.open.execute(args);
+            }
+        },
+        scout: {
+            description: 'Scout an HR Case: show related parent, children, tasks, activities, and flows',
+            usage: 'scout <HRC number>',
+            execute: async (args) => {
+                const caseNumber = args.join(' ').trim().toUpperCase();
+                
+                if (!caseNumber || !caseNumber.startsWith('HRC')) {
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Usage: scout &lt;HRC number&gt;<br>Example: scout HRC0010001</div>';
+                    return;
+                }
+                
+                consoleResults.innerHTML = '<div class="sntb-console-loading">▸ Scouting ' + escapeHtml(caseNumber) + '...</div>';
+                
+                try {
+                    const origin = window.location.origin;
+                    const headers = new Headers();
+                    headers.append('Content-Type', 'application/json');
+                    headers.append('Accept', 'application/json');
+                    headers.append('X-UserToken', context.g_ck);
+                    const fetchOpts = { credentials: 'same-origin', headers };
+                    
+                    // Step 1: Find the HR Case
+                    const caseResp = await fetch(
+                        `${origin}/api/now/table/sn_hr_core_case?sysparm_query=number=${encodeURIComponent(caseNumber)}&sysparm_fields=sys_id,number,short_description,state,parent,sys_class_name&sysparm_display_value=true&sysparm_limit=1`,
+                        fetchOpts
+                    );
+                    if (!caseResp.ok) {
+                        consoleResults.innerHTML = '<div class="sntb-console-error">✖ API error: ' + caseResp.status + '</div>';
+                        return;
+                    }
+                    const caseData = await caseResp.json();
+                    if (!caseData.result || caseData.result.length === 0) {
+                        consoleResults.innerHTML = `<div class="sntb-console-error">✖ HR Case "${escapeHtml(caseNumber)}" not found</div>`;
+                        return;
+                    }
+                    
+                    const hrCase = caseData.result[0];
+                    const caseSysId = hrCase.sys_id;
+                    const caseTable = hrCase.sys_class_name || 'sn_hr_core_case';
+                    const parentRef = hrCase.parent;
+                    const parentSysId = (parentRef && typeof parentRef === 'object') ? parentRef.value : parentRef;
+                    
+                    // Step 2: Fetch all related data in parallel
+                    const queries = [];
+                    
+                    // Parent case (if exists)
+                    if (parentSysId) {
+                        queries.push(
+                            fetch(`${origin}/api/now/table/sn_hr_core_case?sysparm_query=sys_id=${parentSysId}&sysparm_fields=sys_id,number,short_description,state,sys_class_name&sysparm_display_value=true&sysparm_limit=1`, fetchOpts)
+                                .then(r => r.json()).then(d => ({ type: 'parent', results: d.result || [] }))
+                        );
+                    }
+                    
+                    // Descendants (children referencing this case as parent)
+                    queries.push(
+                        fetch(`${origin}/api/now/table/sn_hr_core_case?sysparm_query=parent=${caseSysId}&sysparm_fields=sys_id,number,short_description,state,sys_class_name&sysparm_display_value=true&sysparm_limit=20`, fetchOpts)
+                            .then(r => r.json()).then(d => ({ type: 'descendants', results: d.result || [] }))
+                    );
+                    
+                    // Related tasks
+                    queries.push(
+                        fetch(`${origin}/api/now/table/sn_hr_core_task?sysparm_query=parent=${caseSysId}&sysparm_fields=sys_id,number,short_description,state,sys_class_name&sysparm_display_value=true&sysparm_limit=20`, fetchOpts)
+                            .then(r => r.json()).then(d => ({ type: 'tasks', results: d.result || [] }))
+                    );
+                    
+                    // Related activities (on the case itself + on related tasks)
+                    // We'll query after tasks are fetched, so use a placeholder
+                    queries.push(
+                        fetch(`${origin}/api/now/table/sn_hr_le_activity_status?sysparm_query=related_record=${caseSysId}&sysparm_fields=sys_id,number,activity,state,sys_class_name,related_record&sysparm_display_value=true&sysparm_limit=20`, fetchOpts)
+                            .then(r => r.json()).then(d => ({ type: 'activities', results: d.result || [] }))
+                    );
+                    
+                    // Flow contexts for the case (sorted by state, exclude cancelled and noise flows)
+                    const flowExclusions = '^state!=Cancelled^nameNOT LIKECheck Activity^nameNOT LIKELaunch Activities^nameNOT LIKEHR Activity^nameNOT LIKECompute journey progress^nameNOT LIKEsend_notifications^nameNOT LIKEWait for timer^nameNOT LIKEEvaluate Audience';
+                    queries.push(
+                        fetch(`${origin}/api/now/table/sys_flow_context?sysparm_query=source_record=${caseSysId}${flowExclusions}^ORDERBYstate&sysparm_fields=sys_id,number,name,state,flow_display_value&sysparm_display_value=true&sysparm_limit=20`, fetchOpts)
+                            .then(r => r.json()).then(d => ({ type: 'flows', results: d.result || [] }))
+                    );
+                    
+                    const allResults = await Promise.all(queries);
+                    
+                    // Collect task sys_ids for flow context lookup
+                    const tasksResult = allResults.find(r => r.type === 'tasks');
+                    const taskSysIds = (tasksResult && tasksResult.results.length > 0)
+                        ? tasksResult.results.map(t => t.sys_id)
+                        : [];
+                    
+                    // Step 3: Fetch flow contexts per task and activities for tasks
+                    const taskFlowExclusions = '^state!=Cancelled^nameNOT LIKECheck Activity^nameNOT LIKELaunch Activities^nameNOT LIKEHR Activity^nameNOT LIKECompute journey progress^nameNOT LIKEsend_notifications^nameNOT LIKEWait for timer^nameNOT LIKEEvaluate Audience';
+                    let taskFlowsByTask = {};
+                    let taskActivities = [];
+                    if (taskSysIds.length > 0) {
+                        const taskActivityQuery = taskSysIds.map(id => `related_record=${id}`).join('^OR');
+                        
+                        // Query flows per task individually so we can group them by task
+                        const taskFlowPromises = tasksResult.results.map(task =>
+                            fetch(`${origin}/api/now/table/sys_flow_context?sysparm_query=source_record=${task.sys_id}${encodeURIComponent(taskFlowExclusions)}^ORDERBYstate&sysparm_fields=sys_id,number,name,state,flow_display_value&sysparm_display_value=true&sysparm_limit=20`, fetchOpts)
+                                .then(r => r.json())
+                                .then(d => ({ taskSysId: task.sys_id, results: d.result || [] }))
+                        );
+                        
+                        const taskActivityPromise = fetch(`${origin}/api/now/table/sn_hr_le_activity_status?sysparm_query=${encodeURIComponent(taskActivityQuery)}&sysparm_fields=sys_id,number,activity,state,sys_class_name,related_record&sysparm_display_value=true&sysparm_limit=20`, fetchOpts)
+                            .then(r => r.json()).then(d => d.result || []);
+                        
+                        const [taskFlowResults, taskActivityResults] = await Promise.all([
+                            Promise.all(taskFlowPromises),
+                            taskActivityPromise
+                        ]);
+                        
+                        taskFlowResults.forEach(({ taskSysId, results }) => {
+                            if (results.length > 0) {
+                                taskFlowsByTask[taskSysId] = results;
+                            }
+                        });
+                        taskActivities = taskActivityResults;
+                    }
+                    
+                    // Step 4: Build the output
+                    let html = '<div class="sntb-console-info">';
+                    html += `<div class="sntb-console-section-title">▸ SCOUT: ${escapeHtml(caseNumber)}</div>`;
+                    
+                    // Helper to render a record item with state
+                    const renderItem = (record, table, urlOverride) => {
+                        const safeNumber = escapeHtml(record.number || record.name || record.sys_id);
+                        const safeDesc = escapeHtml(record.short_description || record.flow_display_value || '');
+                        const stateLabel = record.state ? escapeHtml(String(record.state)) : '';
+                        const url = urlOverride || `${origin}/${table || record.sys_class_name || 'sn_hr_core_case'}.do?sys_id=${record.sys_id}`;
+                        let label = safeNumber;
+                        if (safeDesc) label += ` — ${safeDesc}`;
+                        if (stateLabel) label += ` <span style="opacity: 0.6; font-size: 11px;">[${stateLabel}]</span>`;
+                        return `<div class="sntb-console-result-item" data-url="${escapeHtml(url)}"><span class="sntb-console-result-name">${label}</span></div>`;
+                    };
+                    
+                    // Helper to render an activity item (shows activity label, related_record, state)
+                    const renderActivityItem = (record) => {
+                        // activity and related_record are reference fields: {display_value, link} with sysparm_display_value=true
+                        const activityLabel = escapeHtml(
+                            (record.activity && typeof record.activity === 'object') ? record.activity.display_value :
+                            (record.activity || record.number || record.sys_id)
+                        );
+                        const relatedRecord = record.related_record
+                            ? escapeHtml((typeof record.related_record === 'object') ? record.related_record.display_value : record.related_record)
+                            : '';
+                        const stateLabel = record.state
+                            ? escapeHtml((typeof record.state === 'object') ? record.state.display_value : record.state)
+                            : '';
+                        const url = `${origin}/${record.sys_class_name || 'sn_hr_le_activity_status'}.do?sys_id=${record.sys_id}`;
+                        let label = activityLabel;
+                        if (relatedRecord) label += ` <span style="opacity: 0.6; font-size: 11px;">→ ${relatedRecord}</span>`;
+                        if (stateLabel) label += ` <span style="opacity: 0.6; font-size: 11px;">[${stateLabel}]</span>`;
+                        return `<div class="sntb-console-result-item" data-url="${escapeHtml(url)}"><span class="sntb-console-result-name">${label}</span></div>`;
+                    };
+                    
+                    const emptyMsg = '<div style="opacity: 0.5; font-size: 11px; margin-left: 8px; font-style: italic;">None</div>';
+                    
+                    // The case itself
+                    html += '<div style="margin-top: 6px; font-weight: bold; opacity: 0.7;">HR Case</div>';
+                    html += renderItem(hrCase, caseTable);
+                    
+                    // Parent
+                    const parentResult = allResults.find(r => r.type === 'parent');
+                    html += '<div style="margin-top: 6px; font-weight: bold; opacity: 0.7;">Parent</div>';
+                    if (parentResult && parentResult.results.length > 0) {
+                        parentResult.results.forEach(r => { html += renderItem(r, r.sys_class_name); });
+                    } else {
+                        html += emptyMsg;
+                    }
+                    
+                    // Descendants
+                    const descResult = allResults.find(r => r.type === 'descendants');
+                    html += `<div style="margin-top: 6px; font-weight: bold; opacity: 0.7;">Descendants (${descResult ? descResult.results.length : 0})</div>`;
+                    if (descResult && descResult.results.length > 0) {
+                        descResult.results.forEach(r => { html += renderItem(r, r.sys_class_name); });
+                    } else {
+                        html += emptyMsg;
+                    }
+                    
+                    // Tasks
+                    html += `<div style="margin-top: 6px; font-weight: bold; opacity: 0.7;">Tasks (${tasksResult ? tasksResult.results.length : 0})</div>`;
+                    if (tasksResult && tasksResult.results.length > 0) {
+                        tasksResult.results.forEach(r => { html += renderItem(r, r.sys_class_name || 'sn_hr_core_task'); });
+                    } else {
+                        html += emptyMsg;
+                    }
+                    
+                    // Activities (case-level + task-level combined)
+                    const actResult = allResults.find(r => r.type === 'activities');
+                    const allActivities = [
+                        ...(actResult ? actResult.results : []),
+                        ...taskActivities
+                    ];
+                    html += `<div style="margin-top: 6px; font-weight: bold; opacity: 0.7;">Activities (${allActivities.length})</div>`;
+                    if (allActivities.length > 0) {
+                        allActivities.forEach(r => { html += renderActivityItem(r); });
+                    } else {
+                        html += emptyMsg;
+                    }
+                    
+                    // Flow contexts (case) — already sorted by state from API
+                    const flowResult = allResults.find(r => r.type === 'flows');
+                    html += `<div style="margin-top: 6px; font-weight: bold; opacity: 0.7;">Flow Contexts for Case (${flowResult ? flowResult.results.length : 0})</div>`;
+                    if (flowResult && flowResult.results.length > 0) {
+                        flowResult.results.forEach(r => {
+                            const flowUrl = `${origin}/now/workflow-studio/builder?table=sys_flow_context&sysId=${r.sys_id}`;
+                            html += renderItem(r, null, flowUrl);
+                        });
+                    } else {
+                        html += emptyMsg;
+                    }
+                    
+                    // Flow contexts grouped by task — using task info we already have
+                    if (tasksResult && tasksResult.results.length > 0) {
+                        const taskMap = {};
+                        tasksResult.results.forEach(t => { taskMap[t.sys_id] = t; });
+                        
+                        for (const task of tasksResult.results) {
+                            const taskLabel = `${escapeHtml(task.number)}${task.short_description ? ' — ' + escapeHtml(task.short_description) : ''}`;
+                            const flows = taskFlowsByTask[task.sys_id] || [];
+                            html += `<div style="margin-top: 6px; font-weight: bold; opacity: 0.7;">Flows for ${taskLabel} (${flows.length})</div>`;
+                            if (flows.length > 0) {
+                                flows.forEach(r => {
+                                    const flowUrl = `${origin}/now/workflow-studio/builder?table=sys_flow_context&sysId=${r.sys_id}`;
+                                    html += renderItem(r, null, flowUrl);
+                                });
+                            } else {
+                                html += emptyMsg;
+                            }
+                        }
+                    }
+                    
+                    html += '</div>';
+                    consoleResults.innerHTML = html;
+                    
+                    // Add click handlers
+                    const resultItems = consoleResults.querySelectorAll('.sntb-console-result-item');
+                    resultItems.forEach((item) => {
+                        item.addEventListener('click', () => {
+                            const url = item.getAttribute('data-url');
+                            window.open(url, '_blank');
+                            item.style.opacity = '0.5';
+                        });
+                    });
+                    
+                } catch (error) {
+                    const errorMsg = escapeHtml(error.message);
+                    consoleResults.innerHTML = '<div class="sntb-console-error">✖ Error scouting: ' + errorMsg + '</div>';
+                }
+            }
         }
     };
     
@@ -4830,7 +5443,7 @@ async function searchByObjectName(searchValue, host, token, searchType = 'object
             html += '<div class="sntb-console-info">';
             html += '<div class="sntb-console-section-title">▸ Available commands:</div>';
             
-            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang', 'scopes'];
+            const mainCommands = ['help', 'search', 'versions', 'names', 'background', 'reload', 'logs', 'stats', 'nodes', 'codesearch', 'lang', 'scopes', 'open', 'scout'];
             mainCommands.forEach(cmd => {
                 const cmdObj = commands[cmd];
                 const safeUsage = escapeHtml(cmdObj.usage);

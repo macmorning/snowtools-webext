@@ -25,7 +25,6 @@ const registerBasicContentScript = async () => {
         try {
             const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [scriptId] });
             if (existing.length > 0) {
-                console.log("*SNOW TOOL BELT BG* Basic content script already registered");
                 return;
             }
 
@@ -36,7 +35,6 @@ const registerBasicContentScript = async () => {
                 js: ["content-script/snowbelt-cs-basic.js"],
                 runAt: "document_end"
             }]);
-            console.log("*SNOW TOOL BELT BG* Registered basic content script");
         } catch (error) {
             console.error("*SNOW TOOL BELT BG* Failed to register basic content script:", error);
         }
@@ -48,7 +46,6 @@ const registerBasicContentScript = async () => {
                 js: [{ file: "content-script/snowbelt-cs-basic.js" }],
                 runAt: "document_end"
             });
-            console.log("*SNOW TOOL BELT BG* Registered basic content script");
         } catch (error) {
             console.error("*SNOW TOOL BELT BG* Failed to register basic content script:", error);
         }
@@ -68,7 +65,6 @@ const registerMainContentScripts = async () => {
             // Check if already registered
             const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [scriptId] });
             if (existing.length > 0) {
-                console.log("*SNOW TOOL BELT BG* Main content scripts already registered");
                 return;
             }
 
@@ -79,7 +75,6 @@ const registerMainContentScripts = async () => {
                 js: ["shared/utils.js", "content-script/snowbelt-cs.js"],
                 runAt: "document_idle"
             }]);
-            console.log("*SNOW TOOL BELT BG* Registered main content scripts");
         } catch (error) {
             console.error("*SNOW TOOL BELT BG* Failed to register main content scripts:", error);
         }
@@ -91,7 +86,6 @@ const registerMainContentScripts = async () => {
                 js: [{ file: "shared/utils.js" }, { file: "content-script/snowbelt-cs.js" }],
                 runAt: "document_idle"
             });
-            console.log("*SNOW TOOL BELT BG* Registered main content scripts");
         } catch (error) {
             console.error("*SNOW TOOL BELT BG* Failed to register main content scripts:", error);
         }
@@ -110,15 +104,10 @@ const unregisterMainContentScripts = async () => {
             const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [scriptId] });
             if (existing.length > 0) {
                 await chrome.scripting.unregisterContentScripts({ ids: [scriptId] });
-                console.log("*SNOW TOOL BELT BG* Unregistered main content scripts");
-            } else {
-                console.log("*SNOW TOOL BELT BG* Main content scripts not registered, nothing to unregister");
             }
         } catch (error) {
             // Silently handle "Nonexistent script ID" errors
-            if (error.message && error.message.includes("Nonexistent script ID")) {
-                console.log("*SNOW TOOL BELT BG* Main content scripts not registered, nothing to unregister");
-            } else {
+            if (!error.message || !error.message.includes("Nonexistent script ID")) {
                 console.error("*SNOW TOOL BELT BG* Failed to unregister main content scripts:", error);
             }
         }
@@ -142,7 +131,6 @@ const registerContentScript = async (filter, basicOnly = false) => {
             // Check if already registered
             const existing = await chrome.scripting.getRegisteredContentScripts({ ids: [scriptId] });
             if (existing.length > 0) {
-                console.log(`*SNOW TOOL BELT BG* ${basicOnly ? 'Basic' : 'Full'} content script already registered for:`, filter);
                 return;
             }
             
@@ -152,7 +140,6 @@ const registerContentScript = async (filter, basicOnly = false) => {
                 js: scripts,
                 runAt: "document_idle"
             }]);
-            console.log(`*SNOW TOOL BELT BG* Registered ${basicOnly ? 'basic' : 'full'} content script for:`, filter);
         } catch (error) {
             console.error("*SNOW TOOL BELT BG* Failed to register content script for:", filter, error);
         }
@@ -165,16 +152,12 @@ const registerContentScript = async (filter, basicOnly = false) => {
                 js: jsFiles,
                 runAt: "document_idle"
             });
-            console.log(`*SNOW TOOL BELT BG* Registered ${basicOnly ? 'basic' : 'full'} content script for:`, filter);
         } catch (error) {
             console.error("*SNOW TOOL BELT BG* Failed to register content script for:", filter, error);
         }
     } else {
         // Firefox MV3 doesn't support dynamic content script registration
-        // Content scripts must be declared in manifest for Firefox
-        if (!isChromium) {
-            console.log("*SNOW TOOL BELT BG* Dynamic content script registration not available in Firefox - using manifest declaration");
-        } else {
+        if (isChromium) {
             console.warn("*SNOW TOOL BELT BG* Content script registration not supported");
         }
     }
@@ -233,7 +216,6 @@ async function saveNewInstance(hostname) {
 
         // Only write if genuinely missing — never overwrite existing entries
         if (knownInstances[hostname] !== undefined) {
-            console.log("*SNOW TOOL BELT BG* Instance already in storage, skipping save:", hostname);
             // Still update in-memory context to match storage
             context.knownInstances = knownInstances;
             context.instanceOptions = instanceOptions;
@@ -251,8 +233,6 @@ async function saveNewInstance(hostname) {
         // Keep in-memory context in sync with what we just wrote
         context.knownInstances = knownInstances;
         context.instanceOptions = instanceOptions;
-
-        console.log("*SNOW TOOL BELT BG* Saved new instance to storage:", hostname);
     } catch (e) {
         console.error("*SNOW TOOL BELT BG* Error saving new instance:", e);
     }
@@ -276,8 +256,6 @@ const getOptions = (onReady) => {
             const rawInstanceOptions = result.instanceOptions || "{}";
 
             context.urlFiltersArr = context.urlFilters.split(";");
-            console.log("*SNOW TOOL BELT BG* urlFilters:", context.urlFilters);
-            console.log("*SNOW TOOL BELT BG* urlFiltersArr after split:", context.urlFiltersArr);
             
             // Always register basic content script (for favicon updates)
             registerBasicContentScript();
@@ -285,7 +263,6 @@ const getOptions = (onReady) => {
             // Check if content script features are enabled (default: true)
             const contentScriptEnabled = (result.contentScriptEnabled === "true" || result.contentScriptEnabled === true || result.contentScriptEnabled === undefined);
             context.contentScriptEnabled = contentScriptEnabled;
-            console.log("*SNOW TOOL BELT BG* Content script features enabled:", contentScriptEnabled);
 
             context.showUpdatesets = (result.showUpdatesets === "true" || result.showUpdatesets === true || result.showUpdatesets === undefined);
             context.maxSearchResults = result.maxSearchResults || 20;
@@ -320,7 +297,6 @@ const getOptions = (onReady) => {
             try {
                 context.knownInstances = JSON.parse(rawKnownInstances);
             } catch (e) {
-                console.log(e);
                 context.knownInstances = {};
             }
             
@@ -335,7 +311,6 @@ const getOptions = (onReady) => {
             try {
                 context.instanceOptions = JSON.parse(rawInstanceOptions);
             } catch (e) {
-                console.log(e);
                 context.instanceOptions = {};
             }
             // update tab icons
@@ -351,13 +326,11 @@ const getOptions = (onReady) => {
                                 // Handle the case where content script is not loaded
                                 if (chrome.runtime.lastError) {
                                     // Silently ignore - content script may not be loaded yet
-                                    console.log("*SNOW TOOL BELT BG* Content script not ready for favicon update:", chrome.runtime.lastError.message);
                                 }
                             });
                         }
                     } catch (error) {
                         // Invalid URL, skip this tab
-                        console.log("*SNOW TOOL BELT BG* Invalid URL in tab update:", tabs[i].url, error.message);
                     }
                 }
             });
@@ -386,7 +359,6 @@ function tabUpdated(tabId, changeInfo, tab) {
         instance = url.hostname;
     } catch (error) {
         // Invalid URL, skip processing
-        console.log("*SNOW TOOL BELT BG* Invalid URL in tabUpdated:", tab.url, error.message);
         return false;
     }
 
@@ -404,7 +376,6 @@ const popIn = (tabid) => {
     chromeAPI.tabs.get(tabid, (tab) => {
         try {
             if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
-                console.log("*SNOW TOOL BELT BG* Invalid URL for popIn:", tab.url);
                 return;
             }
             let url = new URL(tab.url);
@@ -433,10 +404,7 @@ function loadTabStateCache() {
     chromeAPI.storage.session.get(['tabStateCache'], (result) => {
         if (result.tabStateCache) {
             Object.assign(tabStateCache, result.tabStateCache);
-            console.log("*SNOW TOOL BELT BG* Loaded tab state cache with", Object.keys(tabStateCache.tabs).length, "tabs");
             cleanStaleEntries();
-        } else {
-            console.log("*SNOW TOOL BELT BG* No cached tab state found, starting fresh");
         }
     });
 }
@@ -445,15 +413,12 @@ function loadTabStateCache() {
  * Request fresh state from all ServiceNow tabs after service worker restart
  */
 function requestFreshStateFromAllTabs() {
-    console.log("*SNOW TOOL BELT BG* Requesting fresh state from all tabs");
     chrome.tabs.query({}, (tabs) => {
         tabs.forEach(tab => {
             if (tab.url && (tab.url.includes('service-now.com') || tab.url.includes('.service-now.com'))) {
-                // Send message to content script to report its state
                 chrome.tabs.sendMessage(tab.id, { "command": "requestStateReport" }, (response) => {
                     if (chrome.runtime.lastError) {
                         // Content script not loaded or not responsive
-                        console.log("*SNOW TOOL BELT BG* Tab", tab.id, "not responsive:", chrome.runtime.lastError.message);
                     }
                 });
             }
@@ -480,15 +445,12 @@ function updateTabStateCache(tabId, url, tabInfo) {
             lastUpdated: Date.now()
         };
         
-        console.log("*SNOW TOOL BELT BG* Updated cache for tab", tabId, "instance:", instance, "type:", tabInfo.type);
-        
         // Update update set cache if provided
         if (tabInfo.updateSet && tabInfo.updateSet.current) {
             if (!tabStateCache.updateSets[instance]) {
                 tabStateCache.updateSets[instance] = {};
             }
             tabStateCache.updateSets[instance] = tabInfo.updateSet;
-            console.log("*SNOW TOOL BELT BG* Updated update set cache for", instance, ":", tabInfo.updateSet.current.name);
         }
         
         // Persist to storage (debounced)
@@ -538,7 +500,6 @@ function cleanStaleEntries() {
         });
         
         if (removedCount > 0) {
-            console.log("*SNOW TOOL BELT BG* Cleaned", removedCount, "stale tab entries from cache");
             debouncedSaveCache();
         }
     });
@@ -551,9 +512,7 @@ let saveTimeout;
 function debouncedSaveCache() {
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
-        chromeAPI.storage.session.set({ tabStateCache: tabStateCache }, () => {
-            console.log("*SNOW TOOL BELT BG* Saved tab state cache to session storage");
-        });
+        chromeAPI.storage.session.set({ tabStateCache: tabStateCache });
     }, 1000);
 }
 
@@ -584,24 +543,19 @@ function getAllTabStatesFromCache() {
 const openVersions = (tab) => {
     try {
         if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
-            console.log("*SNOW TOOL BELT BG* Invalid URL for openVersions:", tab.url);
             return false;
         }
 
         let url = new URL(tab.url);
 
-        // Extract sys_id from URL using regex to find first 32-character alphanumeric lowercase string
-        // Look for patterns after "=" or "%3D" (URL encoded "=")
         const sysIdRegex = /(?:=|%3D)([a-f0-9]{32})(?:[^a-f0-9]|$)/i;
         const match = tab.url.match(sysIdRegex);
 
         if (!match || !match[1]) {
-            console.log("*SNOW TOOL BELT BG* No sys_id found in URL:", tab.url);
             return false;
         }
 
         const sysId = match[1].toLowerCase();
-        console.log("*SNOW TOOL BELT BG* Found sys_id:", sysId);
 
         // Use existing logic to open the popup window
         let createData = {
@@ -627,7 +581,6 @@ const openVersions = (tab) => {
 const openBackgroundScriptWindow = (tab) => {
     try {
         if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
-            console.log("*SNOW TOOL BELT BG* Invalid URL for openBackgroundScriptWindow:", tab.url);
             return;
         }
         let url = new URL(tab.url);
@@ -651,26 +604,20 @@ const openBackgroundScriptWindow = (tab) => {
  */
 const reloadInstanceTabs = async (instance, windowId) => {
     try {
-        console.log("*SNOW TOOL BELT BG* Reloading tabs for instance:", instance, "windowId:", windowId);
-        
-        // Query for all tabs matching the instance
         const queryInfo = { url: `*://${instance}/*` };
         if (windowId !== undefined && windowId !== null) {
             queryInfo.windowId = windowId;
         }
         
         const tabs = await chrome.tabs.query(queryInfo);
-        console.log("*SNOW TOOL BELT BG* Found", tabs.length, "tabs to reload");
         
         if (tabs.length === 0) {
             return { success: false, message: "No tabs found for this instance", count: 0 };
         }
         
-        // Reload all matching tabs
         const reloadPromises = tabs.map(tab => chrome.tabs.reload(tab.id));
         await Promise.all(reloadPromises);
         
-        console.log("*SNOW TOOL BELT BG* Successfully reloaded", tabs.length, "tabs");
         return { success: true, message: `Reloaded ${tabs.length} tab(s)`, count: tabs.length };
         
     } catch (error) {
@@ -684,15 +631,12 @@ const reloadInstanceTabs = async (instance, windowId) => {
  * @param {String} command Id of the command that was issued
  */
 const cmdListener = (command) => {
-    console.log("*SNOW TOOL BELT BG* received command " + command);
     let currentTab = {};
-    // What is the current tab when the user pressed the keyboard combination?
     chromeAPI.tabs.query({ currentWindow: true, active: true }, (tabs) => {
         currentTab = tabs[0];
         let hostname;
         try {
             if (!currentTab.url || (!currentTab.url.startsWith('http://') && !currentTab.url.startsWith('https://'))) {
-                console.log("*SNOW TOOL BELT BG* Invalid URL for command:", currentTab.url);
                 return false;
             }
             hostname = new URL(currentTab.url).hostname;
@@ -701,43 +645,35 @@ const cmdListener = (command) => {
             return false;
         }
         let test = isServiceNow(hostname);
-        console.warn(test);
         if (test.isServiceNow === false) {
-            // do nothing
             return false;
         }
         if (command === "execute-reframe") {
             popIn(currentTab.id);
         } else if (command === "execute-openversions") {
-            // Check if content script features are enabled
             if (!context.contentScriptEnabled) {
-                console.log("*SNOW TOOL BELT BG* Open versions command ignored: content script features are disabled");
                 return true;
             }
             
             openVersions(currentTab);
         } else if (command === "execute-fieldnames") {
-            // Check if content script features are enabled
             if (!context.contentScriptEnabled) {
-                console.log("*SNOW TOOL BELT BG* Field names command ignored: content script features are disabled");
                 return true;
             }
             
             chrome.tabs.sendMessage(currentTab.id, { "command": command }, (response) => {
                 if (chrome.runtime.lastError) {
-                    console.log("*SNOW TOOL BELT BG* Could not execute field names command:", chrome.runtime.lastError.message);
+                    // Content script not ready
                 }
             });
         } else if (command === "execute-console") {
-            // Check if content script features are enabled
             if (!context.contentScriptEnabled) {
-                console.log("*SNOW TOOL BELT BG* Console command ignored: content script features are disabled");
                 return true;
             }
             
             chrome.tabs.sendMessage(currentTab.id, { "command": "toggleConsole" }, (response) => {
                 if (chrome.runtime.lastError) {
-                    console.log("*SNOW TOOL BELT BG* Could not execute console command:", chrome.runtime.lastError.message);
+                    // Content script not ready
                 }
             });
         } else if (command === "execute-backgroundscript") {
@@ -751,23 +687,14 @@ const cmdListener = (command) => {
  * @param {String} FQDN of the current calling tab
  */
 const isServiceNow = (hostname) => {
-    console.log("*SNOW TOOL BELT BG* isServiceNow? hostname=" + hostname);
-    console.log("*SNOW TOOL BELT BG* urlFiltersArr:", context.urlFiltersArr);
-    console.log("*SNOW TOOL BELT BG* contentScriptEnabled:", context.contentScriptEnabled);
-    
     let matchFound = false;
     let response = { "isServiceNow": false };
 
     if (!context.urlFiltersArr || context.urlFiltersArr.length === 0) {
-        console.log("*SNOW TOOL BELT BG* urlFiltersArr is empty or undefined");
         return response;
     }
 
     context.urlFiltersArr.forEach(function (filter) {
-        // console.log("matchFound=" + matchFound);
-        // console.log("filter=" + filter);
-        // console.log("hostname.indexOf(filter)=" + hostname.indexOf(filter));
-
         if (filter.trim() === "") return false;
         if (matchFound) return true;
         matchFound = (hostname.indexOf(filter) > 0 ? true : false);
@@ -777,14 +704,10 @@ const isServiceNow = (hostname) => {
             if (context.instanceOptions[hostname] !== undefined) {
                 hidden = context.instanceOptions[hostname]["hidden"];
                 color = context.instanceOptions[hostname]["color"];
-                console.log("*SNOW TOOL BELT BG* Found instance options for", hostname, "- color:", color, "hidden:", hidden);
-            } else {
-                console.log("*SNOW TOOL BELT BG* No instance options found for", hostname);
             }
 
             // This is an instance we did not know about, save it
             if (context.knownInstances[hostname] === undefined) {
-                console.log("*SNOW TOOL BELT BG* New instance discovered:", hostname);
                 context.knownInstances[hostname] = hostname;
                 context.instanceOptions[hostname] = {
                     'hidden': false
@@ -792,7 +715,6 @@ const isServiceNow = (hostname) => {
                 saveNewInstance(hostname);
             }
 
-            // Get friendly name from knownInstances
             const friendlyName = context.knownInstances[hostname] || hostname;
 
             response = { 
@@ -802,7 +724,6 @@ const isServiceNow = (hostname) => {
                 "instanceName": friendlyName,
                 "contentScriptEnabled": context.contentScriptEnabled 
             };
-            console.log("*SNOW TOOL BELT BG* Returning response:", response);
         }
     });
     return (response);
@@ -814,19 +735,13 @@ const isServiceNow = (hostname) => {
  * @param {Function} sendResponse
  */
 const msgListener = (message, sender, sendResponse) => {
-    console.log("*SNOW TOOL BELT BG* received message");
-    console.log(sender);
-    console.log(message);
     let hostname;
     try {
         hostname = new URL(sender.url).hostname;
-        console.log("*SNOW TOOL BELT BG* hostname from sender.url=" + hostname);
     } catch (e) {
-        console.error("*SNOW TOOL BELT BG* Unable to get sender hostname from sender.url: " + e);
         // Try to get hostname from message if provided
         if (message.hostname) {
             hostname = message.hostname;
-            console.log("*SNOW TOOL BELT BG* Using hostname from message=" + hostname);
         }
     }
 
@@ -845,8 +760,6 @@ const msgListener = (message, sender, sendResponse) => {
         sendResponse(isServiceNow(hostname));
         return true;
     } else if (message.command === "isServiceNow" && !hostname) {
-        // If hostname couldn't be extracted, return false
-        console.log("*SNOW TOOL BELT BG* isServiceNow called but hostname is undefined");
         sendResponse({ "isServiceNow": false });
         return true;
     }
@@ -857,21 +770,18 @@ const msgListener = (message, sender, sendResponse) => {
     }
     
     if (message.command === "execute-openversions" && sender.tab) {
-        console.log("*SNOW TOOL BELT BG* Opening versions for tab", sender.tab.id);
         const result = openVersions(sender.tab);
         sendResponse({ success: result });
         return true;
     }
     
     if (message.command === "execute-backgroundscript" && sender.tab) {
-        console.log("*SNOW TOOL BELT BG* Opening background script for tab", sender.tab.id);
         openBackgroundScriptWindow(sender.tab);
         sendResponse({ success: true });
         return true;
     }
     
     if (message.command === "execute-reloadtabs") {
-        console.log("*SNOW TOOL BELT BG* Reloading tabs for instance", message.instance, "windowId", message.windowId);
         reloadInstanceTabs(message.instance, message.windowId).then(result => {
             sendResponse(result);
         });
@@ -880,7 +790,6 @@ const msgListener = (message, sender, sendResponse) => {
     
     // Handle content script registration update
     if (message.command === "updateContentScriptRegistration") {
-        console.log("*SNOW TOOL BELT BG* Updating content script registration, enabled:", message.enabled);
         context.contentScriptEnabled = message.enabled;
         if (message.enabled) {
             registerMainContentScripts().then(() => {
@@ -896,16 +805,12 @@ const msgListener = (message, sender, sendResponse) => {
     
     // Phase 1: Handle tab state cache messages
     if (message.command === "reportTabState" && sender.tab) {
-        console.log("*SNOW TOOL BELT BG* Received tab state report from tab", sender.tab.id);
-        // Use title from content script (document.title) instead of browser tab title
-        // This ensures we get the actual page title, not the generic ServiceNow title
         updateTabStateCache(sender.tab.id, sender.tab.url, message.tabInfo);
         sendResponse({ success: true });
         return true;
     }
     
     if (message.command === "getTabStateCache") {
-        console.log("*SNOW TOOL BELT BG* Sending tab state cache to popup");
         sendResponse({ cache: getAllTabStatesFromCache() });
         return true;
     }
@@ -919,7 +824,6 @@ const msgListener = (message, sender, sendResponse) => {
     // Handle recent tabs request
     if (message.command === "getRecentTabs") {
         const instance = message.instance;
-        console.log("*SNOW TOOL BELT BG* Getting recent tabs for instance:", instance);
         
         chromeAPI.storage.local.get(['recentTabs'], (result) => {
             let recentTabs = [];
@@ -933,7 +837,6 @@ const msgListener = (message, sender, sendResponse) => {
             // Filter by instance (already limited to 10 per instance)
             const instanceTabs = recentTabs.filter(tab => tab.instance === instance);
             
-            console.log("*SNOW TOOL BELT BG* Found", instanceTabs.length, "recent tabs for", instance);
             sendResponse({ tabs: instanceTabs });
         });
         
@@ -944,9 +847,6 @@ const msgListener = (message, sender, sendResponse) => {
     if (message.command === "reopenTab") {
         const url = message.url;
         
-        console.log("*SNOW TOOL BELT BG* Reopening tab:", url);
-        
-        // Query for current tab
         chromeAPI.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const currentTab = tabs && tabs.length > 0 ? tabs[0] : null;
             
@@ -963,8 +863,6 @@ const msgListener = (message, sender, sendResponse) => {
             
             // Create the tab
             chromeAPI.tabs.create(createProperties, (newTab) => {
-                console.log("*SNOW TOOL BELT BG* Tab reopened:", newTab.id);
-                
                 // Try to add to same group if current tab is in a group
                 try {
                     if (currentTab && currentTab.groupId && currentTab.groupId !== -1) {
@@ -973,14 +871,12 @@ const msgListener = (message, sender, sendResponse) => {
                             groupId: currentTab.groupId
                         }, () => {
                             if (chrome.runtime.lastError) {
-                                console.log("*SNOW TOOL BELT BG* Could not add to group:", chrome.runtime.lastError.message);
-                            } else {
-                                console.log("*SNOW TOOL BELT BG* Tab added to group:", currentTab.groupId);
+                                // Could not add to group
                             }
                         });
                     }
                 } catch (error) {
-                    console.log("*SNOW TOOL BELT BG* Tab groups not available:", error.message);
+                    // Tab groups not available
                 }
                 
                 sendResponse({ success: true, tabId: newTab.id });
@@ -1040,7 +936,6 @@ const msgListener = (message, sender, sendResponse) => {
                 console.error("*SNOW TOOL BELT BG* Error saving instanceOptions:", chromeAPI.runtime.lastError);
                 sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
             } else {
-                console.log("*SNOW TOOL BELT BG* Saved instanceOption", key, "for", instance);
                 mirrorToSync({ instanceOptions: JSON.stringify(context.instanceOptions) });
                 
                 // Broadcast color changes to all tabs for this instance
@@ -1079,7 +974,6 @@ const msgListener = (message, sender, sendResponse) => {
                 console.error("*SNOW TOOL BELT BG* Error saving knownInstances:", chromeAPI.runtime.lastError);
                 sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
             } else {
-                console.log("*SNOW TOOL BELT BG* Saved friendly name for", instance, "->", name);
                 mirrorToSync({ knownInstances: JSON.stringify(context.knownInstances) });
                 sendResponse({ success: true });
             }
@@ -1126,7 +1020,6 @@ const msgListener = (message, sender, sendResponse) => {
             }
             if (cleaned) {
                 updates.instanceOptions = JSON.stringify(context.instanceOptions);
-                console.log("*SNOW TOOL BELT BG* Cleaned orphaned instanceOptions entries");
             }
         }
 
@@ -1135,7 +1028,6 @@ const msgListener = (message, sender, sendResponse) => {
                 console.error("*SNOW TOOL BELT BG* Error saving settings:", chromeAPI.runtime.lastError);
                 sendResponse({ success: false, error: chromeAPI.runtime.lastError.message });
             } else {
-                console.log("*SNOW TOOL BELT BG* Saved settings:", Object.keys(updates));
                 mirrorToSync(updates);
                 sendResponse({ success: true });
             }
@@ -1214,8 +1106,6 @@ const msgListener = (message, sender, sendResponse) => {
                     chromeAPI.storage.sync.set(mergedData, () => {
                         if (chromeAPI.runtime.lastError) {
                             console.warn("*SNOW TOOL BELT BG* Sync upload after merge failed:", chromeAPI.runtime.lastError.message);
-                        } else {
-                            console.log("*SNOW TOOL BELT BG* Sync enabled: merged and uploaded");
                         }
                     });
                 } catch (e) {
@@ -1223,7 +1113,6 @@ const msgListener = (message, sender, sendResponse) => {
                 }
             }
 
-            console.log("*SNOW TOOL BELT BG* useSync set to", newUseSync);
             sendResponse({ success: true });
         });
         return true;
@@ -1235,9 +1124,6 @@ const msgListener = (message, sender, sendResponse) => {
 chromeAPI.runtime.onMessage.addListener(msgListener);
 chromeAPI.tabs.onUpdated.addListener(tabUpdated);
 chromeAPI.commands.onCommand.addListener(cmdListener);
-
-// Firefox-specific: Add initialization logging
-console.log("*SNOW TOOL BELT BG* Background script initializing, browser:", isChromium ? "Chrome" : "Firefox");
 
 /**
  * Startup sync merge: if useSync is enabled, merges any new data from sync into local.
@@ -1251,11 +1137,8 @@ async function mergeSyncOnStartup() {
         context.useSync = (useSyncResult.useSync === true || useSyncResult.useSync === "true");
 
         if (!context.useSync) {
-            console.log("*SNOW TOOL BELT BG* Sync disabled, skipping merge");
             return;
         }
-
-        console.log("*SNOW TOOL BELT BG* Sync enabled, merging sync → local...");
 
         // Read from both
         const syncData = await chromeAPI.storage.sync.get([
@@ -1299,9 +1182,6 @@ async function mergeSyncOnStartup() {
         }
 
         const syncAdded = Object.keys(mergedInstances).length - Object.keys(localInstances).length;
-        if (syncAdded > 0) {
-            console.log("*SNOW TOOL BELT BG* Sync merge added", syncAdded, "instances from sync");
-        }
 
         // Write merged data back to local (only if sync added something)
         if (syncAdded > 0 || Object.keys(mergedOptions).length > Object.keys(localOptions).length) {
@@ -1318,57 +1198,10 @@ async function mergeSyncOnStartup() {
         if (Object.keys(settingsToMerge).length > 0) {
             await chromeAPI.storage.local.set(settingsToMerge);
         }
-
-        console.log("*SNOW TOOL BELT BG* Sync merge complete");
     } catch (error) {
         console.error("*SNOW TOOL BELT BG* Sync merge error:", error);
     }
 }
-
-// ============================================================================
-// TEMPORARY DIAGNOSTIC: Monitor all writes to knownInstances/instanceOptions
-// Remove this block once the data loss root cause is identified.
-// ============================================================================
-chromeAPI.storage.onChanged.addListener((changes, area) => {
-    if (changes.knownInstances || changes.instanceOptions) {
-        let kiOldCount = '(unchanged)', kiNewCount = '(unchanged)';
-        let ioOldCount = '(unchanged)', ioNewCount = '(unchanged)';
-        
-        if (changes.knownInstances) {
-            try { kiOldCount = Object.keys(JSON.parse(changes.knownInstances.oldValue || "{}")).length; } catch(e) { kiOldCount = 'parse-error'; }
-            try { kiNewCount = Object.keys(JSON.parse(changes.knownInstances.newValue || "{}")).length; } catch(e) { kiNewCount = 'parse-error'; }
-        }
-        if (changes.instanceOptions) {
-            try { ioOldCount = Object.keys(JSON.parse(changes.instanceOptions.oldValue || "{}")).length; } catch(e) { ioOldCount = 'parse-error'; }
-            try { ioNewCount = Object.keys(JSON.parse(changes.instanceOptions.newValue || "{}")).length; } catch(e) { ioNewCount = 'parse-error'; }
-        }
-        
-        const timestamp = new Date().toISOString();
-        console.warn(`*SNOW TOOL BELT BG* [STORAGE MONITOR ${timestamp}] area=${area} knownInstances: ${kiOldCount} → ${kiNewCount}, instanceOptions: ${ioOldCount} → ${ioNewCount}`);
-        
-        // ALERT: data regression detected
-        if (changes.knownInstances && changes.knownInstances.oldValue && changes.knownInstances.newValue) {
-            try {
-                const oldCount = Object.keys(JSON.parse(changes.knownInstances.oldValue)).length;
-                const newCount = Object.keys(JSON.parse(changes.knownInstances.newValue)).length;
-                if (newCount < oldCount) {
-                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] knownInstances REDUCED from ${oldCount} to ${newCount}!`);
-                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] Old value had:`, Object.keys(JSON.parse(changes.knownInstances.oldValue)).slice(0, 5), '...');
-                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] New value has:`, Object.keys(JSON.parse(changes.knownInstances.newValue)).slice(0, 5), '...');
-                }
-            } catch(e) {}
-        }
-        if (changes.instanceOptions && changes.instanceOptions.oldValue && changes.instanceOptions.newValue) {
-            try {
-                const oldCount = Object.keys(JSON.parse(changes.instanceOptions.oldValue)).length;
-                const newCount = Object.keys(JSON.parse(changes.instanceOptions.newValue)).length;
-                if (newCount < oldCount) {
-                    console.error(`*SNOW TOOL BELT BG* [DATA LOSS ALERT] instanceOptions REDUCED from ${oldCount} to ${newCount}!`);
-                }
-            } catch(e) {}
-        }
-    }
-});
 
 // Run sync merge before loading options.
 // settingsReady resolves once getOptions has finished loading data from storage.
@@ -1387,8 +1220,6 @@ const settingsReady = mergeSyncOnStartup().then(() => {
  * @param {object} tab Tab object with url, title, and instance
  */
 const addToRecentTabs = (tab) => {
-    console.log("*SNOW TOOL BELT BG* Adding to recent tabs:", tab);
-    
     chromeAPI.storage.local.get(['recentTabs'], (result) => {
         let recentTabs = [];
         try {
@@ -1430,9 +1261,7 @@ const addToRecentTabs = (tab) => {
         recentTabs = recentTabs.filter(t => t.timestamp > oneDayAgo);
         
         // Save to storage
-        chromeAPI.storage.local.set({ recentTabs: JSON.stringify(recentTabs) }, () => {
-            console.log("*SNOW TOOL BELT BG* Recent tabs saved:", recentTabs.length, "tabs");
-        });
+        chromeAPI.storage.local.set({ recentTabs: JSON.stringify(recentTabs) });
     });
 };
 
@@ -1481,7 +1310,6 @@ chromeAPI.tabs.onRemoved.addListener((tabId, removeInfo) => {
     
     // Clean up cache
     if (tabStateCache.tabs[tabId]) {
-        console.log("*SNOW TOOL BELT BG* Tab", tabId, "removed, cleaning cache");
         delete tabStateCache.tabs[tabId];
         debouncedSaveCache();
     }
@@ -1497,11 +1325,7 @@ chromeAPI.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         // If no report after 10 seconds, mark as non-responsive
         setTimeout(() => {
             const cachedState = tabStateCache.tabs[tabId];
-            // Only mark as non-responsive if:
-            // 1. No cached state exists, OR
-            // 2. Cached state hasn't been updated since this page load
             if (!cachedState || cachedState.lastUpdated < loadTime) {
-                console.log("*SNOW TOOL BELT BG* Tab", tabId, "loaded but no state report received within 10 seconds");
                 tabStateCache.tabs[tabId] = {
                     type: "non responsive",
                     lastUpdated: Date.now(),
@@ -1510,14 +1334,10 @@ chromeAPI.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                     instance: new URL(tab.url).hostname
                 };
                 debouncedSaveCache();
-            } else {
-                console.log("*SNOW TOOL BELT BG* Tab", tabId, "reported state successfully after load");
             }
         }, 10000);
     }
 });
-
-console.log("*SNOW TOOL BELT BG* Phase 1: Tab state cache management initialized");
 
 /**
  * Tab Group Sync: Listen for tab group updates to sync collapse state with popup
@@ -1526,32 +1346,24 @@ console.log("*SNOW TOOL BELT BG* Phase 1: Tab state cache management initialized
 try {
     if (chrome.tabGroups && chrome.tabGroups.onUpdated) {
         chrome.tabGroups.onUpdated.addListener(async (group) => {
-            console.log("*SNOW TOOL BELT BG* Tab group updated:", group.id, "collapsed:", group.collapsed);
-            
             // Find which instance this group belongs to
             try {
                 const tabs = await chrome.tabs.query({ groupId: group.id });
                 if (tabs.length === 0) return;
                 
-                // Get instance from first tab in group
                 const firstTab = tabs[0];
                 if (!firstTab.url) return;
                 
                 const url = new URL(firstTab.url);
                 const instance = url.hostname;
                 
-                console.log("*SNOW TOOL BELT BG* Group belongs to instance:", instance);
-                
-                // Update instanceOptions checkState to match group collapsed state
-                // Note: checkState=true means expanded in popup, collapsed=true means collapsed in browser
-                // So we need to invert: checkState = !collapsed
+                // checkState=true means expanded, collapsed=true means collapsed
                 if (!context.instanceOptions[instance]) {
                     context.instanceOptions[instance] = {};
                 }
                 
                 context.instanceOptions[instance]["checkState"] = !group.collapsed;
 
-                // Save only instanceOptions — targeted write, no full context overwrite
                 context.storageArea.set({
                     "instanceOptions": JSON.stringify(context.instanceOptions)
                 }, () => {
@@ -1560,8 +1372,6 @@ try {
                     }
                 });
                 
-                console.log("*SNOW TOOL BELT BG* Updated instance", instance, "checkState to", !group.collapsed);
-                
                 // Notify popup if it's open
                 chrome.runtime.sendMessage({
                     command: "tabGroupStateChanged",
@@ -1569,7 +1379,6 @@ try {
                     windowId: group.windowId,
                     collapsed: group.collapsed
                 }, () => {
-                    // Ignore errors if popup is not open
                     if (chrome.runtime.lastError) {
                         // Popup not open, that's fine
                     }
@@ -1579,9 +1388,7 @@ try {
                 console.error("*SNOW TOOL BELT BG* Error syncing tab group state:", error);
             }
         });
-        
-        console.log("*SNOW TOOL BELT BG* Tab group sync initialized");
     }
 } catch (error) {
-    console.log("*SNOW TOOL BELT BG* Tab groups API not available:", error.message);
+    // Tab groups API not available
 }

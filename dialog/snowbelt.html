@@ -69,6 +69,7 @@
     </template>
     <template id="tab-row">
         <li id="tab{{tabid}}" class="link-to-tab" data-instance="{{instance}}" data-window-id="{{windowId}}">
+            <input type="checkbox" class="tab-select-checkbox" data-id="{{tabid}}" title="Select for bulk action" />
             <a data-id="{{tabid}}" data-instance="{{instance}}" data-context-id="{{contextid}}"
                 class="no_underline button-muted tab-commands" title="close tab">&#10006;</a> <!-- ✖ -->
             <a data-id="{{tabid}}" class="no_underline button-muted tab-commands" title="open on...">&#10010;</a>
@@ -80,6 +81,13 @@
 
         </li>
     </template>
+
+    <div id="bulk-actions" class="hidden">
+        <span id="bulk-count">0 selected</span>
+        <a id="bulk-close" class="no_underline button-muted bulk-btn" title="Close selected tabs">&#10006; close</a>
+        <a id="bulk-reload" class="no_underline button-muted bulk-btn" title="Reload selected tabs">&#8635; reload</a>
+        <a id="bulk-deselect" class="no_underline button-muted bulk-btn" title="Deselect all">deselect</a>
+    </div>
     
     <div class="smart-popin" id="colorPicker">
         <div class="sp-table">

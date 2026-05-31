@@ -275,7 +275,7 @@ const restoreOptions = () => {
     }
 
     // Load always-local settings (debugMode, showInfoPanel) in parallel with background settings
-    chrome.storage.local.get(["debugMode", "showInfoPanel", "trackRecentTabs", "maxRecentTabs", "removeAfterReopen", "groupRecentByInstance"], (localResult) => {
+    chrome.storage.local.get(["debugMode", "showInfoPanel", "showViewportBorder", "trackRecentTabs", "maxRecentTabs", "removeAfterReopen", "groupRecentByInstance"], (localResult) => {
         const debugMode = localResult.debugMode === true;
         document.getElementById("debugMode").checked = debugMode;
         context.debugMode = debugMode;
@@ -283,6 +283,9 @@ const restoreOptions = () => {
         const showInfoPanel = localResult.showInfoPanel !== false; // Default to true
         document.getElementById("showInfoPanel").checked = showInfoPanel;
         context.showInfoPanel = showInfoPanel;
+
+        const showViewportBorder = localResult.showViewportBorder !== false; // Default to true
+        document.getElementById("showViewportBorder").checked = showViewportBorder;
     });
 
     // Load all other settings from background.
@@ -506,6 +509,10 @@ const saveOptions = (evt) => {
             context.showInfoPanel = evt.target.checked;
             chrome.storage.local.set({ "showInfoPanel": context.showInfoPanel });
 
+        } else if (evt.target.id === "showViewportBorder") {
+            // showViewportBorder is always local
+            chrome.storage.local.set({ "showViewportBorder": evt.target.checked });
+
         } else if (evt.target.id === "contentScriptEnabled") {
             context.contentScriptEnabled = evt.target.checked;
             toggleAdvancedFeaturesOptions(context.contentScriptEnabled, true);
@@ -522,7 +529,6 @@ const saveOptions = (evt) => {
                         console.error("*SNOW TOOL BELT* Error notifying background:", chrome.runtime.lastError);
                     }
                 });
-                displayMessage("Advanced content script features " + (context.contentScriptEnabled ? "enabled" : "disabled") + ". Please reload ServiceNow pages for changes to take effect.");
             });
 
         } else if (evt.target.id === "maxSearchResults") {
@@ -711,6 +717,7 @@ document.getElementById("contentScriptEnabled").addEventListener("change", saveO
 
 document.getElementById("debugMode").addEventListener("change", saveOptions);
 document.getElementById("showInfoPanel").addEventListener("change", saveOptions);
+document.getElementById("showViewportBorder").addEventListener("change", saveOptions);
 document.getElementById("maxSearchResults").addEventListener("change", saveOptions);
 document.getElementById("export").addEventListener("click", exportOptions);
 document.getElementById("import").addEventListener("click", openFileSelect);
