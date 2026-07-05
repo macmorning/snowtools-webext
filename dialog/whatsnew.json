@@ -1,5 +1,17 @@
 [
     {
+        "version": "9.3.0",
+        "msg": "Most notable changes:",
+        "items": [
+            "You can now select then close or reload multiple tabs from the popup using checkboxes",
+            "Corrected a bug that generated errors in the console regarding a method that was already declared",
+            "Added a 'SNTB - Query' option to the contextual menu when right clicking a field in legacy form to query the table for that value",
+            "Added a colored border to all instance tabs view ports when a color is set; you can disable this in the options pages",
+            "Added a 'open' or 'o' command in the console to open any table by name or label",
+            "Added a 'scout' command in the console to explore a task and its related content; for HR Cases only for now"
+        ]
+    },
+    {
         "version": "9.1.0",
         "msg": "Most notable changes:",
         "items": [
